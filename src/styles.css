@@ -1,4 +1,5 @@
-/* Reset + dark background so the Phaser canvas fills cleanly. */
+/* Base layout — Phaser canvas fills the screen as the background;
+   #ui-root sits on top for screens (auth, panels, etc.). */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   width: 100%;
@@ -11,11 +12,179 @@ html, body {
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+
 #game-root {
-  width: 100vw;
-  height: 100vh;
+  position: fixed; inset: 0;
+  z-index: 0;
+}
+#game-root canvas { display: block; }
+
+#ui-root {
+  position: fixed; inset: 0;
+  z-index: 10;
+  pointer-events: none;     /* let map clicks through by default */
+}
+#ui-root > * { pointer-events: auto; }  /* but UI children intercept */
+
+/* ── Screens (auth, industry-select, loading) ── */
+.ui-screen {
+  width: 100%; height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 20px;
+  background: rgba(10, 14, 20, 0.96);
 }
-canvas { display: block; }
+.ui-screen-center { backdrop-filter: blur(4px); }
+
+.ui-card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 12px;
+  padding: 32px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+}
+.ui-card-wide { max-width: 760px; }
+
+.ui-title {
+  font-size: 32px;
+  color: #16c79a;
+  margin-bottom: 6px;
+  text-align: center;
+}
+.ui-subtitle {
+  color: #888;
+  font-size: 14px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.ui-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #0f3460;
+}
+.ui-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 14px;
+  padding: 10px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ui-tab.active {
+  color: #16c79a;
+  border-bottom-color: #16c79a;
+}
+
+.ui-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ui-form input {
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  color: #e6e6e6;
+  font-size: 15px;
+  padding: 12px 14px;
+  font-family: inherit;
+}
+.ui-form input:focus {
+  outline: none;
+  border-color: #16c79a;
+}
+
+.ui-btn-primary {
+  background: #16c79a;
+  color: #0a0e14;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.ui-btn-primary:hover:not(:disabled) { background: #14b88e; }
+.ui-btn-primary:disabled {
+  background: #2a3a5a;
+  color: #6a7a8a;
+  cursor: not-allowed;
+}
+
+.ui-error {
+  color: #e94560;
+  font-size: 13px;
+  min-height: 18px;
+  text-align: center;
+}
+
+/* ── Industry select ── */
+.industry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.industry-card {
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  font-family: inherit;
+  color: inherit;
+}
+.industry-card:hover {
+  border-color: #16c79a;
+  transform: translateY(-2px);
+}
+.industry-card.selected {
+  border-color: #16c79a;
+  background: #1a2a40;
+  box-shadow: 0 0 0 2px rgba(22, 199, 154, 0.3);
+}
+.ic-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+.ic-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #16c79a;
+  margin-bottom: 6px;
+}
+.ic-desc {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.4;
+}
+
+/* ── Loading spinner ── */
+.ui-loading {
+  text-align: center;
+  color: #888;
+}
+.ui-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #0f3460;
+  border-top-color: #16c79a;
+  border-radius: 50%;
+  animation: ui-spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes ui-spin {
+  to { transform: rotate(360deg); }
+}
