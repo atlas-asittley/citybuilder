@@ -21,6 +21,11 @@ export const state = {
   inventory: {},            // keyed by resource_key → numeric quantity
   notifications: [],        // recent notifications, newest first
 
+  // Trade — populated by loader, driven by partner panel + auto-trader.
+  traders: {},              // keyed by trader.key — { key, name, mode, ... }
+  allTraderPrices: {},      // [trader_key][resource_key] → { buy_price, sell_price, daily_buy_cap, daily_sell_cap }
+  tradePolicies: {},        // [resource_key] → { mode, reserve_target, min_sell_price, max_buy_price }
+
   // Camera / UI hints — only what the renderer needs
   gridMinX: 0,
   gridMinY: 0,

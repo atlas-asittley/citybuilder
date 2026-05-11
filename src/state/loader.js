@@ -70,6 +70,65 @@ async function fetchResources() {
   return map;
 }
 
+async function fetchTraders() {
+  const { data, error } = await sb.from('traders').select('*').eq('is_active', true);
+  if (error) return {};   // table absent in some envs — graceful empty
+  const map = {};
+  if (data) for (const t of data) map[t.key] = t;
+  return map;
+}
+
+async function fetchTraderPrices() {
+  // trader_prices has both global rows (city_id IS NULL) and per-
+  // city rows. Per-city rows shadow globals for that trader — v1
+  // implements this in JS and we mirror it here so the partner
+  // panel shows the prices actually in effect for this city.
+  const cityId = state.profile?.city_id || null;
+  const { data, error } = await sb.from('trader_prices').select('*');
+  if (error || !data) return {};
+
+  const out = {};
+  // Pass 1: global prices
+  for (const tp of data) {
+    if (tp.city_id) continue;
+    if (!out[tp.trader_key]) out[tp.trader_key] = {};
+    out[tp.trader_key][tp.resource_key] = {
+      buy_price: tp.buy_price, sell_price: tp.sell_price,
+      daily_buy_cap: tp.daily_buy_cap, daily_sell_cap: tp.daily_sell_cap
+    };
+  }
+  // Pass 2: any trader with a city-specific row gets its catalog
+  // completely rebuilt from those rows (matches server-side _trader_catalog).
+  const cityTraders = new Set();
+  for (const tp of data) {
+    if (tp.city_id === cityId) cityTraders.add(tp.trader_key);
+  }
+  for (const tk of cityTraders) out[tk] = {};
+  for (const tp of data) {
+    if (tp.city_id !== cityId) continue;
+    out[tp.trader_key][tp.resource_key] = {
+      buy_price: tp.buy_price, sell_price: tp.sell_price,
+      daily_buy_cap: tp.daily_buy_cap, daily_sell_cap: tp.daily_sell_cap
+    };
+  }
+  return out;
+}
+
+async function fetchTradePolicies() {
+  const { data, error } = await sb.from('trade_policies').select('*');
+  if (error || !data) return {};
+  const map = {};
+  for (const p of data) {
+    map[p.resource_key] = {
+      mode: p.mode,
+      reserve_target: p.reserve_target,
+      min_sell_price: p.min_sell_price,
+      max_buy_price: p.max_buy_price
+    };
+  }
+  return map;
+}
+
 // Compute grid bounds from the player's owned tiles so the Phaser
 // camera knows what world rectangle to constrain to.
 function computeGridBounds(tileMap) {
@@ -96,12 +155,15 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resources] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
     fetchHousingTiers(),
-    fetchResources()
+    fetchResources(),
+    fetchTraders(),
+    fetchTraderPrices(),
+    fetchTradePolicies()
   ]);
 
   state.allBuildings = buildings;
@@ -109,6 +171,9 @@ export async function loadInitialWorld() {
   state.buildingTypes = buildingTypes;
   state.housingTierConfig = housingTiers;
   state.resourceNodes = resources;   // keep store field name for back-compat
+  state.traders = traders;
+  state.allTraderPrices = traderPrices;
+  state.tradePolicies = tradePolicies;
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;
