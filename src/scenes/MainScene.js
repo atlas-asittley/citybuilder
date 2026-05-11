@@ -245,13 +245,24 @@ export class MainScene extends Phaser.Scene {
     // like generic colored dots (Atlas 2026-05-11). Sized so a tile
     // shows the icon plus the underlying terrain color.
     this._ensureResourceIconTextures();
-    // Walker sprite — small circle, tinted at runtime by the
-    // building's category so groups of workers visually cluster.
+    // Walker sprite — small humanoid silhouette so workers read as
+    // people instead of dots (Atlas 2026-05-11). Head, body, two
+    // legs. Drawn in two shades of white so Phaser's setTint
+    // preserves the head/body contrast when colored at runtime.
     if (!this.textures.exists('walker')) {
       const g = this.add.graphics();
+      const W = 10, H = 14;
+      // head — slightly darker so tinting keeps a visible face
+      g.fillStyle(0xdddddd, 1);
+      g.fillCircle(W / 2, 3, 3);
+      // body — torso rectangle
       g.fillStyle(0xffffff, 1);
-      g.fillCircle(5, 5, 5);
-      g.generateTexture('walker', 10, 10);
+      g.fillRect(W / 2 - 3, 6, 6, 5);
+      // legs — two small rectangles
+      g.fillStyle(0xbbbbbb, 1);
+      g.fillRect(W / 2 - 3, 11, 2, 3);
+      g.fillRect(W / 2 + 1, 11, 2, 3);
+      g.generateTexture('walker', W, H);
       g.destroy();
     }
     // Soft white puff for chimney smoke — radial gradient faked with
