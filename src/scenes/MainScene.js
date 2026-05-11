@@ -57,6 +57,27 @@ const CATEGORY_TINTS = {
   transport_connector: 0x6a4a6a
 };
 
+// World bounds = the rectangle that contains every owned tile AND
+// every other player's building in state.allBuildings. Used to bound
+// the camera so the player can scroll to see neighbors.
+function computeWorldBounds() {
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  for (const k in state.tileMap) {
+    const t = state.tileMap[k];
+    if (t.x < minX) minX = t.x; if (t.x > maxX) maxX = t.x;
+    if (t.y < minY) minY = t.y; if (t.y > maxY) maxY = t.y;
+  }
+  for (const b of state.allBuildings) {
+    if (b.x < minX) minX = b.x;
+    if (b.x > maxX) maxX = b.x;
+    if (b.y < minY) minY = b.y;
+    if (b.y > maxY) maxY = b.y;
+  }
+  if (!isFinite(minX)) return { minX: 0, minY: 0, cols: 0, rows: 0 };
+  return { minX, minY, cols: maxX - minX + 1, rows: maxY - minY + 1 };
+}
+
 // Heatmap value → (tint, alpha). The alpha gives a fading overlay
 // at low values so neutral tiles show through. Pollution: 0=no
 // tint, ≥30=heavy red. Desirability: low=red overlay, mid=neutral,
@@ -309,6 +330,41 @@ export class MainScene extends Phaser.Scene {
     this._aoeOverlays = [];
   }
 
+  // Highlight candidate expansion chunks. Each row is { chunk_x,
+  // chunk_y }; chunks are 10×10 tiles in v1 — render a dashed
+  // rectangle so the player sees exactly which patches of land
+  // they're buying.
+  showExpansionCandidates(candidates) {
+    this.clearExpansionCandidates();
+    this._expansionOverlays = this._expansionOverlays || [];
+    const CHUNK = 10;
+    candidates.forEach((c, i) => {
+      const tlx = c.chunk_x * CHUNK;
+      const tly = c.chunk_y * CHUNK;
+      const wx = (tlx - state.gridMinX) * TILE_PX;
+      const wy = (tly - state.gridMinY) * TILE_PX;
+      const size = CHUNK * TILE_PX;
+      const fill = this.add.sprite(wx + size / 2, wy + size / 2, 'square');
+      fill.setDisplaySize(size, size);
+      fill.setTint(0x16c79a);
+      fill.setAlpha(0.18);
+      fill.setDepth(4);
+      const label = this.add.text(wx + size / 2, wy + size / 2, '#' + (i + 1), {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '32px',
+        color: '#16c79a',
+        fontStyle: 'bold'
+      }).setOrigin(0.5).setDepth(5);
+      this._expansionOverlays.push(fill, label);
+    });
+  }
+
+  clearExpansionCandidates() {
+    if (!this._expansionOverlays) return;
+    for (const s of this._expansionOverlays) s.destroy();
+    this._expansionOverlays = [];
+  }
+
   // Public: switch the heatmap overlay between Normal / Pollution /
   // Desirability. Rebuilds the overlay sprites from state.tileMap
   // (which carries the per-tile metric values pulled from
@@ -405,6 +461,21 @@ export class MainScene extends Phaser.Scene {
   }
 
   _renderTiles() {
+    // Wilderness backdrop covering the entire bounded world. Without
+    // this, neighbors' buildings would float on the page background.
+    // One big sprite — cheap, one draw call.
+    const bounds = computeWorldBounds();
+    if (bounds.cols > 0) {
+      const camLeft = (bounds.minX - state.gridMinX) * TILE_PX;
+      const camTop  = (bounds.minY - state.gridMinY) * TILE_PX;
+      const back = this.add.sprite(camLeft + bounds.cols * TILE_PX / 2,
+                                   camTop + bounds.rows * TILE_PX / 2,
+                                   'square');
+      back.setDisplaySize(bounds.cols * TILE_PX, bounds.rows * TILE_PX);
+      back.setTint(TERRAIN_TINTS.wilderness);
+      back.setDepth(-1);
+    }
+
     // Render every owned tile, plus a small dot for tiles that
     // carry a resource node (timber grove, stone outcrop, iron
     // deposit, etc.). Players need to see resource tiles so they
@@ -474,20 +545,35 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  _setupCamera() {
-    const worldW = state.gridCols * TILE_PX;
-    const worldH = state.gridRows * TILE_PX;
-    // Expose world dims for ZoomControls' reset button.
-    this._worldW = worldW;
-    this._worldH = worldH;
+    // Tile rendering uses state.gridMinX/Y as world origin (own
+    // parcel anchored at 0,0). Other players' buildings render at
+    // negative or out-of-parcel coordinates relative to that origin.
+    // Set the camera bounds to the rectangle that wraps the union
+    // of every visible tile + building so the player can pan to
+    // neighbors south/east/etc of their own land.
+    const bounds = computeWorldBounds();
+    const camLeft = (bounds.minX - state.gridMinX) * TILE_PX;
+    const camTop  = (bounds.minY - state.gridMinY) * TILE_PX;
+    const camW = bounds.cols * TILE_PX;
+    const camH = bounds.rows * TILE_PX;
+    // Expose for ZoomControls' reset button (centers on own parcel).
+    this._worldW = state.gridCols * TILE_PX;
+    this._worldH = state.gridRows * TILE_PX;
 
     const cam = this.cameras.main;
-    cam.setBounds(0, 0, worldW, worldH);
-    cam.centerOn(worldW / 2, worldH / 2);
+    const SLACK = 5 * TILE_PX;
+    cam.setBounds(camLeft - SLACK, camTop - SLACK, camW + SLACK * 2, camH + SLACK * 2);
+    // Center on the player's OWN parcel — they expect to see their
+    // city on load, not the world centroid.
+    cam.centerOn(this._worldW / 2, this._worldH / 2);
 
-    // Drag-to-pan.
+    // Drag-to-pan, but only when we're not drag-painting roads.
+    // Otherwise the same drag motion both paints AND scrolls and the
+    // road never goes down because the cursor's world position is
+    // being pulled out from under it (Atlas 2026-05-11).
     this.input.on('pointermove', (pointer) => {
       if (!pointer.isDown) return;
+      if (this._dragPaintActive) return;
       cam.scrollX -= (pointer.x - pointer.prevPosition.x) / cam.zoom;
       cam.scrollY -= (pointer.y - pointer.prevPosition.y) / cam.zoom;
     });

@@ -3,27 +3,36 @@
 // stay clean.
 import { sb } from './supabase.js';
 
-export async function placeBuilding(tileId, buildingTypeKey) {
-  const { data, error } = await sb.rpc('place_building', {
+// Some RPCs collide with the pg_cron tick worker if they fire at the
+// exact second the minute-boundary tick starts (both lock overlapping
+// building rows). Postgres surfaces this as
+// "deadlock detected". Atlas hit this 2026-05-11 on demolish. A single
+// 250ms retry resolves it >99% of the time without surfacing the
+// scary error to the user.
+async function callWithDeadlockRetry(rpcName, args, retries = 1) {
+  let lastErr = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const { data, error } = await sb.rpc(rpcName, args);
+    if (!error) return data;
+    lastErr = error;
+    const isDeadlock = /deadlock/i.test(error.message || '');
+    if (!isDeadlock || attempt === retries) throw error;
+    await new Promise((res) => setTimeout(res, 250));
+  }
+  throw lastErr;
+}
+
+export function placeBuilding(tileId, buildingTypeKey) {
+  return callWithDeadlockRetry('place_building', {
     p_tile_id: tileId,
     p_building_type_key: buildingTypeKey
   });
-  if (error) throw error;
-  return data;
 }
 
-export async function demolishBuilding(buildingId) {
-  const { data, error } = await sb.rpc('demolish_building', {
-    p_building_id: buildingId
-  });
-  if (error) throw error;
-  return data;
+export function demolishBuilding(buildingId) {
+  return callWithDeadlockRetry('demolish_building', { p_building_id: buildingId });
 }
 
-export async function upgradeHouse(buildingId) {
-  const { data, error } = await sb.rpc('upgrade_house', {
-    p_building_id: buildingId
-  });
-  if (error) throw error;
-  return data;
+export function upgradeHouse(buildingId) {
+  return callWithDeadlockRetry('upgrade_house', { p_building_id: buildingId });
 }

@@ -20,6 +20,7 @@ import { state, setUser, setProfile, setCityName } from './state/store.js';
 import { loadInitialWorld } from './state/loader.js';
 import { mountAuthScreen, unmountAuthScreen } from './ui/AuthScreen.js';
 import { bindSceneToInspector } from './ui/InspectorPanel.js';
+import { bindSceneToExpansion } from './ui/ExpansionPanel.js';
 import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/IndustrySelectScreen.js';
 import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js';
 import { mountTopBar } from './ui/TopBar.js';
@@ -203,6 +204,7 @@ async function enterGame() {
     mountZoomControls(mainScene);
     mountHeatmapToggle(mainScene);
     bindSceneToInspector(mainScene);
+    bindSceneToExpansion(mainScene);
 
     onTileMetricsChanged(() => mainScene.refreshHeatmap?.());
 

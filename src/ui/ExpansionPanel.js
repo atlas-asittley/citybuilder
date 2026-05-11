@@ -7,8 +7,14 @@ import { state } from '../state/store.js';
 import { loadInitialWorld } from '../state/loader.js';
 
 let onCompleteCallback = null;
+let mounted = false;
 
 export async function openExpansionPanel(onComplete) {
+  if (mounted) return;       // already showing — second click is a no-op
+  // Defensive: clear any orphan overlay (e.g., from a prior session
+  // that didn't tear down cleanly).
+  const orphan = document.getElementById('expansion-overlay');
+  if (orphan) orphan.remove();
   onCompleteCallback = onComplete;
   const cost = nextExpansionCost();
 
@@ -33,6 +39,13 @@ export async function openExpansionPanel(onComplete) {
 }
 
 function mount(candidates, cost) {
+  mounted = true;
+  // Tell the MainScene to draw outline rectangles around each
+  // candidate chunk so the player can SEE which patches of land
+  // they're choosing between, not just (chunk_x, chunk_y) numbers.
+  if (sceneRef?.showExpansionCandidates) {
+    sceneRef.showExpansionCandidates(candidates);
+  }
   const root = document.getElementById('ui-root');
   const overlay = document.createElement('div');
   overlay.id = 'expansion-overlay';
@@ -86,4 +99,9 @@ function mount(candidates, cost) {
 function close() {
   const el = document.getElementById('expansion-overlay');
   if (el) el.remove();
+  mounted = false;
+  if (sceneRef?.clearExpansionCandidates) sceneRef.clearExpansionCandidates();
 }
+
+let sceneRef = null;
+export function bindSceneToExpansion(scene) { sceneRef = scene; }
