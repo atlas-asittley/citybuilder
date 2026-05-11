@@ -4,6 +4,7 @@
 // and their custom color.
 import { sb } from '../api/supabase.js';
 import { state } from '../state/store.js';
+import { openComposeFor } from './TradeOffersPanel.js';
 
 let mounted = false;
 
@@ -59,11 +60,18 @@ export async function openPlayers() {
           <div class="pp-name">${escapeHtml(p.display_name || '(unnamed)')}${isMe ? ' <small>(you)</small>' : ''}</div>
           <div class="pp-meta">${escapeHtml(p.industry_key || '—')} · pop ${Math.floor(p.population || 0)} · $${Math.floor(p.money || 0)} · ${p.chunks_owned || 1} chunks</div>
         </div>
+        ${isMe ? '' : `<button class="pp-trade" data-pid="${p.id}" data-name="${escapeHtml(p.display_name || '')}">Trade</button>`}
       </div>
     `;
   }).join('');
 
   document.getElementById('pp-body').innerHTML = html || '<p class="pp-loading">No players yet.</p>';
+
+  document.querySelectorAll('.pp-trade').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      openComposeFor({ id: btn.dataset.pid, display_name: btn.dataset.name });
+    });
+  });
 }
 
 function escapeHtml(s) {

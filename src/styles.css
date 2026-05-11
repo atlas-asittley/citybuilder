@@ -298,6 +298,112 @@ html, body {
 .pp-meta { color: #888; font-size: 12px; margin-top: 2px; }
 .pp-loading, .pp-error { color: #888; font-size: 13px; text-align: center; padding: 20px; }
 .pp-error { color: #e94560; }
+.pp-trade {
+  background: rgba(22, 199, 154, 0.12);
+  border: 1px solid #16c79a;
+  color: #16c79a;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.pp-trade:hover { background: #16c79a; color: #0a0e14; }
+
+/* Trade-offers panel */
+#offers-overlay {
+  position: fixed; inset: 0;
+  z-index: 80;
+  background: rgba(10, 14, 20, 0.7);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+.to-card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 16px 20px;
+  width: 100%; max-width: 520px; max-height: 86vh;
+  overflow-y: auto;
+}
+.to-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.to-header h2 { font-size: 18px; color: #16c79a; }
+.to-close {
+  background: transparent; border: none; color: #888;
+  font-size: 22px; cursor: pointer; padding: 0 4px;
+}
+.to-hint { color: #888; font-size: 12px; margin-bottom: 12px; line-height: 1.4; }
+.to-section-title {
+  color: #888; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; margin: 12px 0 6px;
+}
+.to-loading, .to-empty, .to-error { color: #888; text-align: center; padding: 12px; font-size: 13px; }
+.to-error { color: #e94560; }
+.to-offer {
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.to-offer-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+.to-offer-who { color: #16c79a; }
+.to-offer-when { color: #888; }
+.to-offer-body { display: flex; gap: 12px; margin-bottom: 6px; }
+.to-bundle { flex: 1; font-size: 12px; color: #e6e6e6; }
+.to-bundle-label {
+  display: block;
+  color: #888;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.to-bundle-give .to-bundle-label { color: #e94560; }
+.to-bundle-get  .to-bundle-label { color: #16c79a; }
+.to-offer-msg {
+  font-style: italic;
+  color: #888;
+  font-size: 12px;
+  padding: 6px 8px;
+  background: rgba(15, 52, 96, 0.4);
+  border-left: 2px solid #0f3460;
+  margin-bottom: 6px;
+}
+.to-offer-actions { display: flex; gap: 6px; }
+
+/* Compose form */
+.to-compose { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.to-compose-half {
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  padding: 10px;
+}
+.to-field {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  color: #888;
+  margin: 4px 0 8px;
+  gap: 2px;
+}
+.to-field input, .to-field select {
+  background: #16213e;
+  color: #e6e6e6;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.to-compose-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.to-compose-actions .ip-btn { flex: 1; }
 
 /* Trade panel */
 #trade-overlay {
