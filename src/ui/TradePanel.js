@@ -106,12 +106,29 @@ function renderPartners() {
     }
   }
 
-  // Render in group order so related resources cluster.
+  // ── Best deals banner ──
+  // Per resource where you've set a policy with a price gate, find
+  // the trader whose current price beats your gate. This is the
+  // signal that auto-trade will fire next tick.
+  const bestDeals = computeBestDeals(resourceTraders);
+
   let html = `
     <p class="tp-hint">
-      Auto-trading runs every production tick. Set a policy per resource
-      to tell the auto-trader what to do.
-    </p>`;
+      <strong style="color:#16c79a;">Auto-trading runs every production tick.</strong>
+      Set a policy per resource below to tell the auto-trader what to do.
+    </p>
+    ${bestDeals.length ? `
+      <div class="tp-best-deals">
+        <h3 class="tp-section-title">Best deals matching your policies</h3>
+        ${bestDeals.map((d) => `
+          <div class="tp-best-row">
+            <span>${escapeHtml(d.resourceName)}</span>
+            <span class="tp-best-side ${d.side === 'sell' ? 'tp-best-sell' : 'tp-best-buy'}">${d.side === 'sell' ? 'sells to' : 'buys from'} ${escapeHtml(d.traderName)}</span>
+            <span class="tp-best-price">$${d.price}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}`;
 
   const allResources = Object.values(state.resourceNodes).filter((r) => r.is_active);
   for (const group of RESOURCE_GROUPS) {
@@ -126,8 +143,54 @@ function renderPartners() {
     </div>`;
   }
 
+  // Locked-trader footer — same intent as v1's: don't list trader
+  // names, just hint that more appear as you build hubs.
+  html += `
+    <div class="tp-locked-hint">
+      🔒 New trade partners appear as you build and expand transport hubs
+      (truck depot, train depot, seaport, airport).
+    </div>`;
+
   body.innerHTML = html;
   wirePolicyHandlers(body);
+}
+
+// Compute "best deal" rows: for each resource whose policy has a
+// price gate the current market beats, surface the matching trader.
+function computeBestDeals(resourceTraders) {
+  const out = [];
+  for (const rk in state.tradePolicies) {
+    const policy = state.tradePolicies[rk];
+    const resource = state.resourceNodes[rk];
+    if (!resource || !resourceTraders[rk]) continue;
+    const rows = resourceTraders[rk];
+
+    if (policy.mode === 'sell_surplus' && policy.min_sell_price) {
+      const buyers = rows.filter((r) => r.side === 'buys' && r.price >= policy.min_sell_price)
+        .sort((a, b) => b.price - a.price);
+      if (buyers.length) {
+        out.push({
+          resourceName: resource.name,
+          side: 'sell',
+          traderName: state.traders[buyers[0].tk]?.name || buyers[0].tk,
+          price: buyers[0].price
+        });
+      }
+    }
+    if (policy.mode === 'buy_to_reserve' && policy.max_buy_price) {
+      const sellers = rows.filter((r) => r.side === 'sells' && r.price <= policy.max_buy_price)
+        .sort((a, b) => a.price - b.price);
+      if (sellers.length) {
+        out.push({
+          resourceName: resource.name,
+          side: 'buy',
+          traderName: state.traders[sellers[0].tk]?.name || sellers[0].tk,
+          price: sellers[0].price
+        });
+      }
+    }
+  }
+  return out;
 }
 
 function renderPartnerResourceRow(resource, traderRows) {

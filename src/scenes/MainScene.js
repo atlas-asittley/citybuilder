@@ -466,10 +466,11 @@ export class MainScene extends Phaser.Scene {
   // Called by BuildMenu when the player picks a building type to
   // place. Pass null to cancel placement.
   setPlacementMode(buildingType) {
-    // Tear down any prior ghost.
+    // Tear down any prior ghost + AoE preview.
     if (this._placementMode?.ghostSprite) {
       this._placementMode.ghostSprite.destroy();
     }
+    this._clearPlacementAoe();
     if (!buildingType) {
       this._placementMode = null;
       return;
@@ -481,7 +482,72 @@ export class MainScene extends Phaser.Scene {
     ghost.setTint(0x16c79a);
     ghost.setAlpha(0.55);
     ghost.setDepth(900);
-    this._placementMode = { buildingType, ghostSprite: ghost, fw, fh };
+    // Compute AoE for buildings whose coverage matters during
+    // placement — service / police / park / booster. The preview
+    // overlay re-positions as the ghost moves so the player can
+    // see exactly which tiles a candidate placement would cover.
+    const aoe = getBuildingAoeRange({ x: 0, y: 0 }, buildingType);
+    this._placementMode = {
+      buildingType, ghostSprite: ghost, fw, fh,
+      aoeRange: aoe?.range || 0,
+      aoeKind: aoe?.kind || null,
+      aoeSprites: []
+    };
+  }
+
+  // Update the AoE preview to ring the current ghost tile. Called
+  // from pointermove. Allocates sprites lazily (only when needed)
+  // and reuses them across pointermove ticks to avoid churn.
+  _updatePlacementAoe(anchorX, anchorY) {
+    const pm = this._placementMode;
+    if (!pm || !pm.aoeRange) return;
+
+    // Footprint-aware disk: union of manhattan disks around every
+    // footprint cell. Same formula the inspector uses.
+    const cells = new Set();
+    for (let dx = 0; dx < pm.fw; dx++) {
+      for (let dy = 0; dy < pm.fh; dy++) {
+        for (let rx = -pm.aoeRange; rx <= pm.aoeRange; rx++) {
+          for (let ry = -pm.aoeRange; ry <= pm.aoeRange; ry++) {
+            if (Math.abs(rx) + Math.abs(ry) <= pm.aoeRange) {
+              cells.add((anchorX + dx + rx) + ',' + (anchorY + dy + ry));
+            }
+          }
+        }
+      }
+    }
+
+    const tint = AOE_TINTS[pm.aoeKind] || 0x16c79a;
+    let idx = 0;
+    for (const k of cells) {
+      const [x, y] = k.split(',').map(Number);
+      const wx = (x - state.gridMinX) * TILE_PX + TILE_PX / 2;
+      const wy = (y - state.gridMinY) * TILE_PX + TILE_PX / 2;
+      let sprite = pm.aoeSprites[idx];
+      if (!sprite) {
+        sprite = this.add.sprite(wx, wy, 'square');
+        sprite.setTint(tint);
+        sprite.setAlpha(0.22);
+        sprite.setDepth(890);   // below ghost (900)
+        pm.aoeSprites.push(sprite);
+      } else {
+        sprite.x = wx;
+        sprite.y = wy;
+        sprite.setVisible(true);
+      }
+      idx++;
+    }
+    // Hide any leftover sprites from previous ticks (size-varying
+    // is rare since the AoE radius is constant, but keeps things clean).
+    for (let i = idx; i < pm.aoeSprites.length; i++) {
+      pm.aoeSprites[i].setVisible(false);
+    }
+  }
+
+  _clearPlacementAoe() {
+    if (!this._placementMode?.aoeSprites) return;
+    for (const s of this._placementMode.aoeSprites) s.destroy();
+    this._placementMode.aoeSprites = [];
   }
 
   // Expose a re-render hook for the tick / realtime layers — they
@@ -769,6 +835,10 @@ export class MainScene extends Phaser.Scene {
         const { fw, fh, ghostSprite } = this._placementMode;
         ghostSprite.x = gx * TILE_PX + (fw * TILE_PX) / 2;
         ghostSprite.y = gy * TILE_PX + (fh * TILE_PX) / 2;
+
+        // Anchor coords in world tile space (add gridMinX back, since
+        // the inner ghost rendering used pure render coordinates).
+        this._updatePlacementAoe(gx + state.gridMinX, gy + state.gridMinY);
 
         if (this._dragPaintActive && p.isDown) this._paintAtPointer(p);
       }

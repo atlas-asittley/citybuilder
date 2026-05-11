@@ -533,6 +533,42 @@ html, body {
 .tp-trader-sells .tp-trader-side { color: #e94560; }
 .tp-trader-price { color: #e6e6e6; text-align: right; }
 .tp-trader-cap { color: #888; font-size: 10px; }
+
+/* Best deals banner */
+.tp-best-deals {
+  background: rgba(22, 199, 154, 0.07);
+  border: 1px solid #16c79a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.tp-best-deals .tp-section-title { margin-top: 0; }
+.tp-best-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  color: #e6e6e6;
+  padding: 4px 0;
+}
+.tp-best-side {
+  font-size: 11px;
+  color: #888;
+}
+.tp-best-sell { color: #16c79a; }
+.tp-best-buy  { color: #e94560; }
+.tp-best-price { color: #e6e6e6; font-weight: 600; }
+
+/* Locked hint footer */
+.tp-locked-hint {
+  text-align: center;
+  color: #888;
+  font-size: 11px;
+  padding: 14px 8px 4px;
+  margin-top: 8px;
+  border-top: 1px solid rgba(15, 52, 96, 0.4);
+}
 .tp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .tp-header h2 { font-size: 18px; color: #16c79a; }
 .tp-close {
