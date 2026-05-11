@@ -23,6 +23,7 @@ import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/Ind
 import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js';
 import { mountTopBar } from './ui/TopBar.js';
 import { mountBuildMenu } from './ui/BuildMenu.js';
+import { mountZoomControls } from './ui/ZoomControls.js';
 import { startTickLoop } from './api/tick.js';
 import { subscribeRealtime } from './state/realtime.js';
 
@@ -167,14 +168,16 @@ async function enterGame() {
       game.scene.start('MainScene');
     }
 
-    // Mount the DOM overlays (top bar + build menu), kick off the
-    // production tick loop, and subscribe to realtime building
-    // changes so other players' builds appear without a refresh.
+    // Mount the DOM overlays (top bar + build menu + zoom controls),
+    // kick off the production tick loop, and subscribe to realtime
+    // building changes so other players' builds appear without a
+    // refresh.
     mountTopBar();
     mountBuildMenu((buildingType) => {
       const s = game.scene.getScene('MainScene');
       if (s?.setPlacementMode) s.setPlacementMode(buildingType);
     });
+    mountZoomControls(game.scene.getScene('MainScene'));
 
     const rerender = () => {
       const s = game.scene.getScene('MainScene');

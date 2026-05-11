@@ -173,6 +173,10 @@ export class MainScene extends Phaser.Scene {
   _setupCamera() {
     const worldW = state.gridCols * TILE_PX;
     const worldH = state.gridRows * TILE_PX;
+    // Expose world dims for ZoomControls' reset button.
+    this._worldW = worldW;
+    this._worldH = worldH;
+
     const cam = this.cameras.main;
     cam.setBounds(0, 0, worldW, worldH);
     cam.centerOn(worldW / 2, worldH / 2);
@@ -188,35 +192,8 @@ export class MainScene extends Phaser.Scene {
     this.input.on('wheel', (_p, _o, _dx, dy) => {
       cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.25, 3));
     });
-
-    // Mobile-friendly zoom buttons.
-    const w = window.innerWidth, h = window.innerHeight;
-    this._makeButton(w - 56, h - 56, '+', () =>
-      cam.setZoom(Phaser.Math.Clamp(cam.zoom * 1.2, 0.25, 3)));
-    this._makeButton(w - 56, h - 112, '−', () =>
-      cam.setZoom(Phaser.Math.Clamp(cam.zoom * 0.83, 0.25, 3)));
-    this._makeButton(w - 56, h - 168, '⟳', () => {
-      cam.setZoom(1);
-      cam.centerOn(worldW / 2, worldH / 2);
-    });
-  }
-
-  _makeButton(x, y, label, onTap) {
-    const size = 48;
-    const bg = this.add.rectangle(x, y, size, size, 0x16213e, 0.85)
-      .setStrokeStyle(1, 0x16c79a)
-      .setScrollFactor(0)
-      .setDepth(1000)
-      .setInteractive({ useHandCursor: true });
-    this.add.text(x, y, label, {
-      fontFamily: 'system-ui, sans-serif',
-      fontSize: '24px',
-      color: '#16c79a'
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(1001);
-    bg.on('pointerdown', (_p, _x, _y, event) => {
-      onTap();
-      if (event?.stopPropagation) event.stopPropagation();
-    });
+    // Mobile zoom UI lives in DOM (ZoomControls.js) so it isn't
+    // affected by the camera's zoom transform.
   }
 
   _setupTapToInspect() {

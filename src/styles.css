@@ -277,6 +277,30 @@ html, body {
   font-size: 11px;
 }
 
+/* ── Zoom controls (bottom-right, fixed) ── */
+#zoom-controls {
+  position: fixed;
+  right: 12px; bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 55;
+  pointer-events: auto;
+}
+.zc-btn {
+  width: 48px; height: 48px;
+  background: rgba(22, 33, 62, 0.9);
+  border: 1px solid #16c79a;
+  color: #16c79a;
+  border-radius: 6px;
+  font-size: 22px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.zc-btn:hover { background: #1a2a40; }
+.zc-btn:active { background: #16c79a; color: #0a0e14; }
+
 /* ── Inspector panel (bottom sheet) ── */
 #inspector-panel {
   position: fixed;
