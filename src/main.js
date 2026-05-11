@@ -174,7 +174,27 @@ async function enterGame() {
     // kick off the production tick loop, and subscribe to realtime
     // building changes so other players' builds appear without a
     // refresh.
-    mountTopBar();
+    mountTopBar(() => {
+      // After a successful expand, the grid bounds may have grown.
+      // Re-derive them from the new tileMap and restart the scene.
+      const tileMap = state.tileMap;
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const k in tileMap) {
+        const t = tileMap[k];
+        if (t.x < minX) minX = t.x; if (t.x > maxX) maxX = t.x;
+        if (t.y < minY) minY = t.y; if (t.y > maxY) maxY = t.y;
+      }
+      if (isFinite(minX)) {
+        state.gridMinX = minX; state.gridMinY = minY;
+        state.gridCols = maxX - minX + 1; state.gridRows = maxY - minY + 1;
+      }
+      // Incremental rerender keeps the scene instance alive — all
+      // the modules holding sceneRef stay valid. A full restart()
+      // would invalidate them and require rewiring zoom/heatmap/
+      // inspector against the fresh scene instance.
+      const s = game.scene.getScene('MainScene');
+      if (s?.rerenderWorld) s.rerenderWorld();
+    });
     mountBuildMenu((buildingType) => {
       const s = game.scene.getScene('MainScene');
       if (s?.setPlacementMode) s.setPlacementMode(buildingType);

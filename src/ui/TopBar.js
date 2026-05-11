@@ -8,10 +8,13 @@
 // has to fake, and (b) we want to update it without touching the
 // canvas.
 import { state } from '../state/store.js';
+import { openExpansionPanel } from './ExpansionPanel.js';
 
 let mounted = false;
+let onExpandedCallback = null;
 
-export function mountTopBar() {
+export function mountTopBar(onExpanded) {
+  onExpandedCallback = onExpanded || null;
   if (mounted) return;
   const root = document.getElementById('ui-root');
   const bar = document.createElement('div');
@@ -25,10 +28,19 @@ export function mountTopBar() {
       <span class="tb-chip" id="tb-money"></span>
       <span class="tb-chip" id="tb-pop"></span>
       <span class="tb-chip" id="tb-happy"></span>
+      <button class="tb-btn" id="tb-expand">+ Expand</button>
     </div>
   `;
   root.appendChild(bar);
   mounted = true;
+
+  document.getElementById('tb-expand').addEventListener('click', () => {
+    openExpansionPanel(() => {
+      refreshTopBar();
+      if (onExpandedCallback) onExpandedCallback();
+    });
+  });
+
   refreshTopBar();
 }
 

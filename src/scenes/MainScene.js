@@ -302,6 +302,31 @@ export class MainScene extends Phaser.Scene {
     this._renderBuildings();
   }
 
+  // Full world rerender — tiles, buildings, heatmap, camera bounds.
+  // Used after expand_district adds new chunks to the parcel.
+  rerenderWorld() {
+    for (const s of this._tileSprites.values()) s.destroy();
+    this._tileSprites.clear();
+    for (const s of this._heatmapOverlays) s.destroy();
+    this._heatmapOverlays = [];
+    this.clearAoe();
+    if (this._buildingSprites) {
+      for (const s of this._buildingSprites) s.destroy();
+      this._buildingSprites = [];
+      this._buildingAtAnchor.clear();
+    }
+    this._renderTiles();
+    this._renderBuildings();
+    if (this._heatmapMode !== 'normal') this._renderHeatmap();
+
+    // Update camera bounds to the new world size.
+    const worldW = state.gridCols * TILE_PX;
+    const worldH = state.gridRows * TILE_PX;
+    this._worldW = worldW;
+    this._worldH = worldH;
+    this.cameras.main.setBounds(0, 0, worldW, worldH);
+  }
+
   _renderTiles() {
     // Render every owned tile, plus a small dot for tiles that
     // carry a resource node (timber grove, stone outcrop, iron
