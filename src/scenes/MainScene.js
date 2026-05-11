@@ -7,6 +7,7 @@
 // Those land in subsequent phases.
 import Phaser from 'phaser';
 import { state } from '../state/store.js';
+import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
 
 const TILE_PX = 48;
 
@@ -68,10 +69,25 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
+    // Map from "x,y" anchor → building, so a tap on any cell can
+    // find the building (multi-tile buildings register their anchor).
+    this._buildingAtAnchor = new Map();
+
     this._renderTiles();
     this._renderBuildings();
     this._setupCamera();
-    this._setupTopBar();
+    this._setupTapToInspect();
+  }
+
+  // Expose a re-render hook for the tick / realtime layers — they
+  // call this when state.allBuildings changes. Cheap because we
+  // rebuild only the sprite list; the camera + texture stay put.
+  rerenderBuildings() {
+    if (!this._buildingSprites) return;
+    for (const s of this._buildingSprites) s.destroy();
+    this._buildingSprites = [];
+    this._buildingAtAnchor.clear();
+    this._renderBuildings();
   }
 
   _renderTiles() {
@@ -100,6 +116,7 @@ export class MainScene extends Phaser.Scene {
     // get a slightly desaturated treatment so it's visually clear
     // they're not yours.
     const myId = state.currentUser?.id;
+    this._buildingSprites = this._buildingSprites || [];
     for (const b of state.allBuildings) {
       const bt = state.buildingTypes[b.building_type_key];
       if (!bt) continue;
@@ -111,10 +128,18 @@ export class MainScene extends Phaser.Scene {
 
       const tint = CATEGORY_TINTS[bt.category] || 0x888888;
       const sprite = this.add.sprite(worldX, worldY, 'square');
-      sprite.setScale(fw - 0.15, fh - 0.15);   // tiny inset for grid visibility
+      sprite.setScale(fw - 0.15, fh - 0.15);
       sprite.setTint(tint);
-      // Other players' buildings: render at 65% alpha so yours pop.
       if (b.player_id !== myId) sprite.setAlpha(0.65);
+
+      // Make the sprite hit-testable so we can route taps back to
+      // the building. setInteractive() with no args uses the sprite
+      // bounds; that's fine for a rectangle.
+      sprite.setInteractive({ useHandCursor: true });
+      sprite.buildingRef = b;
+
+      this._buildingSprites.push(sprite);
+      this._buildingAtAnchor.set(b.x + ',' + b.y, b);
     }
   }
 
@@ -167,19 +192,32 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
-  _setupTopBar() {
-    const profile = state.profile;
-    const cityLabel = state.cityName ? `${state.cityName} · ` : '';
-    const text = `${cityLabel}${profile.display_name || 'Unnamed'}  ·  $${Math.floor(profile.money || 0)}  ·  pop ${Math.floor(profile.population || 0)}`;
+  _setupTapToInspect() {
+    // Differentiate tap from drag-pan: if the pointer moved more than
+    // a few pixels between down and up, it was a drag; otherwise a
+    // tap. Only taps open the inspector.
+    let downX = 0, downY = 0, downAtMs = 0;
+    this.input.on('pointerdown', (p) => {
+      downX = p.x; downY = p.y; downAtMs = performance.now();
+    });
+    this.input.on('pointerup', (p, currentlyOver) => {
+      const dx = p.x - downX, dy = p.y - downY;
+      const moved = Math.hypot(dx, dy);
+      const heldMs = performance.now() - downAtMs;
+      if (moved > 8 || heldMs > 500) return;
 
-    this.add.rectangle(0, 0, this.scale.width, 36, 0x0a0e14, 0.85)
-      .setOrigin(0, 0)
-      .setScrollFactor(0)
-      .setDepth(1000);
-    this.add.text(12, 10, text, {
-      fontFamily: 'system-ui, sans-serif',
-      fontSize: '13px',
-      color: '#e6e6e6'
-    }).setScrollFactor(0).setDepth(1001);
+      // Was the tap on a building sprite? currentlyOver is the array
+      // of interactive objects under the pointer at pointerup time.
+      if (currentlyOver && currentlyOver.length > 0) {
+        for (const obj of currentlyOver) {
+          if (obj.buildingRef) {
+            openInspector(obj.buildingRef);
+            return;
+          }
+        }
+      }
+      // Tap on empty space → close any open inspector.
+      closeInspector();
+    });
   }
 }

@@ -21,6 +21,8 @@ import { loadInitialWorld } from './state/loader.js';
 import { mountAuthScreen, unmountAuthScreen } from './ui/AuthScreen.js';
 import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/IndustrySelectScreen.js';
 import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js';
+import { mountTopBar } from './ui/TopBar.js';
+import { startTickLoop } from './api/tick.js';
 
 // ── Boot Phaser ──
 const params = new URLSearchParams(window.location.search);
@@ -111,6 +113,16 @@ async function enterGame() {
     // top via #ui-root.
     const scene = game.scene.getScene('MainScene');
     if (scene) scene.scene.restart();
+
+    // Mount the DOM overlay (top bar) and kick off the production
+    // tick loop. The tick loop pings process_production every 30s,
+    // refreshes profile numbers, and re-renders buildings if the
+    // server reports evolution events.
+    mountTopBar();
+    startTickLoop(() => {
+      const s = game.scene.getScene('MainScene');
+      if (s && s.rerenderBuildings) s.rerenderBuildings();
+    });
   } catch (err) {
     console.error('Failed to enter game:', err);
     document.getElementById('ui-root').innerHTML = `
