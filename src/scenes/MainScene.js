@@ -11,6 +11,8 @@ import { clearSelection as clearBuildSelection } from '../ui/BuildMenu.js';
 import { spriteIcons } from '../sprites.js';
 
 const TILE_PX = 48;
+const MAX_WALKERS = 80;
+const WALKER_SPAWN_MS = 600;
 
 // Mapping from server terrain_type to a tint color. Tints are picked
 // to feel like terrain rather than a tech demo. Wilderness (the
@@ -167,6 +169,15 @@ export class MainScene extends Phaser.Scene {
       g.generateTexture('res-dot', 16, 16);
       g.destroy();
     }
+    // Walker sprite — small circle, tinted at runtime by the
+    // building's category so groups of workers visually cluster.
+    if (!this.textures.exists('walker')) {
+      const g = this.add.graphics();
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(5, 5, 5);
+      g.generateTexture('walker', 10, 10);
+      g.destroy();
+    }
 
     // Map from "x,y" anchor → building, so a tap on any cell can
     // find the building (multi-tile buildings register their anchor).
@@ -183,6 +194,72 @@ export class MainScene extends Phaser.Scene {
     this._renderBuildings();
     this._setupCamera();
     this._setupTapToInspect();
+    this._setupWalkers();
+  }
+
+  // Cosmetic walker simulation. Every WALKER_SPAWN_MS, pick a random
+  // staffed building owned by the current player and spawn a small
+  // colored circle at that building. Each walker has a target
+  // position (a few tiles away in a random direction) and a constant
+  // velocity. When it reaches the target — or after a lifetime cap —
+  // it despawns. Capped at MAX_WALKERS so a busy city doesn't pile
+  // up sprites. Zero gameplay impact, pure visual.
+  _setupWalkers() {
+    this._walkers = [];
+    this._walkerSpawnTimer = 0;
+    this.events.on('update', this._tickWalkers, this);
+  }
+
+  _tickWalkers(_time, delta) {
+    const dt = delta / 1000;
+    this._walkerSpawnTimer += dt;
+
+    if (this._walkerSpawnTimer >= WALKER_SPAWN_MS / 1000) {
+      this._walkerSpawnTimer = 0;
+      this._spawnRandomWalker();
+    }
+
+    for (let i = this._walkers.length - 1; i >= 0; i--) {
+      const w = this._walkers[i];
+      w.life -= dt;
+      const dx = w.targetX - w.sprite.x;
+      const dy = w.targetY - w.sprite.y;
+      const dist = Math.hypot(dx, dy);
+      if (w.life <= 0 || dist < 2) {
+        w.sprite.destroy();
+        this._walkers.splice(i, 1);
+        continue;
+      }
+      const speed = 24;  // px per second
+      w.sprite.x += (dx / dist) * speed * dt;
+      w.sprite.y += (dy / dist) * speed * dt;
+    }
+  }
+
+  _spawnRandomWalker() {
+    if (this._walkers.length >= MAX_WALKERS) return;
+    const myId = state.currentUser?.id;
+    const candidates = state.allBuildings.filter((b) =>
+      b.player_id === myId && b.is_staffed && b.status === 'active'
+    );
+    if (!candidates.length) return;
+    const b = candidates[Math.floor(Math.random() * candidates.length)];
+    const bt = state.buildingTypes[b.building_type_key];
+    if (!bt) return;
+    const fw = bt.footprint_w || 1;
+    const fh = bt.footprint_h || 1;
+
+    const startX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
+    const startY = (b.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = (1.5 + Math.random() * 2) * TILE_PX;
+    const targetX = startX + Math.cos(angle) * dist;
+    const targetY = startY + Math.sin(angle) * dist;
+
+    const sprite = this.add.sprite(startX, startY, 'walker');
+    sprite.setTint(CATEGORY_TINTS[bt.category] || 0xe0d090);
+    sprite.setDepth(10);
+    this._walkers.push({ sprite, targetX, targetY, life: 8 });
   }
 
   // Public: highlight tiles in a building's area-of-effect. Called by
