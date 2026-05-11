@@ -300,6 +300,22 @@ html, body {
 }
 .zc-btn:hover { background: #1a2a40; }
 .zc-btn:active { background: #16c79a; color: #0a0e14; }
+.zc-btn-active {
+  background: #16c79a !important;
+  color: #0a0e14 !important;
+}
+
+#heatmap-toggle {
+  position: fixed;
+  right: 12px;
+  bottom: 192px;        /* above the zoom buttons */
+  z-index: 55;
+  width: auto;
+  padding: 0 14px;
+  height: 40px;
+  font-size: 13px;
+  font-weight: 600;
+}
 
 /* ── Inspector panel (bottom sheet) ── */
 #inspector-panel {

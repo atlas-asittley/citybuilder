@@ -38,9 +38,37 @@ async function runTick() {
       return;
     }
     applyTickResponse(data);
+    // Pollution + desirability are recomputed every tick on the
+    // server; refresh the local tileMap so heatmaps reflect current
+    // values. Cheap — single SELECT bounded to this player's tiles.
+    refreshTileMetrics();
   } catch (e) {
     console.warn('tick request failed:', e.message || e);
   }
+}
+
+async function refreshTileMetrics() {
+  if (!state.currentUser) return;
+  const { data, error } = await sb
+    .from('map_tiles')
+    .select('id, x, y, pollution, desirability')
+    .eq('owner_player_id', state.currentUser.id);
+  if (error) {
+    console.warn('refreshTileMetrics error:', error.message);
+    return;
+  }
+  for (const row of data) {
+    const t = state.tileMap[row.x + ',' + row.y];
+    if (!t) continue;
+    t.pollution = row.pollution;
+    t.desirability = row.desirability;
+  }
+  if (onTileMetricsChangedCallback) onTileMetricsChangedCallback();
+}
+
+let onTileMetricsChangedCallback = null;
+export function onTileMetricsChanged(cb) {
+  onTileMetricsChangedCallback = cb;
 }
 
 function applyTickResponse(data) {

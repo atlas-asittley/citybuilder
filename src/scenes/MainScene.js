@@ -55,6 +55,30 @@ const CATEGORY_TINTS = {
   transport_connector: 0x6a4a6a
 };
 
+// Heatmap value → (tint, alpha). The alpha gives a fading overlay
+// at low values so neutral tiles show through. Pollution: 0=no
+// tint, ≥30=heavy red. Desirability: low=red overlay, mid=neutral,
+// high=green overlay.
+function heatmapTintFor(mode, value) {
+  if (mode === 'pollution') {
+    if (value <= 0) return { tint: 0, alpha: 0 };
+    const t = Math.min(1, value / 30);
+    return { tint: 0xff5a3a, alpha: 0.15 + t * 0.45 };
+  }
+  if (mode === 'desirability') {
+    if (value < 30) {
+      const t = (30 - value) / 30;
+      return { tint: 0xc83a3a, alpha: 0.15 + t * 0.4 };
+    }
+    if (value > 70) {
+      const t = Math.min(1, (value - 70) / 30);
+      return { tint: 0x3ac860, alpha: 0.15 + t * 0.4 };
+    }
+    return { tint: 0, alpha: 0 };
+  }
+  return { tint: 0, alpha: 0 };
+}
+
 // AoE highlight color per kind. Mirrors v1's per-kind .aoe-<kind> CSS.
 const AOE_TINTS = {
   police: 0x4060a0,
@@ -149,8 +173,11 @@ export class MainScene extends Phaser.Scene {
     this._buildingAtAnchor = new Map();
     this._placementMode = null;   // { buildingType, ghostSprite, fw, fh }
     this._aoeOverlays = [];       // sprites for the inspector AoE highlight
+    this._heatmapOverlays = [];   // sprites for the active heatmap layer
+    this._heatmapMode = 'normal';
     this._dragPaintActive = false;
     this._dragPaintPlaced = new Set();
+    this._tileSprites = new Map(); // "x,y" → tile sprite, for re-tint on tick
 
     this._renderTiles();
     this._renderBuildings();
@@ -205,6 +232,44 @@ export class MainScene extends Phaser.Scene {
     this._aoeOverlays = [];
   }
 
+  // Public: switch the heatmap overlay between Normal / Pollution /
+  // Desirability. Rebuilds the overlay sprites from state.tileMap
+  // (which carries the per-tile metric values pulled from
+  // map_tiles). When mode === 'normal' the overlay is cleared
+  // entirely.
+  setHeatmapMode(mode) {
+    this._heatmapMode = mode;
+    this._renderHeatmap();
+  }
+
+  // Re-apply the current heatmap, called after each tick when the
+  // server's pollution recompute may have changed tile values.
+  refreshHeatmap() {
+    if (this._heatmapMode !== 'normal') this._renderHeatmap();
+  }
+
+  _renderHeatmap() {
+    for (const s of this._heatmapOverlays) s.destroy();
+    this._heatmapOverlays = [];
+    if (this._heatmapMode === 'normal') return;
+
+    for (const k in state.tileMap) {
+      const t = state.tileMap[k];
+      const value = this._heatmapMode === 'pollution'
+        ? Number(t.pollution || 0)
+        : Number(t.desirability || 0);
+      const { tint, alpha } = heatmapTintFor(this._heatmapMode, value);
+      if (alpha <= 0) continue;
+      const worldX = (t.x - state.gridMinX) * TILE_PX + TILE_PX / 2;
+      const worldY = (t.y - state.gridMinY) * TILE_PX + TILE_PX / 2;
+      const overlay = this.add.sprite(worldX, worldY, 'square');
+      overlay.setTint(tint);
+      overlay.setAlpha(alpha);
+      overlay.setDepth(2);
+      this._heatmapOverlays.push(overlay);
+    }
+  }
+
   // Called by BuildMenu when the player picks a building type to
   // place. Pass null to cancel placement.
   setPlacementMode(buildingType) {
@@ -253,6 +318,7 @@ export class MainScene extends Phaser.Scene {
 
       const tile = this.add.sprite(worldX, worldY, 'square');
       tile.setTint(tint);
+      this._tileSprites.set(t.x + ',' + t.y, tile);
 
       if (t.resource_node_key) {
         const res = state.resourceNodes[t.resource_node_key];

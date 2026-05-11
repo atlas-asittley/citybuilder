@@ -25,7 +25,8 @@ import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js'
 import { mountTopBar } from './ui/TopBar.js';
 import { mountBuildMenu } from './ui/BuildMenu.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
-import { startTickLoop } from './api/tick.js';
+import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
+import { startTickLoop, onTileMetricsChanged } from './api/tick.js';
 import { subscribeRealtime } from './state/realtime.js';
 
 // ── Boot Phaser ──
@@ -180,7 +181,10 @@ async function enterGame() {
     });
     const mainScene = game.scene.getScene('MainScene');
     mountZoomControls(mainScene);
+    mountHeatmapToggle(mainScene);
     bindSceneToInspector(mainScene);
+
+    onTileMetricsChanged(() => mainScene.refreshHeatmap?.());
 
     const rerender = () => {
       const s = game.scene.getScene('MainScene');
