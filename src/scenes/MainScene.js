@@ -26,19 +26,28 @@ const TERRAIN_TINTS = {
 };
 const OWNED_GRASS_TINT = 0x4a6440;
 
-// Per-resource tint for the small dot we draw on tiles that have
-// a resource node. Keyed by the resource.kind from the resources
-// table — finer per-key buckets aren't worth the lookup. Matches
-// the rough palette v1 used for `.res-dot`.
-const RESOURCE_TINTS = {
-  wood: 0x6aa055,
-  stone: 0x9a9aae,
-  clay: 0xc88a55,
-  metal: 0xb0b0c0,
-  food: 0xd8c050,
-  fish: 0x70a0c0,
-  default: 0xe0c060
-};
+// Resource-key → visual kind. The resources table's `kind` column
+// (raw / processed / terrain) is too coarse to drive icons, so we
+// derive a finer kind from the key itself. Each kind has a drawn
+// texture (`res-wood`, `res-stone`, etc.) loaded at scene boot.
+function resourceKindFor(resourceKey, resource) {
+  // First-pass: key-substring heuristic so adding new resources
+  // doesn't require updates here unless the icon should differ.
+  const k = (resourceKey || '').toLowerCase();
+  if (k.includes('timber') || k.includes('forest') || k.includes('orchard') || k.includes('grove')) return 'wood';
+  if (k.includes('stone') || k.includes('quarry') || k.includes('rock')) return 'stone';
+  if (k.includes('iron') || k.includes('ore') || k.includes('metal')) return 'metal';
+  if (k.includes('clay'))   return 'clay';
+  if (k.includes('grain')  || k.includes('farmland') || k.includes('field')) return 'food';
+  if (k.includes('garden') || k.includes('plot'))     return 'food';
+  if (k.includes('pond')   || k.includes('water')    || k.includes('lake') || k.includes('river') || k.includes('fish')) return 'fish';
+  // Industry-tagged fallback if we have the resources row
+  if (resource?.industry_key === 'timber') return 'wood';
+  if (resource?.industry_key === 'stone')  return 'stone';
+  if (resource?.industry_key === 'iron')   return 'metal';
+  if (resource?.industry_key === 'clay')   return 'clay';
+  return 'default';
+}
 
 // Per-category tint for buildings. As the asset pipeline matures
 // we replace this with a sprite atlas keyed by building_type_key.
@@ -231,14 +240,11 @@ export class MainScene extends Phaser.Scene {
       g.generateTexture('square', TILE_PX, TILE_PX);
       g.destroy();
     }
-    // Small filled circle used as the resource-tile indicator.
-    if (!this.textures.exists('res-dot')) {
-      const g = this.add.graphics();
-      g.fillStyle(0xffffff, 1);
-      g.fillCircle(8, 8, 8);
-      g.generateTexture('res-dot', 16, 16);
-      g.destroy();
-    }
+    // Per-resource-kind icons drawn as small graphics into named
+    // textures, so resource tiles read at a glance instead of looking
+    // like generic colored dots (Atlas 2026-05-11). Sized so a tile
+    // shows the icon plus the underlying terrain color.
+    this._ensureResourceIconTextures();
     // Walker sprite — small circle, tinted at runtime by the
     // building's category so groups of workers visually cluster.
     if (!this.textures.exists('walker')) {
@@ -401,6 +407,98 @@ export class MainScene extends Phaser.Scene {
   // TILE_PX × TILE_PX with grass background, dirt road surface,
   // and a lighter worn track in the middle. Cheap one-time cost
   // at scene boot; per-tile lookup at render time is O(1).
+  // Per-kind resource icons. Each is a small graphic drawn into a
+  // named texture: wood = tree shape, stone = rock cluster, metal =
+  // angular ore, clay = mound, food = wheat strands, fish = water
+  // ripple. Rendered ~28×28 so they sit on a 48px tile with grass
+  // shoulder showing. Tints applied at draw time, not via setTint at
+  // render time, so each icon's silhouette is distinct.
+  _ensureResourceIconTextures() {
+    if (this.textures.exists('res-wood')) return;
+    const SZ = 28;
+
+    // wood — tree with brown trunk, green leaves
+    let g = this.add.graphics();
+    g.fillStyle(0x4a2f1a, 1);
+    g.fillRect(SZ/2 - 2, SZ - 8, 4, 8);
+    g.fillStyle(0x3a7a3a, 1);
+    g.fillCircle(SZ/2, SZ/2 + 2, 9);
+    g.fillStyle(0x4a8a4a, 1);
+    g.fillCircle(SZ/2 - 3, SZ/2 - 1, 6);
+    g.fillCircle(SZ/2 + 3, SZ/2, 6);
+    g.generateTexture('res-wood', SZ, SZ);
+    g.destroy();
+
+    // stone — three grey rocks at different sizes
+    g = this.add.graphics();
+    g.fillStyle(0x6a6a78, 1);
+    g.fillCircle(SZ/2 - 4, SZ/2 + 4, 6);
+    g.fillStyle(0x8a8aa0, 1);
+    g.fillCircle(SZ/2 + 4, SZ/2 - 2, 7);
+    g.fillStyle(0x7a7a90, 1);
+    g.fillCircle(SZ/2 - 6, SZ/2 - 5, 4);
+    g.generateTexture('res-stone', SZ, SZ);
+    g.destroy();
+
+    // metal/iron — dark angular ore boulder with metallic highlight
+    g = this.add.graphics();
+    g.fillStyle(0x3a3030, 1);
+    g.fillTriangle(SZ/2 - 9, SZ/2 + 7, SZ/2 + 10, SZ/2 + 8, SZ/2, SZ/2 - 8);
+    g.fillStyle(0x6a5a5a, 1);
+    g.fillTriangle(SZ/2 - 5, SZ/2 + 5, SZ/2 + 6, SZ/2 + 5, SZ/2, SZ/2 - 4);
+    g.fillStyle(0xa89090, 1);
+    g.fillCircle(SZ/2 - 1, SZ/2 - 1, 2);
+    g.generateTexture('res-metal', SZ, SZ);
+    g.destroy();
+
+    // clay — flatter brown earthy mound
+    g = this.add.graphics();
+    g.fillStyle(0x8a5430, 1);
+    g.fillEllipse(SZ/2, SZ/2 + 3, 22, 12);
+    g.fillStyle(0xa07050, 1);
+    g.fillEllipse(SZ/2, SZ/2, 16, 7);
+    g.fillStyle(0xc08858, 1);
+    g.fillEllipse(SZ/2 - 1, SZ/2 - 2, 8, 3);
+    g.generateTexture('res-clay', SZ, SZ);
+    g.destroy();
+
+    // food/grain — 5 vertical wheat strands of varying heights
+    g = this.add.graphics();
+    const strandColors = [0xd8b840, 0xc8a838, 0xe0c050];
+    for (let i = 0; i < 5; i++) {
+      const x = 4 + i * 5;
+      const h = 12 + (i % 3) * 3;
+      g.fillStyle(strandColors[i % strandColors.length], 1);
+      g.fillRect(x, SZ - h - 2, 2, h);
+      // small grain head on top
+      g.fillCircle(x + 1, SZ - h - 2, 2);
+    }
+    g.generateTexture('res-food', SZ, SZ);
+    g.destroy();
+
+    // fish/water — blue oval with a ripple line
+    g = this.add.graphics();
+    g.fillStyle(0x4488b8, 1);
+    g.fillEllipse(SZ/2, SZ/2, 22, 14);
+    g.fillStyle(0x70a8c8, 1);
+    g.fillEllipse(SZ/2, SZ/2 - 2, 16, 6);
+    g.lineStyle(1, 0x305878, 1);
+    g.beginPath();
+    g.arc(SZ/2, SZ/2 - 2, 5, 0, Math.PI, false);
+    g.strokePath();
+    g.generateTexture('res-fish', SZ, SZ);
+    g.destroy();
+
+    // default — generic amber dot for any kind we forgot to handle
+    g = this.add.graphics();
+    g.fillStyle(0xe0c060, 1);
+    g.fillCircle(SZ/2, SZ/2, 7);
+    g.fillStyle(0xfff0a0, 1);
+    g.fillCircle(SZ/2 - 2, SZ/2 - 2, 2);
+    g.generateTexture('res-default', SZ, SZ);
+    g.destroy();
+  }
+
   _ensureRoadTextures() {
     if (this.textures.exists('road-0')) return;
     const SZ = TILE_PX;
@@ -692,10 +790,11 @@ export class MainScene extends Phaser.Scene {
 
       if (t.resource_node_key) {
         const res = state.resourceNodes[t.resource_node_key];
-        const kind = res?.kind || 'default';
-        const dot = this.add.sprite(worldX, worldY, 'res-dot');
-        dot.setTint(RESOURCE_TINTS[kind] || RESOURCE_TINTS.default);
-        dot.setDepth(5);
+        const kind = resourceKindFor(t.resource_node_key, res);
+        const tex = `res-${kind}`;
+        const iconKey = this.textures.exists(tex) ? tex : 'res-default';
+        const icon = this.add.sprite(worldX, worldY, iconKey);
+        icon.setDepth(5);
       }
     }
   }
