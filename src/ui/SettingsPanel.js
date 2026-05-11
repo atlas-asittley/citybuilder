@@ -2,6 +2,7 @@
 // migration window, clear local cache. Triggered from the top bar's
 // gear button.
 import { sb } from '../api/supabase.js';
+import { openChangelog } from './ChangelogModal.js';
 
 let mounted = false;
 
@@ -17,6 +18,7 @@ export function openSettings() {
         <button class="sp-close" aria-label="Close">×</button>
       </div>
       <div class="sp-body">
+        <button class="sp-row" id="sp-whats-new">What's new</button>
         <button class="sp-row" id="sp-logout">Sign out</button>
         <a class="sp-row" href="https://atlas-asittley.github.io/city-builder-mvp/" target="_blank" rel="noopener">Open v1 client (legacy)</a>
         <button class="sp-row" id="sp-clear">Clear cached data &amp; reload</button>
@@ -34,6 +36,12 @@ export function openSettings() {
   overlay.querySelector('.sp-close').addEventListener('click', close);
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
+  });
+
+  document.getElementById('sp-whats-new').addEventListener('click', () => {
+    overlay.remove();
+    mounted = false;
+    openChangelog();
   });
 
   document.getElementById('sp-logout').addEventListener('click', async () => {

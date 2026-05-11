@@ -568,6 +568,67 @@ html, body {
 .rp-empty { color: #888; text-align: center; padding: 16px; font-size: 12px; }
 .rp-error { color: #e94560; }
 .rp-loading { color: #888; text-align: center; padding: 20px; font-size: 13px; }
+
+/* Changelog modal */
+#changelog-overlay {
+  position: fixed; inset: 0;
+  z-index: 90;
+  background: rgba(10, 14, 20, 0.85);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+.cl-card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  width: 100%; max-width: 520px; max-height: 86vh;
+  display: flex; flex-direction: column;
+}
+.cl-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 20px 10px;
+  border-bottom: 1px solid #0f3460;
+}
+.cl-header h2 { font-size: 18px; color: #16c79a; }
+.cl-close {
+  background: transparent; border: none; color: #888;
+  font-size: 22px; cursor: pointer; padding: 0 4px;
+}
+.cl-close:hover { color: #e94560; }
+.cl-body {
+  padding: 12px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+.cl-entry {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(15, 52, 96, 0.4);
+}
+.cl-entry:last-child { border-bottom: none; }
+.cl-entry-title {
+  color: #16c79a;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.cl-entry-date {
+  color: #888;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.cl-entry-body {
+  color: #e6e6e6;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.cl-empty { color: #888; text-align: center; padding: 20px; }
+.cl-actions {
+  padding: 14px 20px;
+  border-top: 1px solid #0f3460;
+}
+.cl-actions .ui-btn-primary { width: 100%; }
 .rp-chart {
   display: block;
   width: 100%;

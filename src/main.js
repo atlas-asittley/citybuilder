@@ -27,6 +27,7 @@ import { mountTopBar } from './ui/TopBar.js';
 import { mountBuildMenu } from './ui/BuildMenu.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
+import { checkAndShowChangelogIfUnseen } from './ui/ChangelogModal.js';
 import { startTickLoop, onTileMetricsChanged } from './api/tick.js';
 import { subscribeRealtime } from './state/realtime.js';
 
@@ -214,6 +215,10 @@ async function enterGame() {
     };
     startTickLoop(rerender);
     subscribeRealtime(rerender);
+
+    // Show any unseen "what's new" entries. Fire-and-forget — never
+    // gates the game UI.
+    checkAndShowChangelogIfUnseen();
   } catch (err) {
     console.error('Failed to enter game:', err);
     document.getElementById('ui-root').innerHTML = `
