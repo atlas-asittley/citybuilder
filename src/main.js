@@ -41,13 +41,17 @@ const game = new Phaser.Game({
     height: window.innerHeight
   },
   render: { pixelArt: false, antialias: true },
-  scene: sandboxMode ? [SandboxScene] : [MainScene]
+  // Sandbox is auto-started; MainScene is registered but NOT auto-
+  // started — it only starts once data has loaded from Supabase.
+  // Otherwise create() would run before state.profile exists and we
+  // saw "Waiting for data…" stuck on screen even after auth.
+  scene: sandboxMode ? [SandboxScene] : []
 });
 
 if (sandboxMode) {
-  // Sandbox path: skip auth, let SandboxScene own the whole screen.
   console.log('Sandbox mode — auth bypassed');
 } else {
+  game.scene.add('MainScene', MainScene, false);
   bootApp();
 }
 
@@ -110,11 +114,15 @@ async function enterGame() {
 
     unmountLoadingScreen();
 
-    // Hand control to the Phaser scene. It reads from `state` and
-    // builds the visible map. Subsequent panel mounts overlay on
-    // top via #ui-root.
-    const scene = game.scene.getScene('MainScene');
-    if (scene) scene.scene.restart();
+    // Start (or restart) the Phaser scene now that state is
+    // populated. Use the scene manager's keys-based API instead of
+    // `scene.scene.restart()` so this works whether the scene was
+    // previously started or not.
+    if (game.scene.isActive('MainScene')) {
+      game.scene.getScene('MainScene').scene.restart();
+    } else {
+      game.scene.start('MainScene');
+    }
 
     // Mount the DOM overlays (top bar + build menu), kick off the
     // production tick loop, and subscribe to realtime building

@@ -47,28 +47,31 @@ export class MainScene extends Phaser.Scene {
     super('MainScene');
   }
 
-  preload() {
-    // Solid white rectangle reused as the base for every sprite —
-    // each instance gets its color via setTint(). Single-texture =
-    // single draw call for the whole map.
-    const g = this.add.graphics();
-    g.fillStyle(0xffffff, 1);
-    g.fillRect(0, 0, TILE_PX, TILE_PX);
-    g.generateTexture('square', TILE_PX, TILE_PX);
-    g.destroy();
-  }
-
   create() {
-    // If we got booted before data loaded (e.g., scene started by
-    // Phaser's autostart), show a polite placeholder and return.
+    // Safety net: the scene is only registered as autoStart=false in
+    // main.js, so this branch shouldn't fire in normal flow. If it
+    // does, surface the cause loudly rather than displaying a vague
+    // "waiting…" message that hides the real bug.
     if (!state.profile) {
+      console.error('MainScene started without state.profile — main.js lifecycle bug');
       this.add.text(this.scale.width / 2, this.scale.height / 2,
-        'Waiting for data…', {
+        'Scene started before data loaded — check console.', {
           fontFamily: 'system-ui, sans-serif',
-          fontSize: '14px',
-          color: '#888'
+          fontSize: '13px',
+          color: '#e94560'
         }).setOrigin(0.5);
       return;
+    }
+
+    // Generate the shared white-square texture every sprite reuses.
+    // Done in create() (not preload) because Phaser's preload phase
+    // is for async asset loads; in-place graphics belong in create.
+    if (!this.textures.exists('square')) {
+      const g = this.add.graphics();
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(0, 0, TILE_PX, TILE_PX);
+      g.generateTexture('square', TILE_PX, TILE_PX);
+      g.destroy();
     }
 
     // Map from "x,y" anchor → building, so a tap on any cell can
