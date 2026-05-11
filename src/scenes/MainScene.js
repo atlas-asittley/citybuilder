@@ -134,7 +134,21 @@ const BUILDING_ANIM_PROFILES = {
   spicery:        { smoke: true },
   curing_house:   { smoke: true },
   nail_forge:     { smoke: true, glow: 0xff7028 },
-  toolmaker:      { glow: 0xff8848 }
+  toolmaker:      { glow: 0xff8848 },
+
+  // Services + police — small bobbing figure on top of the building
+  // (a citizen / officer / priest going about their work). Same
+  // pattern as smoke, just a single sprite tweening up-down instead
+  // of a three-puff plume.
+  well:           { figure: 0xa0c0e0 },
+  school:         { figure: 0xa07050 },
+  temple:         { figure: 0xa89870 },
+  bathhouse:      { figure: 0x587088 },
+  tavern:         { figure: 0x9a5028 },
+  tax_man:        { figure: 0x8a8a3a },
+  watch_house:    { glow: 0xfff088, figure: 0x2a3a5a },
+  police_station: { figure: 0x2a3a5a },
+  constabulary:   { figure: 0x1a2a48 }
 };
 
 // AoE highlight color per kind. Mirrors v1's per-kind .aoe-<kind> CSS.
@@ -649,6 +663,35 @@ export class MainScene extends Phaser.Scene {
         });
         this._buildingSprites.push(puff);
       }
+    }
+
+    if (profile.figure) {
+      // A small bobbing dot on top of the building — the "worker
+      // figure" effect for services + police. Bobs vertically a few
+      // pixels and pans side-to-side over a long cycle so each
+      // figure feels slightly distinct.
+      const figX = worldX + (Math.random() - 0.5) * fw * TILE_PX * 0.4;
+      const figY = worldY + fh * TILE_PX * 0.2;
+      const fig = this.add.sprite(figX, figY, 'walker');
+      fig.setTint(profile.figure);
+      fig.setDepth(11);
+      this.tweens.add({
+        targets: fig,
+        y: figY - 4,
+        duration: 500 + Math.random() * 300,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+      this.tweens.add({
+        targets: fig,
+        x: figX + (Math.random() < 0.5 ? -12 : 12),
+        duration: 2400 + Math.random() * 1000,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+      this._buildingSprites.push(fig);
     }
   }
 
