@@ -56,8 +56,11 @@ async function fetchHousingTiers() {
   return map;
 }
 
-async function fetchResourceNodes() {
-  const { data, error } = await sb.from('resource_nodes').select('*');
+async function fetchResources() {
+  // Resource catalog (timber, stone, etc.) — keyed by resource.key,
+  // which matches map_tiles.resource_node_key. v1 unhelpfully called
+  // the in-state map `resourceNodes`; the actual table is `resources`.
+  const { data, error } = await sb.from('resources').select('*');
   if (error) throw error;
   const map = {};
   for (const r of data) map[r.key] = r;
@@ -90,19 +93,19 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resourceNodes] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
     fetchHousingTiers(),
-    fetchResourceNodes()
+    fetchResources()
   ]);
 
   state.allBuildings = buildings;
   state.tileMap = tileMap;
   state.buildingTypes = buildingTypes;
   state.housingTierConfig = housingTiers;
-  state.resourceNodes = resourceNodes;
+  state.resourceNodes = resources;   // keep store field name for back-compat
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;
