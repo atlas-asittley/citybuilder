@@ -22,7 +22,9 @@ import { mountAuthScreen, unmountAuthScreen } from './ui/AuthScreen.js';
 import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/IndustrySelectScreen.js';
 import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js';
 import { mountTopBar } from './ui/TopBar.js';
+import { mountBuildMenu } from './ui/BuildMenu.js';
 import { startTickLoop } from './api/tick.js';
+import { subscribeRealtime } from './state/realtime.js';
 
 // ── Boot Phaser ──
 const params = new URLSearchParams(window.location.search);
@@ -114,15 +116,21 @@ async function enterGame() {
     const scene = game.scene.getScene('MainScene');
     if (scene) scene.scene.restart();
 
-    // Mount the DOM overlay (top bar) and kick off the production
-    // tick loop. The tick loop pings process_production every 30s,
-    // refreshes profile numbers, and re-renders buildings if the
-    // server reports evolution events.
+    // Mount the DOM overlays (top bar + build menu), kick off the
+    // production tick loop, and subscribe to realtime building
+    // changes so other players' builds appear without a refresh.
     mountTopBar();
-    startTickLoop(() => {
+    mountBuildMenu((buildingType) => {
       const s = game.scene.getScene('MainScene');
-      if (s && s.rerenderBuildings) s.rerenderBuildings();
+      if (s?.setPlacementMode) s.setPlacementMode(buildingType);
     });
+
+    const rerender = () => {
+      const s = game.scene.getScene('MainScene');
+      if (s?.rerenderBuildings) s.rerenderBuildings();
+    };
+    startTickLoop(rerender);
+    subscribeRealtime(rerender);
   } catch (err) {
     console.error('Failed to enter game:', err);
     document.getElementById('ui-root').innerHTML = `

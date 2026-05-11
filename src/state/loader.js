@@ -32,7 +32,7 @@ async function fetchAllBuildings() {
 async function fetchTileMap(playerId) {
   const { data, error } = await sb
     .from('map_tiles')
-    .select('x, y, terrain_type, resource_node_key, pollution, desirability, owner_player_id')
+    .select('id, x, y, terrain_type, resource_node_key, pollution, desirability, owner_player_id')
     .eq('owner_player_id', playerId);
   if (error) throw error;
   const map = {};

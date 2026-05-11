@@ -8,6 +8,8 @@
 import Phaser from 'phaser';
 import { state } from '../state/store.js';
 import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
+import { placeBuilding } from '../api/buildings.js';
+import { clearSelection as clearBuildSelection } from '../ui/BuildMenu.js';
 
 const TILE_PX = 48;
 
@@ -72,11 +74,33 @@ export class MainScene extends Phaser.Scene {
     // Map from "x,y" anchor → building, so a tap on any cell can
     // find the building (multi-tile buildings register their anchor).
     this._buildingAtAnchor = new Map();
+    this._placementMode = null;   // { buildingType, ghostSprite }
 
     this._renderTiles();
     this._renderBuildings();
     this._setupCamera();
     this._setupTapToInspect();
+  }
+
+  // Called by BuildMenu when the player picks a building type to
+  // place. Pass null to cancel placement.
+  setPlacementMode(buildingType) {
+    // Tear down any prior ghost.
+    if (this._placementMode?.ghostSprite) {
+      this._placementMode.ghostSprite.destroy();
+    }
+    if (!buildingType) {
+      this._placementMode = null;
+      return;
+    }
+    const fw = buildingType.footprint_w || 1;
+    const fh = buildingType.footprint_h || 1;
+    const ghost = this.add.sprite(0, 0, 'square');
+    ghost.setScale(fw - 0.15, fh - 0.15);
+    ghost.setTint(0x16c79a);
+    ghost.setAlpha(0.55);
+    ghost.setDepth(900);
+    this._placementMode = { buildingType, ghostSprite: ghost, fw, fh };
   }
 
   // Expose a re-render hook for the tick / realtime layers — they
@@ -195,19 +219,56 @@ export class MainScene extends Phaser.Scene {
   _setupTapToInspect() {
     // Differentiate tap from drag-pan: if the pointer moved more than
     // a few pixels between down and up, it was a drag; otherwise a
-    // tap. Only taps open the inspector.
+    // tap. Only taps trigger inspector or placement.
     let downX = 0, downY = 0, downAtMs = 0;
     this.input.on('pointerdown', (p) => {
       downX = p.x; downY = p.y; downAtMs = performance.now();
     });
-    this.input.on('pointerup', (p, currentlyOver) => {
+
+    // Ghost sprite follows the cursor when placement mode is active.
+    // Snap to the tile grid so the player can see exactly where the
+    // building will land.
+    this.input.on('pointermove', (p) => {
+      if (!this._placementMode) return;
+      const world = this.cameras.main.getWorldPoint(p.x, p.y);
+      const gx = Math.floor(world.x / TILE_PX);
+      const gy = Math.floor(world.y / TILE_PX);
+      const { fw, fh, ghostSprite } = this._placementMode;
+      ghostSprite.x = gx * TILE_PX + (fw * TILE_PX) / 2;
+      ghostSprite.y = gy * TILE_PX + (fh * TILE_PX) / 2;
+    });
+
+    this.input.on('pointerup', async (p, currentlyOver) => {
       const dx = p.x - downX, dy = p.y - downY;
       const moved = Math.hypot(dx, dy);
       const heldMs = performance.now() - downAtMs;
       if (moved > 8 || heldMs > 500) return;
 
-      // Was the tap on a building sprite? currentlyOver is the array
-      // of interactive objects under the pointer at pointerup time.
+      // Placement mode: tap = try to place the building here.
+      if (this._placementMode) {
+        const world = this.cameras.main.getWorldPoint(p.x, p.y);
+        const gx = Math.floor(world.x / TILE_PX) + state.gridMinX;
+        const gy = Math.floor(world.y / TILE_PX) + state.gridMinY;
+        const tile = state.tileMap[gx + ',' + gy];
+        if (!tile) {
+          alert("That tile isn't in your parcel.");
+          return;
+        }
+        const btKey = this._placementMode.buildingType.key;
+        try {
+          await placeBuilding(tile.id, btKey);
+          // Realtime sub will pick up the INSERT and re-render.
+          // Exit placement mode after a successful place so the
+          // player can pan / inspect again.
+          this.setPlacementMode(null);
+          clearBuildSelection();
+        } catch (err) {
+          alert(err.message || 'Could not place building.');
+        }
+        return;
+      }
+
+      // Inspect mode (default): tap on a building → open inspector.
       if (currentlyOver && currentlyOver.length > 0) {
         for (const obj of currentlyOver) {
           if (obj.buildingRef) {
@@ -216,7 +277,6 @@ export class MainScene extends Phaser.Scene {
           }
         }
       }
-      // Tap on empty space → close any open inspector.
       closeInspector();
     });
   }
