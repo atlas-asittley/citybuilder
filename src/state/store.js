@@ -19,6 +19,7 @@ export const state = {
   housingTierConfig: {},
   resourceNodes: {},
   inventory: {},            // keyed by resource_key → numeric quantity
+  notifications: [],        // recent notifications, newest first
 
   // Camera / UI hints — only what the renderer needs
   gridMinX: 0,

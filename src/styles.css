@@ -355,6 +355,61 @@ html, body {
 .tp-btn-buy:hover:not(:disabled) { background: #e94560; color: #fff; }
 .tp-empty { color: #888; text-align: center; padding: 20px; font-size: 13px; }
 
+/* Bell badge */
+.tb-btn-bell { position: relative; }
+.tb-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #e94560;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  display: none;
+  min-width: 14px;
+  text-align: center;
+  line-height: 1.4;
+}
+.tb-badge.visible { display: inline-block; }
+
+/* Bell-log overlay */
+#bell-overlay {
+  position: fixed; inset: 0;
+  z-index: 80;
+  background: rgba(10, 14, 20, 0.7);
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 50px 12px 20px;
+  pointer-events: auto;
+}
+.bl-card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 16px 20px;
+  width: 100%; max-width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.bl-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.bl-header h2 { font-size: 16px; color: #16c79a; }
+.bl-close {
+  background: transparent; border: none; color: #888;
+  font-size: 22px; cursor: pointer; padding: 0 4px;
+}
+.bl-row {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(15, 52, 96, 0.4);
+  font-size: 13px;
+}
+.bl-row:last-child { border-bottom: none; }
+.bl-msg { color: #e6e6e6; line-height: 1.4; flex: 1; }
+.bl-time { color: #888; font-size: 11px; flex-shrink: 0; }
+.bl-empty { color: #888; text-align: center; padding: 20px; font-size: 13px; }
+
 /* Expansion picker overlay */
 #expansion-overlay {
   position: fixed; inset: 0;

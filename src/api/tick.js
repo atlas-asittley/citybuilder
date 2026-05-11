@@ -12,6 +12,7 @@
 import { sb } from './supabase.js';
 import { state } from '../state/store.js';
 import { refreshTopBar } from '../ui/TopBar.js';
+import { pollNotifications } from '../ui/BellLog.js';
 
 const TICK_INTERVAL_MS = 30000;
 let tickTimer = null;
@@ -42,6 +43,9 @@ async function runTick() {
     // server; refresh the local tileMap so heatmaps reflect current
     // values. Cheap — single SELECT bounded to this player's tiles.
     refreshTileMetrics();
+    // Drain any new notifications (housing-ready, trade-cancel)
+    // and bubble them into the bell-log badge.
+    pollNotifications();
   } catch (e) {
     console.warn('tick request failed:', e.message || e);
   }
