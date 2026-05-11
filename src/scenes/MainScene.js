@@ -26,6 +26,20 @@ const TERRAIN_TINTS = {
 };
 const OWNED_GRASS_TINT = 0x4a6440;
 
+// Per-resource tint for the small dot we draw on tiles that have
+// a resource node. Keyed by the resource.kind from the resources
+// table — finer per-key buckets aren't worth the lookup. Matches
+// the rough palette v1 used for `.res-dot`.
+const RESOURCE_TINTS = {
+  wood: 0x6aa055,
+  stone: 0x9a9aae,
+  clay: 0xc88a55,
+  metal: 0xb0b0c0,
+  food: 0xd8c050,
+  fish: 0x70a0c0,
+  default: 0xe0c060
+};
+
 // Per-category tint for buildings. As the asset pipeline matures
 // we replace this with a sprite atlas keyed by building_type_key.
 const CATEGORY_TINTS = {
@@ -86,6 +100,14 @@ export class MainScene extends Phaser.Scene {
       g.generateTexture('square', TILE_PX, TILE_PX);
       g.destroy();
     }
+    // Small filled circle used as the resource-tile indicator.
+    if (!this.textures.exists('res-dot')) {
+      const g = this.add.graphics();
+      g.fillStyle(0xffffff, 1);
+      g.fillCircle(8, 8, 8);
+      g.generateTexture('res-dot', 16, 16);
+      g.destroy();
+    }
 
     // Map from "x,y" anchor → building, so a tap on any cell can
     // find the building (multi-tile buildings register their anchor).
@@ -131,22 +153,29 @@ export class MainScene extends Phaser.Scene {
   }
 
   _renderTiles() {
-    // Render every owned tile + a slightly larger frame of wilderness
-    // tiles around it for context. For now we just render the owned
-    // ones; wilderness will come when we add the build-placement
-    // preview that needs to highlight reachable tiles.
+    // Render every owned tile, plus a small dot for tiles that
+    // carry a resource node (timber grove, stone outcrop, iron
+    // deposit, etc.). Players need to see resource tiles so they
+    // know where to place extractors. v1 used a `<div class="res-dot">`
+    // for this; Phaser equivalent is a tinted circle sprite on top.
     for (const k in state.tileMap) {
       const t = state.tileMap[k];
       const worldX = (t.x - state.gridMinX) * TILE_PX + TILE_PX / 2;
       const worldY = (t.y - state.gridMinY) * TILE_PX + TILE_PX / 2;
 
       let tint = TERRAIN_TINTS[t.terrain_type] || OWNED_GRASS_TINT;
-      // Override grass with a brighter shade for owned tiles so the
-      // player's parcel stands out.
       if (t.terrain_type === 'grass') tint = OWNED_GRASS_TINT;
 
-      const sprite = this.add.sprite(worldX, worldY, 'square');
-      sprite.setTint(tint);
+      const tile = this.add.sprite(worldX, worldY, 'square');
+      tile.setTint(tint);
+
+      if (t.resource_node_key) {
+        const res = state.resourceNodes[t.resource_node_key];
+        const kind = res?.kind || 'default';
+        const dot = this.add.sprite(worldX, worldY, 'res-dot');
+        dot.setTint(RESOURCE_TINTS[kind] || RESOURCE_TINTS.default);
+        dot.setDepth(5);
+      }
     }
   }
 

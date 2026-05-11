@@ -367,6 +367,45 @@ html, body {
 .ip-value { color: #e6e6e6; text-align: right; }
 .ip-row-wide .ip-value { text-align: left; line-height: 1.4; }
 
+.ip-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #0f3460;
+  flex-wrap: wrap;
+}
+.ip-actions:empty { display: none; }
+.ip-btn {
+  flex: 1;
+  min-width: 100px;
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  color: #e6e6e6;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ip-btn:hover:not(:disabled) { border-color: #16c79a; }
+.ip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ip-btn-primary {
+  background: #16c79a;
+  border-color: #16c79a;
+  color: #0a0e14;
+}
+.ip-btn-primary:hover:not(:disabled) { background: #14b88e; border-color: #14b88e; }
+.ip-btn-danger {
+  border-color: #5a2030;
+  color: #e94560;
+}
+.ip-btn-danger:hover:not(:disabled) {
+  background: #e94560;
+  border-color: #e94560;
+  color: #fff;
+}
+
 /* ── Loading spinner ── */
 .ui-loading {
   text-align: center;

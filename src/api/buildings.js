@@ -11,3 +11,19 @@ export async function placeBuilding(tileId, buildingTypeKey) {
   if (error) throw error;
   return data;
 }
+
+export async function demolishBuilding(buildingId) {
+  const { data, error } = await sb.rpc('demolish_building', {
+    p_building_id: buildingId
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function upgradeHouse(buildingId) {
+  const { data, error } = await sb.rpc('upgrade_house', {
+    p_building_id: buildingId
+  });
+  if (error) throw error;
+  return data;
+}

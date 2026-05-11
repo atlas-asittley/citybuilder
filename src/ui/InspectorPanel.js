@@ -4,6 +4,7 @@
 // AoE highlights, manage-tab); we start with the minimum useful
 // surface and grow from there.
 import { state } from '../state/store.js';
+import { demolishBuilding, upgradeHouse } from '../api/buildings.js';
 
 let mounted = false;
 let activeBuilding = null;
@@ -40,6 +41,7 @@ function mountInspector() {
       <p class="ip-subtitle" id="ip-subtitle"></p>
     </div>
     <div class="ip-body" id="ip-body"></div>
+    <div class="ip-actions" id="ip-actions"></div>
   `;
   root.appendChild(panel);
   mounted = true;
@@ -74,7 +76,63 @@ function renderInspector() {
   if (bt.description) rows.push(row('About', bt.description, true));
 
   document.getElementById('ip-body').innerHTML = rows.join('');
+  document.getElementById('ip-actions').innerHTML = renderActions(b, bt, isMine);
+  wireActionHandlers(b);
   panel.classList.add('open');
+}
+
+// Action buttons. Only the owner can demolish or upgrade. Housing
+// gets an "Upgrade" button when the server has flagged the building
+// as ready to evolve (evolution_eligible_at is non-null). Everything
+// else just gets demolish.
+function renderActions(b, bt, isMine) {
+  if (!isMine) return '';
+  const parts = [];
+  const isHousing = bt.category === 'housing' && b.housing_tier;
+  const canUpgrade = isHousing && !!b.evolution_eligible_at;
+  if (canUpgrade) {
+    parts.push('<button class="ip-btn ip-btn-primary" id="ip-upgrade">Upgrade house</button>');
+  }
+  parts.push('<button class="ip-btn ip-btn-danger" id="ip-demolish">Demolish</button>');
+  return parts.join('');
+}
+
+function wireActionHandlers(b) {
+  const upgradeBtn = document.getElementById('ip-upgrade');
+  const demolishBtn = document.getElementById('ip-demolish');
+
+  if (upgradeBtn) {
+    upgradeBtn.addEventListener('click', async () => {
+      upgradeBtn.disabled = true;
+      upgradeBtn.textContent = 'Upgrading…';
+      try {
+        await upgradeHouse(b.id);
+        // Realtime UPDATE will pick up the tier change; close the
+        // panel so the player sees the new building.
+        closeInspector();
+      } catch (err) {
+        alert(err.message || 'Upgrade failed.');
+        upgradeBtn.disabled = false;
+        upgradeBtn.textContent = 'Upgrade house';
+      }
+    });
+  }
+
+  if (demolishBtn) {
+    demolishBtn.addEventListener('click', async () => {
+      if (!confirm('Demolish this building? You will get a partial refund.')) return;
+      demolishBtn.disabled = true;
+      demolishBtn.textContent = 'Demolishing…';
+      try {
+        await demolishBuilding(b.id);
+        closeInspector();
+      } catch (err) {
+        alert(err.message || 'Could not demolish.');
+        demolishBtn.disabled = false;
+        demolishBtn.textContent = 'Demolish';
+      }
+    });
+  }
 }
 
 function row(label, value, wide) {
