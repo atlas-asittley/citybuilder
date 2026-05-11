@@ -735,6 +735,42 @@ html, body {
   border-top: 1px solid #0f3460;
 }
 .cl-actions .ui-btn-primary { width: 100%; }
+
+/* Tutorial banner — bottom strip above the build menu button */
+#tutorial-banner {
+  position: fixed;
+  left: 12px; right: 80px;
+  bottom: 12px;
+  background: rgba(22, 33, 62, 0.95);
+  border: 1px solid #16c79a;
+  border-radius: 8px;
+  padding: 12px 14px;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  pointer-events: auto;
+  transition: opacity 0.2s, transform 0.2s;
+}
+#tutorial-banner.hidden { display: none; }
+.tb-content { flex: 1; min-width: 0; }
+.tb-title { color: #16c79a; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.tb-body { color: #e6e6e6; font-size: 12px; line-height: 1.4; }
+.tb-dismiss {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.tb-dismiss:hover { color: #e94560; }
+
+@media (max-width: 720px) {
+  #tutorial-banner { right: 72px; }
+}
 .rp-chart {
   display: block;
   width: 100%;

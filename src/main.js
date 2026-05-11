@@ -28,6 +28,7 @@ import { mountBuildMenu } from './ui/BuildMenu.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
 import { checkAndShowChangelogIfUnseen } from './ui/ChangelogModal.js';
+import { mountTutorialBanner } from './ui/TutorialBanner.js';
 import { startTickLoop, onTileMetricsChanged } from './api/tick.js';
 import { subscribeRealtime } from './state/realtime.js';
 
@@ -208,6 +209,8 @@ async function enterGame() {
     bindSceneToExpansion(mainScene);
 
     onTileMetricsChanged(() => mainScene.refreshHeatmap?.());
+
+    mountTutorialBanner();
 
     const rerender = () => {
       const s = game.scene.getScene('MainScene');

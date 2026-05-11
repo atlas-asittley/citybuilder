@@ -13,6 +13,7 @@ import { sb } from './supabase.js';
 import { state } from '../state/store.js';
 import { refreshTopBar } from '../ui/TopBar.js';
 import { pollNotifications } from '../ui/BellLog.js';
+import { refreshTutorialBanner } from '../ui/TutorialBanner.js';
 
 const TICK_INTERVAL_MS = 30000;
 let tickTimer = null;
@@ -89,8 +90,10 @@ function applyTickResponse(data) {
   if (data.workers_used !== undefined) state.profile.workers_used = data.workers_used;
   if (data.worker_capacity !== undefined) state.profile.worker_capacity = data.worker_capacity;
   if (data.productivity !== undefined) state.profile.productivity = data.productivity;
+  if (data.tutorial_step !== undefined) state.profile.tutorial_step = data.tutorial_step;
 
   refreshTopBar();
+  refreshTutorialBanner();
 
   // Evolution events (devolves, upgrade-ready, lost-eligibility)
   // require a buildings refetch — those events imply housing_tier
