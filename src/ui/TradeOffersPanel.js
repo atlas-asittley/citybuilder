@@ -6,7 +6,8 @@
 // later (propose_trade_agreement RPC takes an interval).
 import { state } from '../state/store.js';
 import {
-  listMyOffers, proposeTrade, acceptTrade, rejectTrade, cancelTrade
+  listMyOffers, proposeTrade, acceptTrade, rejectTrade, cancelTrade,
+  proposeTradeAgreement, listTradeAgreements, acceptTradeAgreement, cancelTradeAgreement
 } from '../api/trade.js';
 
 let mounted = false;
@@ -61,9 +62,13 @@ async function renderInbox() {
   document.getElementById('to-title').textContent = 'Trade offers';
   if (!body) return;
 
-  let offers = [];
-  try { offers = await listMyOffers(); }
-  catch (err) {
+  let offers = [], agreements = [];
+  try {
+    [offers, agreements] = await Promise.all([
+      listMyOffers(),
+      listTradeAgreements().catch(() => [])
+    ]);
+  } catch (err) {
     body.innerHTML = `<p class="to-error">Couldn't load offers: ${err.message}</p>`;
     return;
   }
@@ -72,20 +77,73 @@ async function renderInbox() {
   const incoming = offers.filter((o) => o.to_player_id === myId);
   const outgoing = offers.filter((o) => o.from_player_id === myId);
 
+  // Agreements: pending vs active. List_trade_agreements returns all
+  // agreements the player is a party to.
+  const pendingAgrs = agreements.filter((a) => a.status === 'pending');
+  const activeAgrs  = agreements.filter((a) => a.status === 'active');
+
   body.innerHTML = `
     <p class="to-hint">
-      Propose a one-off swap. From the Players panel, tap "Trade" next to anyone to compose.
+      One-off offers fire once. Agreements repeat on a schedule (e.g.
+      "every 10 minutes") until cancelled. Compose from the Players
+      panel — tap "Trade" next to anyone.
     </p>
     ${incoming.length ? `
-      <h3 class="to-section-title">Incoming (${incoming.length})</h3>
+      <h3 class="to-section-title">Incoming offers (${incoming.length})</h3>
       ${incoming.map((o) => renderOfferRow(o, 'incoming')).join('')}
-    ` : '<h3 class="to-section-title">Incoming</h3><p class="to-empty">No incoming offers.</p>'}
+    ` : '<h3 class="to-section-title">Incoming offers</h3><p class="to-empty">No incoming offers.</p>'}
     ${outgoing.length ? `
-      <h3 class="to-section-title">Outgoing (${outgoing.length})</h3>
+      <h3 class="to-section-title">Outgoing offers (${outgoing.length})</h3>
       ${outgoing.map((o) => renderOfferRow(o, 'outgoing')).join('')}
+    ` : ''}
+    ${pendingAgrs.length ? `
+      <h3 class="to-section-title">Pending agreements (${pendingAgrs.length})</h3>
+      ${pendingAgrs.map((a) => renderAgreementRow(a, myId, 'pending')).join('')}
+    ` : ''}
+    ${activeAgrs.length ? `
+      <h3 class="to-section-title">Active agreements (${activeAgrs.length})</h3>
+      ${activeAgrs.map((a) => renderAgreementRow(a, myId, 'active')).join('')}
     ` : ''}
   `;
   wireOfferHandlers(body);
+}
+
+function renderAgreementRow(a, myId, status) {
+  const give = describeBundle(a.give_money, a.give_resources);
+  const receive = describeBundle(a.receive_money, a.receive_resources);
+  const isIncoming = a.to_player_id === myId;
+  const otherName = isIncoming
+    ? (a.from_player?.display_name || a.from_player_name || 'someone')
+    : (a.to_player?.display_name || a.to_player_name || 'someone');
+  const youGet = isIncoming ? give : receive;
+  const youGive = isIncoming ? receive : give;
+
+  let actions;
+  if (status === 'active') {
+    actions = `<button class="ip-btn ip-btn-danger" data-act="cancel-agr" data-id="${a.id}">Cancel agreement</button>`;
+  } else if (isIncoming) {
+    actions = `
+      <button class="ip-btn ip-btn-primary" data-act="accept-agr" data-id="${a.id}">Accept</button>
+      <button class="ip-btn ip-btn-danger"  data-act="cancel-agr" data-id="${a.id}">Reject</button>
+    `;
+  } else {
+    actions = `<button class="ip-btn ip-btn-danger" data-act="cancel-agr" data-id="${a.id}">Cancel</button>`;
+  }
+
+  return `
+    <div class="to-offer to-agreement">
+      <div class="to-offer-head">
+        <span class="to-offer-who">${isIncoming ? 'from' : 'to'} ${escapeHtml(otherName)}</span>
+        <span class="to-offer-when">every ${a.interval_minutes}m</span>
+      </div>
+      <div class="to-offer-body">
+        <div class="to-bundle to-bundle-give"><span class="to-bundle-label">${isIncoming ? 'They want' : 'You give'}</span>${youGive}</div>
+        <div class="to-bundle to-bundle-get"><span class="to-bundle-label">${isIncoming ? 'You get' : 'You receive'}</span>${youGet}</div>
+      </div>
+      ${a.message ? `<div class="to-offer-msg">"${escapeHtml(a.message)}"</div>` : ''}
+      <div class="to-offer-actions">${actions}</div>
+    </div>
+  `;
 }
 
 function renderOfferRow(o, dir) {
@@ -142,20 +200,27 @@ function timeAgo(iso) {
 }
 
 function wireOfferHandlers(root) {
+  const fns = {
+    'accept':     acceptTrade,
+    'reject':     rejectTrade,
+    'cancel':     cancelTrade,
+    'accept-agr': acceptTradeAgreement,
+    'cancel-agr': cancelTradeAgreement
+  };
   root.querySelectorAll('button[data-act]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const act = btn.dataset.act;
-      const id = btn.dataset.id;
-      const fn = act === 'accept' ? acceptTrade : act === 'reject' ? rejectTrade : cancelTrade;
+      const fn = fns[act];
+      if (!fn) return;
       btn.disabled = true;
-      btn.textContent = act === 'accept' ? 'Accepting…' : act === 'reject' ? 'Rejecting…' : 'Canceling…';
+      btn.textContent = '…';
       try {
-        await fn(id);
+        await fn(btn.dataset.id);
         renderInbox();
       } catch (err) {
         alert(err.message || (act + ' failed'));
         btn.disabled = false;
-        btn.textContent = act.charAt(0).toUpperCase() + act.slice(1);
+        btn.textContent = act.replace('-agr', '');
       }
     });
   });
@@ -216,6 +281,14 @@ function renderCompose() {
       <span>Message (optional)</span>
       <input type="text" id="compose-msg" maxlength="240" placeholder="A note for them" />
     </label>
+    <label class="to-field to-field-recurring">
+      <input type="checkbox" id="compose-recurring" />
+      <span>Make recurring (agreement)</span>
+    </label>
+    <label class="to-field to-field-interval" id="compose-interval-wrap" style="display:none;">
+      <span>Repeat every (minutes)</span>
+      <input type="number" min="1" max="1440" id="compose-interval" value="10" />
+    </label>
     <div class="to-compose-actions">
       <button class="ip-btn" id="compose-back">← Back to inbox</button>
       <button class="ip-btn ip-btn-primary" id="compose-send">Send offer</button>
@@ -223,6 +296,15 @@ function renderCompose() {
   `;
 
   document.getElementById('compose-back').addEventListener('click', renderInbox);
+
+  // Toggle the interval input visibility + button label when the
+  // recurring checkbox flips.
+  const recBox = document.getElementById('compose-recurring');
+  recBox.addEventListener('change', () => {
+    document.getElementById('compose-interval-wrap').style.display = recBox.checked ? '' : 'none';
+    document.getElementById('compose-send').textContent = recBox.checked ? 'Propose agreement' : 'Send offer';
+  });
+
   document.getElementById('compose-send').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     const giveMoney = parseInt(document.getElementById('give-money').value, 10) || 0;
@@ -232,6 +314,8 @@ function renderCompose() {
     const recvRes   = document.getElementById('recv-res').value;
     const recvQty   = parseInt(document.getElementById('recv-qty').value, 10) || 0;
     const msg       = document.getElementById('compose-msg').value.trim();
+    const recurring = recBox.checked;
+    const interval  = parseInt(document.getElementById('compose-interval').value, 10);
 
     const giveBundle = [];
     if (giveRes && giveQty > 0) giveBundle.push({ resource_key: giveRes, quantity: giveQty });
@@ -242,21 +326,27 @@ function renderCompose() {
       alert('An offer needs at least one thing to give or receive.');
       return;
     }
+    if (recurring && (!Number.isFinite(interval) || interval <= 0)) {
+      alert('Enter a positive interval in minutes.');
+      return;
+    }
 
     btn.disabled = true;
     btn.textContent = 'Sending…';
     try {
-      await proposeTrade({
+      const fn = recurring ? proposeTradeAgreement : proposeTrade;
+      await fn({
         toPlayerId: composeTarget.id,
         giveMoney, giveResources: giveBundle,
         receiveMoney: recvMoney, receiveResources: recvBundle,
+        intervalMinutes: interval,
         message: msg
       });
       renderInbox();
     } catch (err) {
       alert(err.message || 'Send failed.');
       btn.disabled = false;
-      btn.textContent = 'Send offer';
+      btn.textContent = recurring ? 'Propose agreement' : 'Send offer';
     }
   });
 }

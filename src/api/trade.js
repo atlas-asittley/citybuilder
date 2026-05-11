@@ -17,6 +17,38 @@ export async function proposeTrade(params) {
   return data;
 }
 
+export async function proposeTradeAgreement(params) {
+  const { data, error } = await sb.rpc('propose_trade_agreement', {
+    p_to_player_id: params.toPlayerId,
+    p_give_money: params.giveMoney || 0,
+    p_give_resources: params.giveResources || [],
+    p_receive_money: params.receiveMoney || 0,
+    p_receive_resources: params.receiveResources || [],
+    p_interval_minutes: params.intervalMinutes,
+    p_message: params.message || null
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function acceptTradeAgreement(agreementId) {
+  const { data, error } = await sb.rpc('accept_trade_agreement', { p_agreement_id: agreementId });
+  if (error) throw error;
+  return data;
+}
+
+export async function cancelTradeAgreement(agreementId) {
+  const { data, error } = await sb.rpc('cancel_trade_agreement', { p_agreement_id: agreementId });
+  if (error) throw error;
+  return data;
+}
+
+export async function listTradeAgreements() {
+  const { data, error } = await sb.rpc('list_trade_agreements');
+  if (error) throw error;
+  return data || [];
+}
+
 export async function acceptTrade(offerId) {
   const { data, error } = await sb.rpc('accept_trade', { p_offer_id: offerId });
   if (error) throw error;

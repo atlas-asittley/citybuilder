@@ -404,6 +404,22 @@ html, body {
   margin-top: 14px;
 }
 .to-compose-actions .ip-btn { flex: 1; }
+.to-field-recurring {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  color: #e6e6e6 !important;
+}
+.to-field-recurring input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+.to-agreement {
+  border-color: #a87830;
+  background: rgba(168, 120, 48, 0.06);
+}
+.to-agreement .to-offer-when { color: #c8a050; font-weight: 600; }
 
 /* Trade panel */
 #trade-overlay {
