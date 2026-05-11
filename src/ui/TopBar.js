@@ -13,6 +13,7 @@ import { openSettings } from './SettingsPanel.js';
 import { openPlayers } from './PlayersPanel.js';
 import { openTrade } from './TradePanel.js';
 import { openBellLog, mountBellLog } from './BellLog.js';
+import { openReports } from './ReportsPanel.js';
 
 let mounted = false;
 let onExpandedCallback = null;
@@ -34,6 +35,7 @@ export function mountTopBar(onExpanded) {
       <span class="tb-chip" id="tb-happy"></span>
       <button class="tb-btn" id="tb-expand">+ Expand</button>
       <button class="tb-btn tb-btn-icon" id="tb-trade" title="Trade">💱</button>
+      <button class="tb-btn tb-btn-icon" id="tb-reports" title="Treasury">📊</button>
       <button class="tb-btn tb-btn-icon tb-btn-bell" id="tb-bell" title="Notifications">🔔<span id="tb-bell-badge" class="tb-badge"></span></button>
       <button class="tb-btn tb-btn-icon" id="tb-players" title="Players">👥</button>
       <button class="tb-btn tb-btn-icon" id="tb-settings" title="Settings">⚙</button>
@@ -49,6 +51,7 @@ export function mountTopBar(onExpanded) {
     });
   });
   document.getElementById('tb-trade').addEventListener('click', openTrade);
+  document.getElementById('tb-reports').addEventListener('click', openReports);
   document.getElementById('tb-bell').addEventListener('click', openBellLog);
   document.getElementById('tb-players').addEventListener('click', openPlayers);
   document.getElementById('tb-settings').addEventListener('click', openSettings);
