@@ -6,6 +6,12 @@
 import { state } from '../state/store.js';
 import { demolishBuilding, upgradeHouse } from '../api/buildings.js';
 
+// Set by main.js after MainScene starts. Lets the inspector ask the
+// scene to draw / clear the AoE highlight without an awkward import
+// cycle (scene also imports inspector functions).
+let sceneRef = null;
+export function bindSceneToInspector(scene) { sceneRef = scene; }
+
 let mounted = false;
 let activeBuilding = null;
 let onCloseCallback = null;
@@ -15,6 +21,7 @@ export function openInspector(building, onClose) {
   onCloseCallback = onClose || null;
   if (!mounted) mountInspector();
   renderInspector();
+  if (sceneRef?.showAoe) sceneRef.showAoe(building);
 }
 
 export function closeInspector() {
@@ -22,6 +29,7 @@ export function closeInspector() {
   const panel = document.getElementById('inspector-panel');
   if (panel) panel.classList.remove('open');
   activeBuilding = null;
+  if (sceneRef?.clearAoe) sceneRef.clearAoe();
   if (onCloseCallback) {
     onCloseCallback();
     onCloseCallback = null;

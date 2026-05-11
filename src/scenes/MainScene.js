@@ -1,10 +1,8 @@
-// The real game scene. Reads from state.tileMap + state.allBuildings
+// The main game scene. Reads from state.tileMap + state.allBuildings
 // (populated by state/loader.js after auth) and renders them as
-// Phaser sprites.
-//
-// Phase 1b scope: terrain + buildings drawn as colored rectangles,
-// camera with pan/zoom, no inspector / build menu / walkers yet.
-// Those land in subsequent phases.
+// Phaser sprites. Handles input: drag-pan, wheel-zoom, tap to
+// inspect, tap-to-place / drag-paint roads in placement mode, and
+// inspector AoE highlights.
 import Phaser from 'phaser';
 import { state } from '../state/store.js';
 import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
@@ -56,6 +54,43 @@ const CATEGORY_TINTS = {
   transport_hub: 0x8a4a8a,
   transport_connector: 0x6a4a6a
 };
+
+// AoE highlight color per kind. Mirrors v1's per-kind .aoe-<kind> CSS.
+const AOE_TINTS = {
+  police: 0x4060a0,
+  park: 0x4a8a4a,
+  booster: 0xa868a8,
+  well: 0x70a0c0,
+  school: 0xa07050,
+  temple: 0xa89870,
+  bathhouse: 0x587088
+};
+
+// Area-of-effect range + kind for a building that has gameplay
+// coverage. Used to highlight affected cells when the inspector
+// opens. Returns null for buildings without an AoE (housing,
+// extractors, roads). Ranges match the server-side gate checks in
+// `_pp_evolve_housing` for services and the building_types columns
+// for police / park / booster.
+function getBuildingAoeRange(b, bt) {
+  if (!bt) return null;
+  if (bt.category === 'police' && bt.coverage_radius > 0) {
+    return { range: bt.coverage_radius, kind: 'police' };
+  }
+  if (bt.category === 'park' && bt.pollution_radius > 0) {
+    return { range: bt.pollution_radius, kind: 'park' };
+  }
+  if (bt.category === 'booster' && bt.boost_range > 0) {
+    return { range: bt.boost_range, kind: 'booster' };
+  }
+  if (bt.category === 'service') {
+    if (bt.key === 'well')      return { range: 4, kind: 'well' };
+    if (bt.key === 'school')    return { range: 5, kind: 'school' };
+    if (bt.key === 'temple')    return { range: 6, kind: 'temple' };
+    if (bt.key === 'bathhouse') return { range: 4, kind: 'bathhouse' };
+  }
+  return null;
+}
 
 export class MainScene extends Phaser.Scene {
   constructor() {
@@ -112,12 +147,62 @@ export class MainScene extends Phaser.Scene {
     // Map from "x,y" anchor → building, so a tap on any cell can
     // find the building (multi-tile buildings register their anchor).
     this._buildingAtAnchor = new Map();
-    this._placementMode = null;   // { buildingType, ghostSprite }
+    this._placementMode = null;   // { buildingType, ghostSprite, fw, fh }
+    this._aoeOverlays = [];       // sprites for the inspector AoE highlight
+    this._dragPaintActive = false;
+    this._dragPaintPlaced = new Set();
 
     this._renderTiles();
     this._renderBuildings();
     this._setupCamera();
     this._setupTapToInspect();
+  }
+
+  // Public: highlight tiles in a building's area-of-effect. Called by
+  // the inspector when a service/police/park/booster building is opened
+  // so the player can see exactly which tiles benefit. Clearing is just
+  // calling this with null.
+  showAoe(building) {
+    this.clearAoe();
+    if (!building) return;
+    const bt = state.buildingTypes[building.building_type_key];
+    if (!bt) return;
+    const aoe = getBuildingAoeRange(building, bt);
+    if (!aoe) return;
+
+    const fw = bt.footprint_w || 1;
+    const fh = bt.footprint_h || 1;
+    const cells = new Set();
+    // Manhattan disk around every footprint cell, then unioned.
+    for (let dx = 0; dx < fw; dx++) {
+      for (let dy = 0; dy < fh; dy++) {
+        for (let rx = -aoe.range; rx <= aoe.range; rx++) {
+          for (let ry = -aoe.range; ry <= aoe.range; ry++) {
+            if (Math.abs(rx) + Math.abs(ry) <= aoe.range) {
+              cells.add((building.x + dx + rx) + ',' + (building.y + dy + ry));
+            }
+          }
+        }
+      }
+    }
+    const tint = AOE_TINTS[aoe.kind] || 0x16c79a;
+    for (const k of cells) {
+      const [x, y] = k.split(',').map(Number);
+      // Only paint tiles in this player's parcel for clarity.
+      if (!state.tileMap[k]) continue;
+      const wx = (x - state.gridMinX) * TILE_PX + TILE_PX / 2;
+      const wy = (y - state.gridMinY) * TILE_PX + TILE_PX / 2;
+      const overlay = this.add.sprite(wx, wy, 'square');
+      overlay.setTint(tint);
+      overlay.setAlpha(0.32);
+      overlay.setDepth(3);   // below res-dot (5), above tiles (default 0)
+      this._aoeOverlays.push(overlay);
+    }
+  }
+
+  clearAoe() {
+    for (const s of this._aoeOverlays) s.destroy();
+    this._aoeOverlays = [];
   }
 
   // Called by BuildMenu when the player picks a building type to
@@ -254,22 +339,44 @@ export class MainScene extends Phaser.Scene {
     let downX = 0, downY = 0, downAtMs = 0;
     this.input.on('pointerdown', (p) => {
       downX = p.x; downY = p.y; downAtMs = performance.now();
+
+      // Drag-paint for roads: if placement mode is active and the
+      // selected type is road (1x1, no resource gating), start a
+      // paint sequence so the player can lay a long road in one
+      // sweep instead of tapping each tile.
+      if (this._placementMode?.buildingType.category === 'road') {
+        this._dragPaintActive = true;
+        this._dragPaintPlaced.clear();
+        this._paintAtPointer(p);
+      }
     });
 
     // Ghost sprite follows the cursor when placement mode is active.
-    // Snap to the tile grid so the player can see exactly where the
-    // building will land.
+    // For multi-tile buildings the anchor is the top-left footprint
+    // tile, so the player sees the building exactly where it will
+    // be placed (matches the server's `place_building` semantics
+    // which use the clicked tile as the anchor).
     this.input.on('pointermove', (p) => {
-      if (!this._placementMode) return;
-      const world = this.cameras.main.getWorldPoint(p.x, p.y);
-      const gx = Math.floor(world.x / TILE_PX);
-      const gy = Math.floor(world.y / TILE_PX);
-      const { fw, fh, ghostSprite } = this._placementMode;
-      ghostSprite.x = gx * TILE_PX + (fw * TILE_PX) / 2;
-      ghostSprite.y = gy * TILE_PX + (fh * TILE_PX) / 2;
+      if (this._placementMode) {
+        const world = this.cameras.main.getWorldPoint(p.x, p.y);
+        const gx = Math.floor(world.x / TILE_PX);
+        const gy = Math.floor(world.y / TILE_PX);
+        const { fw, fh, ghostSprite } = this._placementMode;
+        ghostSprite.x = gx * TILE_PX + (fw * TILE_PX) / 2;
+        ghostSprite.y = gy * TILE_PX + (fh * TILE_PX) / 2;
+
+        if (this._dragPaintActive && p.isDown) this._paintAtPointer(p);
+      }
     });
 
     this.input.on('pointerup', async (p, currentlyOver) => {
+      // Drag-paint always ends on pointerup, regardless of distance.
+      if (this._dragPaintActive) {
+        this._dragPaintActive = false;
+        this._dragPaintPlaced.clear();
+        return;
+      }
+
       const dx = p.x - downX, dy = p.y - downY;
       const moved = Math.hypot(dx, dy);
       const heldMs = performance.now() - downAtMs;
@@ -277,10 +384,7 @@ export class MainScene extends Phaser.Scene {
 
       // Placement mode: tap = try to place the building here.
       if (this._placementMode) {
-        const world = this.cameras.main.getWorldPoint(p.x, p.y);
-        const gx = Math.floor(world.x / TILE_PX) + state.gridMinX;
-        const gy = Math.floor(world.y / TILE_PX) + state.gridMinY;
-        const tile = state.tileMap[gx + ',' + gy];
+        const tile = this._tileAtPointer(p);
         if (!tile) {
           alert("That tile isn't in your parcel.");
           return;
@@ -288,11 +392,13 @@ export class MainScene extends Phaser.Scene {
         const btKey = this._placementMode.buildingType.key;
         try {
           await placeBuilding(tile.id, btKey);
-          // Realtime sub will pick up the INSERT and re-render.
-          // Exit placement mode after a successful place so the
-          // player can pan / inspect again.
-          this.setPlacementMode(null);
-          clearBuildSelection();
+          // For non-road placements, exit placement mode so the
+          // player can pan / inspect again. Roads stay sticky so
+          // chained taps work like drag-paint without holding.
+          if (this._placementMode.buildingType.category !== 'road') {
+            this.setPlacementMode(null);
+            clearBuildSelection();
+          }
         } catch (err) {
           alert(err.message || 'Could not place building.');
         }
@@ -310,5 +416,34 @@ export class MainScene extends Phaser.Scene {
       }
       closeInspector();
     });
+  }
+
+  // Helper: return the tile (with id) at the current pointer position,
+  // or null if the pointer is outside the player's parcel.
+  _tileAtPointer(p) {
+    const world = this.cameras.main.getWorldPoint(p.x, p.y);
+    const gx = Math.floor(world.x / TILE_PX) + state.gridMinX;
+    const gy = Math.floor(world.y / TILE_PX) + state.gridMinY;
+    return state.tileMap[gx + ',' + gy] || null;
+  }
+
+  // Drag-paint helper. Fires place_building for the tile under the
+  // cursor at most once per drag sequence — _dragPaintPlaced tracks
+  // which tiles we've already submitted so revisiting one (e.g., the
+  // user sweeps back over a tile) doesn't double-call the RPC.
+  async _paintAtPointer(p) {
+    const tile = this._tileAtPointer(p);
+    if (!tile) return;
+    const key = tile.id;
+    if (this._dragPaintPlaced.has(key)) return;
+    this._dragPaintPlaced.add(key);
+    const btKey = this._placementMode.buildingType.key;
+    try {
+      await placeBuilding(tile.id, btKey);
+    } catch (_err) {
+      // Silent during drag-paint — alerting on every failed tile
+      // (already-occupied / not adjacent / no road) would spam.
+      // The successful tiles still go down.
+    }
   }
 }
