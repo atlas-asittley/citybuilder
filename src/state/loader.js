@@ -49,7 +49,10 @@ async function fetchBuildingTypes() {
 }
 
 async function fetchHousingTiers() {
-  const { data, error } = await sb.from('housing_tiers').select('*').order('tier');
+  // Table is housing_tier_config (not housing_tiers, which would be
+  // the natural pluralization). v1's in-state map was called
+  // housingTierConfig — matches the table name there.
+  const { data, error } = await sb.from('housing_tier_config').select('*').order('tier');
   if (error) throw error;
   const map = {};
   for (const t of data) map[t.tier] = t;
