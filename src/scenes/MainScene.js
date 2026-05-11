@@ -14,6 +14,12 @@ import { WALKER_SPRITES } from '../walker_sprites.js';
 const TILE_PX = 48;
 const MAX_WALKERS = 80;
 const WALKER_SPAWN_MS = 600;
+// v1 displayed walkers at 10×14 px on a 34px tile (~30% of tile).
+// v2's tile is TILE_PX=48 so the proportional size is ~14×20. Phaser
+// rasterizes the SVG at whatever the browser's default svg→image
+// size is (much larger), so setDisplaySize keeps them legible.
+const WALKER_PX_W = 14;
+const WALKER_PX_H = 20;
 
 // Mapping from server terrain_type to a tint color. Tints are picked
 // to feel like terrain rather than a tech demo. Wilderness (the
@@ -385,6 +391,7 @@ export class MainScene extends Phaser.Scene {
 
     const variant = pickWalkerVariant(b, bt);
     const sprite = this.add.sprite(startX, startY, 'walker-' + variant);
+    sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
     sprite.setDepth(10);
     // No tint — the v1 SVG sprites already have per-variant colors
     // baked in (timber=brown, stone=grey, grain=green, etc.).
@@ -965,6 +972,7 @@ export class MainScene extends Phaser.Scene {
       const figY = worldY + fh * TILE_PX * 0.2;
       const variant = pickWalkerVariant(b, bt);
       const fig = this.add.sprite(figX, figY, 'walker-' + variant);
+      fig.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
       fig.setDepth(11);
       this.tweens.add({
         targets: fig,
