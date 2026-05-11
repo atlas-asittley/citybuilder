@@ -3,7 +3,7 @@
 // deploy). The real game scaffolding lands once we have Phase 0
 // validated on Atlas's phone.
 import Phaser from 'phaser';
-import { BootScene } from './scenes/BootScene.js';
+import { SandboxScene } from './scenes/SandboxScene.js';
 
 const config = {
   type: Phaser.AUTO,            // WebGL with Canvas fallback
@@ -19,7 +19,7 @@ const config = {
     pixelArt: false,
     antialias: true
   },
-  scene: [BootScene]
+  scene: [SandboxScene]
 };
 
 new Phaser.Game(config);
