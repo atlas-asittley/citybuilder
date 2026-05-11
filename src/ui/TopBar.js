@@ -32,32 +32,51 @@ export function mountTopBar(onExpanded) {
     </div>
     <div class="topbar-right">
       <span class="tb-chip" id="tb-money"></span>
-      <span class="tb-chip" id="tb-pop"></span>
-      <span class="tb-chip" id="tb-happy"></span>
-      <button class="tb-btn" id="tb-expand">+ Expand</button>
+      <span class="tb-chip tb-chip-hide-sm" id="tb-pop"></span>
+      <span class="tb-chip tb-chip-hide-sm" id="tb-happy"></span>
       <button class="tb-btn tb-btn-icon" id="tb-trade" title="Trade">💱</button>
-      <button class="tb-btn tb-btn-icon" id="tb-offers" title="Player offers">🤝</button>
-      <button class="tb-btn tb-btn-icon" id="tb-reports" title="Treasury">📊</button>
       <button class="tb-btn tb-btn-icon tb-btn-bell" id="tb-bell" title="Notifications">🔔<span id="tb-bell-badge" class="tb-badge"></span></button>
-      <button class="tb-btn tb-btn-icon" id="tb-players" title="Players">👥</button>
-      <button class="tb-btn tb-btn-icon" id="tb-settings" title="Settings">⚙</button>
+      <button class="tb-btn tb-btn-icon" id="tb-more" title="More">⋯</button>
+      <div class="tb-more-menu" id="tb-more-menu" role="menu">
+        <button class="tb-more-row" id="tb-expand">+ Expand parcel</button>
+        <button class="tb-more-row" id="tb-offers">🤝 Player offers</button>
+        <button class="tb-more-row" id="tb-reports">📊 Treasury</button>
+        <button class="tb-more-row" id="tb-players">👥 Players</button>
+        <button class="tb-more-row" id="tb-settings">⚙ Settings</button>
+      </div>
     </div>
   `;
   root.appendChild(bar);
   mounted = true;
 
-  document.getElementById('tb-expand').addEventListener('click', () => {
+  const closeMore = () => document.getElementById('tb-more-menu').classList.remove('open');
+  const wireMore = (id, fn) => {
+    document.getElementById(id).addEventListener('click', () => { closeMore(); fn(); });
+  };
+
+  document.getElementById('tb-more').addEventListener('click', (e) => {
+    document.getElementById('tb-more-menu').classList.toggle('open');
+    e.stopPropagation();
+  });
+  // Close the "more" menu when tapping anywhere else.
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#tb-more-menu') && !e.target.closest('#tb-more')) {
+      closeMore();
+    }
+  });
+
+  wireMore('tb-expand', () => {
     openExpansionPanel(() => {
       refreshTopBar();
       if (onExpandedCallback) onExpandedCallback();
     });
   });
   document.getElementById('tb-trade').addEventListener('click', openTrade);
-  document.getElementById('tb-offers').addEventListener('click', openTradeOffers);
-  document.getElementById('tb-reports').addEventListener('click', openReports);
   document.getElementById('tb-bell').addEventListener('click', openBellLog);
-  document.getElementById('tb-players').addEventListener('click', openPlayers);
-  document.getElementById('tb-settings').addEventListener('click', openSettings);
+  wireMore('tb-offers', openTradeOffers);
+  wireMore('tb-reports', openReports);
+  wireMore('tb-players', openPlayers);
+  wireMore('tb-settings', openSettings);
   mountBellLog();
 
   refreshTopBar();

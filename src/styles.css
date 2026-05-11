@@ -200,7 +200,43 @@ html, body {
   border-radius: 4px;
   padding: 4px 10px;
   color: #e6e6e6;
+  white-space: nowrap;
 }
+.topbar-left, .topbar-right { gap: 6px; }
+@media (max-width: 680px) {
+  .tb-chip-hide-sm { display: none; }
+  .tb-city, .tb-name { font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* More menu (dropdown under the ⋯ button) */
+.tb-more-menu {
+  position: absolute;
+  top: 44px;
+  right: 8px;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  min-width: 200px;
+  padding: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.tb-more-menu.open { display: flex; }
+.tb-more-row {
+  background: transparent;
+  border: none;
+  color: #e6e6e6;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.tb-more-row:hover { background: #1a2a40; color: #16c79a; }
 .tb-btn {
   background: #16213e;
   border: 1px solid #16c79a;

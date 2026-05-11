@@ -260,6 +260,12 @@ export class MainScene extends Phaser.Scene {
       g.destroy();
     }
 
+    // Road autotile — 16 textures, one per NSEW connectivity bitmask
+    // (n=8, s=4, e=2, w=1). Cheap to pre-generate; lookup per tile is
+    // O(1). Renders a dirt road body with arms extending toward
+    // neighboring roads and shoulders blending into the grass.
+    this._ensureRoadTextures();
+
     // Map from "x,y" anchor → building, so a tap on any cell can
     // find the building (multi-tile buildings register their anchor).
     this._buildingAtAnchor = new Map();
@@ -388,6 +394,71 @@ export class MainScene extends Phaser.Scene {
   clearAoe() {
     for (const s of this._aoeOverlays) s.destroy();
     this._aoeOverlays = [];
+  }
+
+  // Generate the 16 NSEW road autotile textures into Phaser's
+  // texture manager. Keys are 'road-0' .. 'road-15'. Each is
+  // TILE_PX × TILE_PX with grass background, dirt road surface,
+  // and a lighter worn track in the middle. Cheap one-time cost
+  // at scene boot; per-tile lookup at render time is O(1).
+  _ensureRoadTextures() {
+    if (this.textures.exists('road-0')) return;
+    const SZ = TILE_PX;
+    const L = Math.floor(SZ * 0.18);      // inner margin (grass shoulder)
+    const R = SZ - L;                     // inner road right/bottom edge
+    const RW = R - L;                     // road body width
+    const TRACK = Math.max(2, Math.floor(RW * 0.18));   // worn-track width
+
+    for (let mask = 0; mask < 16; mask++) {
+      const n = !!(mask & 8), s = !!(mask & 4), e = !!(mask & 2), w = !!(mask & 1);
+      const g = this.add.graphics();
+
+      // 1. Grass background — dark earthy green, matches owned-grass tint
+      g.fillStyle(0x4a6440, 1);
+      g.fillRect(0, 0, SZ, SZ);
+
+      // 2. Road body (always centered) + arms toward connected neighbors
+      g.fillStyle(0x6b5436, 1);
+      g.fillRect(L, L, RW, RW);
+      if (n) g.fillRect(L, 0, RW, L);
+      if (s) g.fillRect(L, R, RW, SZ - R);
+      if (e) g.fillRect(R, L, SZ - R, RW);
+      if (w) g.fillRect(0, L, L, RW);
+      // Corner fills so two-arm bends look continuous
+      if (n && w) g.fillRect(0, 0, L, L);
+      if (n && e) g.fillRect(R, 0, SZ - R, L);
+      if (s && w) g.fillRect(0, R, L, SZ - R);
+      if (s && e) g.fillRect(R, R, SZ - R, SZ - R);
+
+      // 3. Worn center track — lighter strip down the middle of each
+      //    connected arm. Skipped on dead-end "stubs" so single tiles
+      //    look like a clean roundabout.
+      const trackOffset = Math.floor((RW - TRACK) / 2);
+      g.fillStyle(0x8a7048, 1);
+      if (n || s) {
+        // Vertical strip through the body
+        g.fillRect(L + trackOffset, L, TRACK, RW);
+        if (n) g.fillRect(L + trackOffset, 0, TRACK, L);
+        if (s) g.fillRect(L + trackOffset, R, TRACK, SZ - R);
+      }
+      if (e || w) {
+        // Horizontal strip
+        g.fillRect(L, L + trackOffset, RW, TRACK);
+        if (e) g.fillRect(R, L + trackOffset, SZ - R, TRACK);
+        if (w) g.fillRect(0, L + trackOffset, L, TRACK);
+      }
+
+      // 4. Road edges — darker line at every grass→dirt boundary.
+      //    Only along edges that AREN'T connecting to a neighbor.
+      g.lineStyle(1, 0x3e2a18, 0.6);
+      if (!n) { g.beginPath(); g.moveTo(L, L); g.lineTo(R, L); g.strokePath(); }
+      if (!s) { g.beginPath(); g.moveTo(L, R); g.lineTo(R, R); g.strokePath(); }
+      if (!w) { g.beginPath(); g.moveTo(L, L); g.lineTo(L, R); g.strokePath(); }
+      if (!e) { g.beginPath(); g.moveTo(R, L); g.lineTo(R, R); g.strokePath(); }
+
+      g.generateTexture('road-' + mask, SZ, SZ);
+      g.destroy();
+    }
   }
 
   // Highlight candidate expansion chunks. Each row is { chunk_x,
@@ -630,15 +701,24 @@ export class MainScene extends Phaser.Scene {
   }
 
   _renderBuildings() {
-    // Buildings rendered with their authored sprite when available
-    // (sprites.js carries the same 64x64 SVG art that v1 uses);
-    // otherwise fall back to a tinted square keyed by category.
-    // Sprites are scaled to fit the building's footprint (1×1 → one
-    // tile, 3×3 airport → 3×3 tiles, etc.).
-    // Other players' buildings render at 0.7 alpha so yours pop in
-    // the shared world.
+    // Two passes:
+    //   1. Build a Set of road tile keys for autotile lookups
+    //   2. Render every building. Roads pick the right NSEW autotile
+    //      texture based on their neighbors. Everything else uses
+    //      its authored sprite (or a category-tinted square fallback).
     const myId = state.currentUser?.id;
     this._buildingSprites = this._buildingSprites || [];
+
+    // Pass 1: collect road positions across ALL players, since
+    // roads connect across parcel borders (they're part of the
+    // shared network the walker pathfinder uses).
+    const roadSet = new Set();
+    for (const b of state.allBuildings) {
+      const bt = state.buildingTypes[b.building_type_key];
+      if (bt && bt.category === 'road') roadSet.add(b.x + ',' + b.y);
+    }
+
+    // Pass 2: render.
     for (const b of state.allBuildings) {
       const bt = state.buildingTypes[b.building_type_key];
       if (!bt) continue;
@@ -648,16 +728,26 @@ export class MainScene extends Phaser.Scene {
       const worldX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
       const worldY = (b.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
 
-      const hasArt = this.textures.exists(b.building_type_key);
-      const texKey = hasArt ? b.building_type_key : 'square';
+      const isRoad = bt.category === 'road';
+      let texKey;
+      if (isRoad) {
+        // NSEW connectivity bitmask
+        const n = roadSet.has(b.x + ',' + (b.y - 1)) ? 8 : 0;
+        const s = roadSet.has(b.x + ',' + (b.y + 1)) ? 4 : 0;
+        const e = roadSet.has((b.x + 1) + ',' + b.y) ? 2 : 0;
+        const w = roadSet.has((b.x - 1) + ',' + b.y) ? 1 : 0;
+        texKey = 'road-' + (n | s | e | w);
+      } else {
+        texKey = this.textures.exists(b.building_type_key) ? b.building_type_key : 'square';
+      }
+
       const sprite = this.add.sprite(worldX, worldY, texKey);
 
-      if (hasArt) {
-        // Real sprite — fill the footprint at native aspect.
+      if (isRoad) {
+        sprite.setDisplaySize(fw * TILE_PX, fh * TILE_PX);
+      } else if (texKey !== 'square') {
         sprite.setDisplaySize(fw * TILE_PX, fh * TILE_PX);
       } else {
-        // Placeholder square — tint by category, slight inset so
-        // the grid lines show through.
         sprite.setScale(fw - 0.15, fh - 0.15);
         sprite.setTint(CATEGORY_TINTS[bt.category] || 0x888888);
       }
