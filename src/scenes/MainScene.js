@@ -9,6 +9,7 @@ import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
 import { placeBuilding } from '../api/buildings.js';
 import { clearSelection as clearBuildSelection } from '../ui/BuildMenu.js';
 import { spriteIcons } from '../sprites.js';
+import { WALKER_SPRITES } from '../walker_sprites.js';
 
 const TILE_PX = 48;
 const MAX_WALKERS = 80;
@@ -25,6 +26,33 @@ const TERRAIN_TINTS = {
   forest: 0x2a3e22
 };
 const OWNED_GRASS_TINT = 0x4a6440;
+
+// Building → walker variant key. Picks the v1 walker SVG that best
+// fits the source building. Housing spawns one of four "citizen"
+// personas at random for visual variety; specific industries spawn
+// their job-specific worker; services spawn their domain figure.
+function pickWalkerVariant(b, bt) {
+  if (bt.category === 'housing') {
+    const personas = ['citizen', 'child', 'elder', 'fat', 'couple'];
+    return personas[Math.floor(Math.random() * personas.length)];
+  }
+  const key = b.building_type_key || '';
+  if (key === 'timber_camp')   return 'timber';
+  if (key === 'sawmill')       return 'sawmill';
+  if (key === 'stone_quarry')  return 'stone';
+  if (key === 'grain_farm' || key === 'mill') return 'grain';
+  if (key === 'iron_mine')     return 'iron';
+  if (key === 'clay_pit' || key === 'pottery_kiln' || key === 'clay_master_hut') return 'clay';
+  if (key === 'orchard')       return 'orchard';
+  if (key === 'fishing_pier')  return 'fish';
+  if (key === 'garden')        return 'garden';
+  if (key === 'tavern')        return 'tavern';
+  if (key === 'bathhouse')     return 'bathhouse';
+  if (key === 'school')        return 'school';
+  if (key === 'temple')        return 'temple';
+  if (key === 'tax_man' || key === 'foreman_office' || key === 'mine_office') return 'civic';
+  return 'citizen';
+}
 
 // Resource-key → visual kind. The resources table's `kind` column
 // (raw / processed / terrain) is too coarse to drive icons, so we
@@ -212,6 +240,13 @@ export class MainScene extends Phaser.Scene {
       if (this.textures.exists(key)) continue;
       this.load.image(key, spriteIcons[key]);
     }
+    // Walker variants — 19 detailed humanoid sprites lifted from v1.
+    // Keyed 'walker-citizen', 'walker-timber', etc.
+    for (const key in WALKER_SPRITES) {
+      const texKey = 'walker-' + key;
+      if (this.textures.exists(texKey)) continue;
+      this.load.image(texKey, WALKER_SPRITES[key]);
+    }
   }
 
   create() {
@@ -245,25 +280,13 @@ export class MainScene extends Phaser.Scene {
     // like generic colored dots (Atlas 2026-05-11). Sized so a tile
     // shows the icon plus the underlying terrain color.
     this._ensureResourceIconTextures();
-    // Walker sprite — small humanoid silhouette so workers read as
-    // people instead of dots (Atlas 2026-05-11). Head, body, two
-    // legs. Drawn in two shades of white so Phaser's setTint
-    // preserves the head/body contrast when colored at runtime.
-    if (!this.textures.exists('walker')) {
-      const g = this.add.graphics();
-      const W = 10, H = 14;
-      // head — slightly darker so tinting keeps a visible face
-      g.fillStyle(0xdddddd, 1);
-      g.fillCircle(W / 2, 3, 3);
-      // body — torso rectangle
-      g.fillStyle(0xffffff, 1);
-      g.fillRect(W / 2 - 3, 6, 6, 5);
-      // legs — two small rectangles
-      g.fillStyle(0xbbbbbb, 1);
-      g.fillRect(W / 2 - 3, 11, 2, 3);
-      g.fillRect(W / 2 + 1, 11, 2, 3);
-      g.generateTexture('walker', W, H);
-      g.destroy();
+    // Fallback walker texture used by code paths that don't pick a
+    // specific variant (e.g., bare 'walker' key). The v1 SVG citizen
+    // is loaded as 'walker-citizen' in preload; alias 'walker' to
+    // the same image so any sprite created with key 'walker' gets
+    // the detailed sprite. textures.addImage clones the source.
+    if (!this.textures.exists('walker') && this.textures.exists('walker-citizen')) {
+      this.textures.addImage('walker', this.textures.get('walker-citizen').getSourceImage());
     }
     // Soft white puff for chimney smoke — radial gradient faked with
     // two stacked circles since Phaser's Graphics doesn't do gradients.
@@ -360,9 +383,11 @@ export class MainScene extends Phaser.Scene {
     const targetX = startX + Math.cos(angle) * dist;
     const targetY = startY + Math.sin(angle) * dist;
 
-    const sprite = this.add.sprite(startX, startY, 'walker');
-    sprite.setTint(CATEGORY_TINTS[bt.category] || 0xe0d090);
+    const variant = pickWalkerVariant(b, bt);
+    const sprite = this.add.sprite(startX, startY, 'walker-' + variant);
     sprite.setDepth(10);
+    // No tint — the v1 SVG sprites already have per-variant colors
+    // baked in (timber=brown, stone=grey, grain=green, etc.).
     this._walkers.push({ sprite, targetX, targetY, life: 8 });
   }
 
@@ -932,14 +957,14 @@ export class MainScene extends Phaser.Scene {
     }
 
     if (profile.figure) {
-      // A small bobbing dot on top of the building — the "worker
-      // figure" effect for services + police. Bobs vertically a few
-      // pixels and pans side-to-side over a long cycle so each
-      // figure feels slightly distinct.
+      // A small bobbing person on top of the building — the "worker
+      // figure" effect for services + police. Uses the building-
+      // specific walker variant so a temple shows a priest, a school
+      // shows a scholar, etc.
       const figX = worldX + (Math.random() - 0.5) * fw * TILE_PX * 0.4;
       const figY = worldY + fh * TILE_PX * 0.2;
-      const fig = this.add.sprite(figX, figY, 'walker');
-      fig.setTint(profile.figure);
+      const variant = pickWalkerVariant(b, bt);
+      const fig = this.add.sprite(figX, figY, 'walker-' + variant);
       fig.setDepth(11);
       this.tweens.add({
         targets: fig,
