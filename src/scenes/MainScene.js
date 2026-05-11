@@ -10,6 +10,7 @@ import { state } from '../state/store.js';
 import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
 import { placeBuilding } from '../api/buildings.js';
 import { clearSelection as clearBuildSelection } from '../ui/BuildMenu.js';
+import { spriteIcons } from '../sprites.js';
 
 const TILE_PX = 48;
 
@@ -45,6 +46,18 @@ const CATEGORY_TINTS = {
 export class MainScene extends Phaser.Scene {
   constructor() {
     super('MainScene');
+  }
+
+  preload() {
+    // Queue every building sprite. Each value in `spriteIcons` is a
+    // data:image/svg+xml URI which Phaser's loader handles natively.
+    // We use the building_type_key as the texture key so render code
+    // can look it up directly with no extra mapping table.
+    for (const key in spriteIcons) {
+      // Skip if already loaded (scene.restart() re-runs preload).
+      if (this.textures.exists(key)) continue;
+      this.load.image(key, spriteIcons[key]);
+    }
   }
 
   create() {
@@ -138,10 +151,13 @@ export class MainScene extends Phaser.Scene {
   }
 
   _renderBuildings() {
-    // Buildings rendered by category color, scaled to footprint size.
-    // Buildings from other players still show up (shared world) but
-    // get a slightly desaturated treatment so it's visually clear
-    // they're not yours.
+    // Buildings rendered with their authored sprite when available
+    // (sprites.js carries the same 64x64 SVG art that v1 uses);
+    // otherwise fall back to a tinted square keyed by category.
+    // Sprites are scaled to fit the building's footprint (1×1 → one
+    // tile, 3×3 airport → 3×3 tiles, etc.).
+    // Other players' buildings render at 0.7 alpha so yours pop in
+    // the shared world.
     const myId = state.currentUser?.id;
     this._buildingSprites = this._buildingSprites || [];
     for (const b of state.allBuildings) {
@@ -153,15 +169,21 @@ export class MainScene extends Phaser.Scene {
       const worldX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
       const worldY = (b.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
 
-      const tint = CATEGORY_TINTS[bt.category] || 0x888888;
-      const sprite = this.add.sprite(worldX, worldY, 'square');
-      sprite.setScale(fw - 0.15, fh - 0.15);
-      sprite.setTint(tint);
-      if (b.player_id !== myId) sprite.setAlpha(0.65);
+      const hasArt = this.textures.exists(b.building_type_key);
+      const texKey = hasArt ? b.building_type_key : 'square';
+      const sprite = this.add.sprite(worldX, worldY, texKey);
 
-      // Make the sprite hit-testable so we can route taps back to
-      // the building. setInteractive() with no args uses the sprite
-      // bounds; that's fine for a rectangle.
+      if (hasArt) {
+        // Real sprite — fill the footprint at native aspect.
+        sprite.setDisplaySize(fw * TILE_PX, fh * TILE_PX);
+      } else {
+        // Placeholder square — tint by category, slight inset so
+        // the grid lines show through.
+        sprite.setScale(fw - 0.15, fh - 0.15);
+        sprite.setTint(CATEGORY_TINTS[bt.category] || 0x888888);
+      }
+      if (b.player_id !== myId) sprite.setAlpha(0.7);
+
       sprite.setInteractive({ useHandCursor: true });
       sprite.buildingRef = b;
 
