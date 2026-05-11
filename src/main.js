@@ -52,13 +52,56 @@ if (sandboxMode) {
   console.log('Sandbox mode — auth bypassed');
 } else {
   game.scene.add('MainScene', MainScene, false);
-  bootApp();
+  bootApp().catch(showFatalError);
+}
+
+// Catch-all so anything throwing during boot becomes visible instead
+// of leaving a blank screen with errors only in the dev console.
+window.addEventListener('unhandledrejection', (e) => {
+  showFatalError(e.reason || e);
+});
+
+function showFatalError(err) {
+  console.error('Fatal:', err);
+  const root = document.getElementById('ui-root');
+  if (!root) return;
+  const msg = (err && (err.message || err.toString())) || 'Unknown error';
+  root.innerHTML = `
+    <div class="ui-screen ui-screen-center">
+      <div class="ui-card">
+        <h1 class="ui-title" style="color:#e94560;">Couldn't start</h1>
+        <p class="ui-subtitle" style="word-break:break-word;">${msg.replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</p>
+        <button class="ui-btn-primary" id="clear-and-reload">Clear session & reload</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('clear-and-reload').addEventListener('click', async () => {
+    try {
+      await sb.auth.signOut();
+    } catch (_e) { /* best effort */ }
+    try {
+      // Belt-and-braces: nuke any Supabase-related localStorage keys
+      // in case signOut() can't reach a malformed token.
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('sb-') || k.includes('supabase'))) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (_e) { /* storage disabled — silent */ }
+    location.reload();
+  });
 }
 
 async function bootApp() {
   // Check for an existing session in localStorage. If logged in,
   // skip the auth screen.
-  const { data } = await sb.auth.getSession();
+  const { data, error } = await sb.auth.getSession();
+  if (error) {
+    // Corrupt session token — surface so Atlas can recover with
+    // the Clear button, rather than spinning silently.
+    throw new Error('Session check failed: ' + error.message);
+  }
   if (data?.session?.user) {
     onAuthSuccess(data.session.user);
   } else {
