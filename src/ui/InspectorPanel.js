@@ -4,7 +4,10 @@
 // AoE highlights, manage-tab); we start with the minimum useful
 // surface and grow from there.
 import { state } from '../state/store.js';
-import { demolishBuilding, upgradeHouse } from '../api/buildings.js';
+import {
+  demolishBuilding, upgradeHouse,
+  setHouseAutoUpgrade, setBuildingPaused, setBuildingPriority, expandTransportHub
+} from '../api/buildings.js';
 
 // Set by main.js after MainScene starts. Lets the inspector ask the
 // scene to draw / clear the AoE highlight without an awkward import
@@ -72,11 +75,21 @@ function renderInspector() {
 
   const rows = [];
   rows.push(row('Status', formatStatus(b)));
+  if (b.paused) rows.push(row('Paused', 'Yes — production stopped'));
   if (bt.worker_cost > 0) rows.push(row('Workers', b.is_staffed ? `${bt.worker_cost} (staffed)` : `${bt.worker_cost} (unstaffed)`));
   if (b.housing_tier) {
     const tier = state.housingTierConfig[b.housing_tier];
     rows.push(row('Housing tier', tier ? `${tier.name} (tier ${b.housing_tier})` : `tier ${b.housing_tier}`));
     if (b.population) rows.push(row('Residents', b.population));
+    if (b.last_devolve_reason) {
+      rows.push(row('Last devolved', friendlyDevolveReason(b.last_devolve_reason), true));
+    }
+  }
+  if (b.expansion_level > 0) {
+    rows.push(row('Expansion level', `${b.expansion_level}× (output multiplier)`));
+  }
+  if (b.staffing_priority !== null && b.staffing_priority !== undefined && bt.worker_cost > 0) {
+    rows.push(row('Staffing priority', priorityLabel(b.staffing_priority)));
   }
   rows.push(row('Location', `(${b.x}, ${b.y})`));
   rows.push(row('Footprint', `${bt.footprint_w || 1} × ${bt.footprint_h || 1}`));
@@ -89,58 +102,137 @@ function renderInspector() {
   panel.classList.add('open');
 }
 
-// Action buttons. Only the owner can demolish or upgrade. Housing
-// gets an "Upgrade" button when the server has flagged the building
-// as ready to evolve (evolution_eligible_at is non-null). Everything
-// else just gets demolish.
+// Action buttons. Only the owner can act. Layout:
+//   Housing:    [Upgrade?]  [Auto-upgrade ON/OFF toggle]  [Demolish]
+//   Worker buildings: [Pause/Resume]  [Priority▾]  [Demolish]
+//   Transport hubs:  [Expand hub]  [Demolish]
+//   Everything else: [Demolish]
 function renderActions(b, bt, isMine) {
   if (!isMine) return '';
   const parts = [];
+
   const isHousing = bt.category === 'housing' && b.housing_tier;
+  const isWorkerBuilding = bt.worker_cost > 0;
+  const isTransportHub = bt.category === 'transport_hub' || bt.category === 'transport_connector';
   const canUpgrade = isHousing && !!b.evolution_eligible_at;
+
   if (canUpgrade) {
     parts.push('<button class="ip-btn ip-btn-primary" id="ip-upgrade">Upgrade house</button>');
+  }
+  if (isHousing) {
+    parts.push(`<button class="ip-btn ip-toggle ${b.auto_upgrade ? 'ip-toggle-on' : 'ip-toggle-off'}" id="ip-auto">
+      Auto-upgrade: ${b.auto_upgrade ? 'ON' : 'OFF'}
+    </button>`);
+  }
+  if (isWorkerBuilding && !isHousing) {
+    parts.push(`<button class="ip-btn ip-toggle ${b.paused ? 'ip-toggle-off' : 'ip-toggle-on'}" id="ip-paused">
+      ${b.paused ? 'Resume' : 'Pause'}
+    </button>`);
+    parts.push(`<select class="ip-priority" id="ip-priority">
+      <option value="0" ${b.staffing_priority === 0 ? 'selected' : ''}>Priority: Low</option>
+      <option value="1" ${(!b.staffing_priority || b.staffing_priority === 1) ? 'selected' : ''}>Priority: Normal</option>
+      <option value="2" ${b.staffing_priority === 2 ? 'selected' : ''}>Priority: High</option>
+    </select>`);
+  }
+  if (isTransportHub) {
+    parts.push(`<button class="ip-btn" id="ip-expand-hub">Expand hub (lvl ${(b.expansion_level || 0) + 1})</button>`);
   }
   parts.push('<button class="ip-btn ip-btn-danger" id="ip-demolish">Demolish</button>');
   return parts.join('');
 }
 
 function wireActionHandlers(b) {
-  const upgradeBtn = document.getElementById('ip-upgrade');
-  const demolishBtn = document.getElementById('ip-demolish');
+  bind('ip-upgrade', async (btn) => {
+    btn.disabled = true; btn.textContent = 'Upgrading…';
+    try { await upgradeHouse(b.id); closeInspector(); }
+    catch (err) { alert(err.message || 'Upgrade failed.'); btn.disabled = false; btn.textContent = 'Upgrade house'; }
+  });
 
-  if (upgradeBtn) {
-    upgradeBtn.addEventListener('click', async () => {
-      upgradeBtn.disabled = true;
-      upgradeBtn.textContent = 'Upgrading…';
+  bind('ip-demolish', async (btn) => {
+    if (!confirm('Demolish this building? You will get a partial refund.')) return;
+    btn.disabled = true; btn.textContent = 'Demolishing…';
+    try { await demolishBuilding(b.id); closeInspector(); }
+    catch (err) { alert(err.message || 'Could not demolish.'); btn.disabled = false; btn.textContent = 'Demolish'; }
+  });
+
+  bind('ip-auto', async (btn) => {
+    btn.disabled = true;
+    const next = !b.auto_upgrade;
+    try {
+      await setHouseAutoUpgrade(b.id, next);
+      b.auto_upgrade = next;
+      // Just retoggle styling + label in place — saves a re-render.
+      btn.classList.toggle('ip-toggle-on', next);
+      btn.classList.toggle('ip-toggle-off', !next);
+      btn.textContent = 'Auto-upgrade: ' + (next ? 'ON' : 'OFF');
+    } catch (err) {
+      alert(err.message || 'Could not change auto-upgrade.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  bind('ip-paused', async (btn) => {
+    btn.disabled = true;
+    const next = !b.paused;
+    try {
+      await setBuildingPaused(b.id, next);
+      b.paused = next;
+      btn.classList.toggle('ip-toggle-on', !next);
+      btn.classList.toggle('ip-toggle-off', next);
+      btn.textContent = next ? 'Resume' : 'Pause';
+    } catch (err) {
+      alert(err.message || 'Could not change pause state.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  bind('ip-expand-hub', async (btn) => {
+    if (!confirm('Expand this hub? Costs money + raw materials and increases its output capacity.')) return;
+    btn.disabled = true; btn.textContent = 'Expanding…';
+    try { await expandTransportHub(b.id); closeInspector(); }
+    catch (err) { alert(err.message || 'Could not expand.'); btn.disabled = false; btn.textContent = 'Expand hub'; }
+  });
+
+  const prioritySelect = document.getElementById('ip-priority');
+  if (prioritySelect) {
+    prioritySelect.addEventListener('change', async () => {
+      const val = parseInt(prioritySelect.value, 10);
       try {
-        await upgradeHouse(b.id);
-        // Realtime UPDATE will pick up the tier change; close the
-        // panel so the player sees the new building.
-        closeInspector();
+        await setBuildingPriority(b.id, val);
+        b.staffing_priority = val;
       } catch (err) {
-        alert(err.message || 'Upgrade failed.');
-        upgradeBtn.disabled = false;
-        upgradeBtn.textContent = 'Upgrade house';
+        alert(err.message || 'Could not change priority.');
+        prioritySelect.value = String(b.staffing_priority ?? 1);
       }
     });
   }
+}
 
-  if (demolishBtn) {
-    demolishBtn.addEventListener('click', async () => {
-      if (!confirm('Demolish this building? You will get a partial refund.')) return;
-      demolishBtn.disabled = true;
-      demolishBtn.textContent = 'Demolishing…';
-      try {
-        await demolishBuilding(b.id);
-        closeInspector();
-      } catch (err) {
-        alert(err.message || 'Could not demolish.');
-        demolishBtn.disabled = false;
-        demolishBtn.textContent = 'Demolish';
-      }
-    });
-  }
+function bind(id, handler) {
+  const btn = document.getElementById(id);
+  if (btn) btn.addEventListener('click', () => handler(btn));
+}
+
+function priorityLabel(p) {
+  return p === 0 ? 'Low' : p === 2 ? 'High' : 'Normal';
+}
+
+function friendlyDevolveReason(reason) {
+  return ({
+    no_food: 'No food available — residents went hungry.',
+    no_water: 'Out of well coverage — needed water nearby.',
+    no_pottery: 'Out of pottery — tier requires it.',
+    no_bread: 'Out of bread — tier requires it.',
+    no_furniture: 'Out of furniture — tier requires it.',
+    no_statuary: 'Out of statuary — tier requires it.',
+    desirability_too_low: 'Surroundings became unappealing.',
+    no_school: 'No school in range — tier requires it.',
+    no_temple: 'No temple in range — tier requires it.',
+    no_bathhouse: 'No bathhouse in range — tier requires it.',
+    no_tavern: 'No tavern available — tier requires it.'
+  })[reason] || reason;
 }
 
 function row(label, value, wide) {

@@ -36,3 +36,30 @@ export function demolishBuilding(buildingId) {
 export function upgradeHouse(buildingId) {
   return callWithDeadlockRetry('upgrade_house', { p_building_id: buildingId });
 }
+
+export function setHouseAutoUpgrade(buildingId, enabled) {
+  return callWithDeadlockRetry('set_house_auto_upgrade', {
+    p_building_id: buildingId,
+    p_enabled: enabled
+  });
+}
+
+export function setBuildingPaused(buildingId, paused) {
+  return callWithDeadlockRetry('set_building_paused', {
+    p_building_id: buildingId,
+    p_paused: paused
+  });
+}
+
+export function setBuildingPriority(buildingId, priority) {
+  return callWithDeadlockRetry('set_building_priority', {
+    p_building_id: buildingId,
+    p_priority: priority
+  });
+}
+
+export function expandTransportHub(buildingId) {
+  return callWithDeadlockRetry('expand_transport_hub', {
+    p_building_id: buildingId
+  });
+}
