@@ -102,6 +102,41 @@ function heatmapTintFor(mode, value) {
   return { tint: 0, alpha: 0 };
 }
 
+// Building animations. Mirror v1's CSS pseudo-element effects but as
+// Phaser sprites + tweens. Gated on (status='active' AND is_staffed)
+// — idle / unstaffed buildings should look quiet, not smoking.
+//
+// Profile shape:
+//   { smoke?: true, glow?: <tint hex> }
+//
+// Looked up first by building_type_key (specific overrides), then by
+// bt.category (category default). null/missing = no animation.
+const BUILDING_ANIM_PROFILES = {
+  // Specific keys with distinctive looks
+  smelter:        { smoke: true, glow: 0xff7028 },
+  glassworks:     { smoke: true, glow: 0xffc858 },
+  iron_mine:      { glow: 0xffa040 },
+  mine_office:    { glow: 0xffa040 },
+  foreman_office: { glow: 0xffd060 },
+  charcoal_kiln:  { smoke: true, glow: 0xff8030 },
+  lime_kiln:      { smoke: true },
+  pottery_kiln:   { smoke: true, glow: 0xff8848 },
+  bakery:         { smoke: true },
+  brewery:        { glow: 0xffd048 },
+  distillery:     { smoke: true, glow: 0xffa848 },
+  smokehouse:     { smoke: true },
+  cannery:        { smoke: true },
+  watch_house:    { glow: 0xfff088 },
+  mill:           { smoke: true },
+  sawmill:        { smoke: true },
+  mason_workshop: { smoke: true },
+  tile_maker:     { smoke: true, glow: 0xff8848 },
+  spicery:        { smoke: true },
+  curing_house:   { smoke: true },
+  nail_forge:     { smoke: true, glow: 0xff7028 },
+  toolmaker:      { glow: 0xff8848 }
+};
+
 // AoE highlight color per kind. Mirrors v1's per-kind .aoe-<kind> CSS.
 const AOE_TINTS = {
   police: 0x4060a0,
@@ -197,6 +232,17 @@ export class MainScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 1);
       g.fillCircle(5, 5, 5);
       g.generateTexture('walker', 10, 10);
+      g.destroy();
+    }
+    // Soft white puff for chimney smoke — radial gradient faked with
+    // two stacked circles since Phaser's Graphics doesn't do gradients.
+    if (!this.textures.exists('puff')) {
+      const g = this.add.graphics();
+      g.fillStyle(0xffffff, 0.2);
+      g.fillCircle(12, 12, 12);
+      g.fillStyle(0xffffff, 0.6);
+      g.fillCircle(12, 12, 6);
+      g.generateTexture('puff', 24, 24);
       g.destroy();
     }
 
@@ -542,6 +588,67 @@ export class MainScene extends Phaser.Scene {
 
       this._buildingSprites.push(sprite);
       this._buildingAtAnchor.set(b.x + ',' + b.y, b);
+
+      this._spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh);
+    }
+  }
+
+  // Spawn smoke / glow sprites for a building based on its animation
+  // profile + active-staffed gate. The spawned sprites get tracked on
+  // _buildingSprites so they're torn down together with the building
+  // sprite on next render.
+  _spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh) {
+    if (b.status !== 'active' || !b.is_staffed) return;
+    const profile = BUILDING_ANIM_PROFILES[b.building_type_key];
+    if (!profile) return;
+
+    if (profile.glow) {
+      const glow = this.add.sprite(worldX, worldY, 'square');
+      glow.setDisplaySize(fw * TILE_PX, fh * TILE_PX);
+      glow.setTint(profile.glow);
+      glow.setAlpha(0.05);
+      glow.setDepth(7);
+      glow.setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: glow,
+        alpha: 0.32,
+        duration: 1400 + Math.random() * 600,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+      this._buildingSprites.push(glow);
+    }
+
+    if (profile.smoke) {
+      // Smoke rises from the building's roughly-top-center, drifts
+      // randomly, and fades. Three puffs offset in time give a
+      // continuous plume without a particle system.
+      const baseX = worldX;
+      const baseY = worldY - fh * TILE_PX * 0.45;
+      for (let i = 0; i < 3; i++) {
+        const puff = this.add.sprite(baseX, baseY, 'puff');
+        puff.setScale(0.6);
+        puff.setAlpha(0);
+        puff.setDepth(9);
+        const drift = (Math.random() - 0.5) * 12;
+        const duration = 2400 + Math.random() * 800;
+        this.tweens.add({
+          targets: puff,
+          y: baseY - 36,
+          x: baseX + drift,
+          alpha: { from: 0.55, to: 0 },
+          scale: { from: 0.5, to: 1.0 },
+          duration,
+          delay: i * (duration / 3),
+          repeat: -1,
+          onRepeat: () => {
+            puff.x = baseX;
+            puff.y = baseY;
+          }
+        });
+        this._buildingSprites.push(puff);
+      }
     }
   }
 
