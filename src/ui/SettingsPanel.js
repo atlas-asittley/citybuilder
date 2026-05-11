@@ -19,9 +19,10 @@ export function openSettings() {
       </div>
       <div class="sp-body">
         <button class="sp-row" id="sp-whats-new">What's new</button>
+        <button class="sp-row" id="sp-reload">Force reload (cache-bust)</button>
         <button class="sp-row" id="sp-logout">Sign out</button>
         <a class="sp-row" href="https://atlas-asittley.github.io/city-builder-mvp/" target="_blank" rel="noopener">Open v1 client (legacy)</a>
-        <button class="sp-row" id="sp-clear">Clear cached data &amp; reload</button>
+        <button class="sp-row" id="sp-clear">Clear session &amp; reload</button>
         <p class="sp-info">v2 build · Phaser/WebGL renderer · same world as v1</p>
       </div>
     </div>
@@ -42,6 +43,16 @@ export function openSettings() {
     overlay.remove();
     mounted = false;
     openChangelog();
+  });
+
+  document.getElementById('sp-reload').addEventListener('click', () => {
+    // Append a unique query param so the browser bypasses its
+    // HTTP cache for the document fetch. Vite already hashes JS/CSS
+    // filenames per build, so once the new index.html lands,
+    // assets follow. Keeps the Supabase session intact (no signOut).
+    const u = new URL(window.location.href);
+    u.searchParams.set('_t', Date.now().toString());
+    window.location.href = u.toString();
   });
 
   document.getElementById('sp-logout').addEventListener('click', async () => {
