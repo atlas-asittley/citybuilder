@@ -545,6 +545,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  _setupCamera() {
     // Tile rendering uses state.gridMinX/Y as world origin (own
     // parcel anchored at 0,0). Other players' buildings render at
     // negative or out-of-parcel coordinates relative to that origin.
