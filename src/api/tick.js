@@ -74,6 +74,10 @@ export function onTileMetricsChanged(cb) {
 function applyTickResponse(data) {
   if (!data || !state.profile) return;
 
+  if (data.inventory) {
+    state.inventory = {};
+    for (const k in data.inventory) state.inventory[k] = Number(data.inventory[k]);
+  }
   if (data.money !== undefined) state.profile.money = data.money;
   if (data.population !== undefined) state.profile.population = data.population;
   if (data.happiness !== undefined) state.profile.happiness = data.happiness;

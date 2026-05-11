@@ -11,6 +11,7 @@ import { state } from '../state/store.js';
 import { openExpansionPanel } from './ExpansionPanel.js';
 import { openSettings } from './SettingsPanel.js';
 import { openPlayers } from './PlayersPanel.js';
+import { openTrade } from './TradePanel.js';
 
 let mounted = false;
 let onExpandedCallback = null;
@@ -31,6 +32,7 @@ export function mountTopBar(onExpanded) {
       <span class="tb-chip" id="tb-pop"></span>
       <span class="tb-chip" id="tb-happy"></span>
       <button class="tb-btn" id="tb-expand">+ Expand</button>
+      <button class="tb-btn tb-btn-icon" id="tb-trade" title="Trade">💱</button>
       <button class="tb-btn tb-btn-icon" id="tb-players" title="Players">👥</button>
       <button class="tb-btn tb-btn-icon" id="tb-settings" title="Settings">⚙</button>
     </div>
@@ -44,6 +46,7 @@ export function mountTopBar(onExpanded) {
       if (onExpandedCallback) onExpandedCallback();
     });
   });
+  document.getElementById('tb-trade').addEventListener('click', openTrade);
   document.getElementById('tb-players').addEventListener('click', openPlayers);
   document.getElementById('tb-settings').addEventListener('click', openSettings);
 

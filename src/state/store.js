@@ -18,6 +18,7 @@ export const state = {
   buildingTypes: {},        // keyed by building_type_key
   housingTierConfig: {},
   resourceNodes: {},
+  inventory: {},            // keyed by resource_key → numeric quantity
 
   // Camera / UI hints — only what the renderer needs
   gridMinX: 0,
