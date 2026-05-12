@@ -62,7 +62,7 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 - [x] **Partners: trader description + transport mode badge + next-visit countdown** (`v1-parity audit, commit 61/N`) — `TradePartnersTab.js`. v1 surfaces all three on each card. v2 ships them as a "Traders in this city" directory section at the top of the Partners tab (resource-first layout doesn't have per-trader cards otherwise).
 - [x] **Bell log: 1.5s dedup window** (`v1-parity audit, commit 59/N`) — `BellLog.js`. v1 collapses identical events fired in rapid succession.
 - [x] **Inspector: trade-value row** (`v1-parity audit, commit 59/N`) — `InspectorPanel.js`. v1 shows "Trade value: $X/min" using best unlocked trader price.
-- [ ] **Inspector: walker info card** — currently no walker tap → info flow.
+- [x] **Inspector: walker info card** (`v1-parity audit, commit 67/N`) — currently no walker tap → info flow.
 - [x] **Inspector: pollution + desirability tier qualification** (`v1-parity audit, commit 59/N`) — v1 shows "qualifies for Villa (needs ≥60, you're 72)".
 - [x] **Build menu: no-workers warning** (`v1-parity audit, commit 59/N`) — `BuildTabPanel.js`. v1 warns if placing this would exceed worker capacity.
 - [x] **Build menu: transport hub expansion context on first build** (`v1-parity audit, commit 63/N`) — v1 first-build copy.

@@ -1853,6 +1853,53 @@ body.app-hidden *::after {
   font-weight: 600;
   font-size: 12px;
 }
+
+/* Walker info modal — small flavor popup when you tap a walker */
+#walker-info-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 92;
+  background: rgba(10, 14, 20, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(2px);
+  pointer-events: auto;
+}
+.wi-card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 16px 20px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+.wi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.wi-header h2 { font-size: 16px; color: #16c79a; font-weight: 600; }
+.wi-close { background: transparent; border: none; color: #888; font-size: 20px; cursor: pointer; padding: 0 4px; }
+.wi-body { font-size: 13px; line-height: 1.5; }
+.wi-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(15, 52, 96, 0.4);
+}
+.wi-row:last-of-type { border-bottom: none; }
+.wi-label { color: #888; }
+.wi-value { color: #e6e6e6; }
+.wi-flavor {
+  margin-top: 10px;
+  color: #a0a0a0;
+  font-size: 12px;
+  font-style: italic;
+}
 .hl-benefit {
   color: #d0d0d0;
   font-size: 12px;

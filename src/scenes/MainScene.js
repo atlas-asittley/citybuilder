@@ -7,6 +7,7 @@ import Phaser from 'phaser';
 import { state } from '../state/store.js';
 import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
 import { openResourceTileInspector } from '../ui/ResourceTileInspector.js';
+import { openWalkerInfo, tagWalkerSpriteKind } from '../ui/WalkerInfoModal.js';
 import { placeBuilding } from '../api/buildings.js';
 import { clearBuildTabSelection as clearBuildSelection } from '../ui/bottompanel/BuildTabPanel.js';
 import { spriteIcons } from '../sprites.js';
@@ -457,6 +458,7 @@ export class MainScene extends Phaser.Scene {
     const sprite = this._makeWalkerSprite(b, bt, startX, startY);
 
     const speedJitter = 0.85 + Math.random() * 0.30;
+    tagWalkerSpriteKind(sprite, 'road');
     const w = {
       kind: 'road', sprite, speed: 28 * speedJitter,
       curTileX: startTileX, curTileY: startTileY,
@@ -481,6 +483,7 @@ export class MainScene extends Phaser.Scene {
     // back to the straight-line-through-grass animation (covers fresh
     // cities with no road network yet).
     const tilePath = this._findRoadPath(b, bt, b.target_x, b.target_y);
+    tagWalkerSpriteKind(sprite, tilePath ? 'collector-path' : 'collector');
     if (tilePath && tilePath.length > 0) {
       // Append: building anchor (start), then road waypoints, then the
       // resource tile (final step off-road).
@@ -604,6 +607,8 @@ export class MainScene extends Phaser.Scene {
     sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
     sprite.setDepth(10);
     sprite.setAlpha(0.85);    // slightly faded — they're leaving
+    sprite.setInteractive({ useHandCursor: true });
+    sprite.walkerInfo = { variant: 'citizen', kind: 'emigrant' };
     // Bindle marker beside the emigrant — signals "carrying their
     // belongings out". Brown circle with a stick poking up; small
     // enough to read as a satchel at walker scale.
@@ -644,6 +649,8 @@ export class MainScene extends Phaser.Scene {
     const sprite = this.add.sprite(start.x, start.y, 'walker-citizen');
     sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
     sprite.setDepth(10);
+    sprite.setInteractive({ useHandCursor: true });
+    sprite.walkerInfo = { variant: 'citizen', kind: 'immigrant' };
     // Luggage marker beside the immigrant — rolls one of three
     // accessory variants for variety.
     const variants = ['luggage', 'backpack', 'bindle'];
@@ -704,6 +711,10 @@ export class MainScene extends Phaser.Scene {
       const tints = [0xffd8c0, 0xc8e0ff, 0xe0ffe0, 0xfff0c8, 0xf0d0e0];
       sprite.setTint(tints[Math.floor(Math.random() * tints.length)]);
     }
+    sprite.setInteractive({ useHandCursor: true });
+    // Stash the originating building + walker variant so tap-to-
+    // inspect can show "this is a worker from <Sawmill>" context.
+    sprite.walkerInfo = { variant, originBuilding: b, originType: bt };
     return sprite;
   }
 
@@ -1646,11 +1657,19 @@ export class MainScene extends Phaser.Scene {
       }
 
       // Inspect mode (default): tap on a building → building inspector;
-      // tap on a resource tile (no building) → tile inspector.
+      // tap on a walker → walker info card; tap on a resource tile →
+      // tile inspector. Building > walker priority because a walker
+      // standing on a building cell would otherwise eat the building tap.
       if (currentlyOver && currentlyOver.length > 0) {
         for (const obj of currentlyOver) {
           if (obj.buildingRef) {
             openInspector(obj.buildingRef);
+            return;
+          }
+        }
+        for (const obj of currentlyOver) {
+          if (obj.walkerInfo) {
+            openWalkerInfo(obj, this._walkers);
             return;
           }
         }
