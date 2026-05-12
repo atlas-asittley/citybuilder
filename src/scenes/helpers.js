@@ -161,6 +161,28 @@ export function computeWorldBounds(tileMap, allBuildings) {
   return { minX, minY, cols: maxX - minX + 1, rows: maxY - minY + 1 };
 }
 
+// ── Tutorial gating ─────────────────────────────────────────────
+//
+// Each tutorial step (0..3) limits which building categories the
+// player can see in the Build tab. step 4 = done, all unlocked.
+// Mirrors v1's tutorialAllowsBuilding in ui.js.
+export function tutorialAllowsBuilding(bt, tutorialStep) {
+  const step = tutorialStep ?? 4;
+  if (step >= 4) return true;
+  if (!bt) return false;
+  if (bt.category === 'road') return true;
+  if (step === 0) return bt.category === 'housing';
+  if (step === 1) return bt.category === 'housing' || bt.key === 'well';
+  if (step === 2) {
+    return bt.category === 'housing' || bt.key === 'well' || bt.category === 'food_extractor';
+  }
+  if (step === 3) {
+    return bt.category === 'housing' || bt.key === 'well'
+      || bt.category === 'food_extractor' || bt.category === 'extractor';
+  }
+  return false;
+}
+
 // ── Walker SVG sizing ──────────────────────────────────────────
 //
 // Inject explicit width/height into a walker SVG data URI so the
@@ -168,7 +190,9 @@ export function computeWorldBounds(tileMap, allBuildings) {
 // data URI with width="<vb_w * 4>" height="<vb_h * 4>" added. If
 // the viewBox can't be parsed, returns the input unchanged.
 export function sizeWalkerSvg(dataUri) {
-  const m = dataUri.match(/viewBox='([\d.\s]+)'/);
+  // Accept either single or double quotes around viewBox so the
+  // helper isn't brittle to upstream string-formatting changes.
+  const m = dataUri.match(/viewBox=['"]([\d.\s]+)['"]/);
   if (!m) return dataUri;
   const parts = m[1].split(/\s+/);
   if (parts.length !== 4) return dataUri;

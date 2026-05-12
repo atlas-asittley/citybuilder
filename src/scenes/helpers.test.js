@@ -6,7 +6,8 @@ import {
   getBuildingAoeRange,
   heatmapTintFor,
   computeWorldBounds,
-  sizeWalkerSvg
+  sizeWalkerSvg,
+  tutorialAllowsBuilding
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -192,5 +193,54 @@ describe('sizeWalkerSvg', () => {
     const input = "data:image/svg+xml,<svg xmlns='x' viewBox='0 0 8 11'><c/></svg>";
     const out = sizeWalkerSvg(input);
     expect(out).toContain("viewBox='0 0 8 11'");
+  });
+  it('accepts double-quoted viewBox too', () => {
+    const input = 'data:image/svg+xml,<svg xmlns="x" viewBox="0 0 12 12"><c/></svg>';
+    const out = sizeWalkerSvg(input);
+    expect(out).toContain("width='48'");
+    expect(out).toContain("height='48'");
+  });
+});
+
+describe('tutorialAllowsBuilding', () => {
+  // Curated set of building types covering every category the
+  // gating logic distinguishes.
+  const bts = {
+    house: { category: 'housing', key: 'house' },
+    road:  { category: 'road',    key: 'road' },
+    well:  { category: 'service', key: 'well' },
+    school:{ category: 'service', key: 'school' },
+    farm:  { category: 'food_extractor', key: 'grain_farm' },
+    iron:  { category: 'extractor', key: 'iron_mine' },
+    kiln:  { category: 'processor', key: 'pottery_kiln' }
+  };
+
+  it('step 4+ unlocks everything', () => {
+    for (const key in bts) {
+      expect(tutorialAllowsBuilding(bts[key], 4)).toBe(true);
+      expect(tutorialAllowsBuilding(bts[key], 99)).toBe(true);
+    }
+  });
+  it('undefined step defaults to unlocked', () => {
+    expect(tutorialAllowsBuilding(bts.kiln, undefined)).toBe(true);
+  });
+  it('step 0 only allows housing + road', () => {
+    expect(tutorialAllowsBuilding(bts.house, 0)).toBe(true);
+    expect(tutorialAllowsBuilding(bts.road,  0)).toBe(true);
+    expect(tutorialAllowsBuilding(bts.well,  0)).toBe(false);
+    expect(tutorialAllowsBuilding(bts.farm,  0)).toBe(false);
+  });
+  it('step 1 adds well only (not other services)', () => {
+    expect(tutorialAllowsBuilding(bts.well,   1)).toBe(true);
+    expect(tutorialAllowsBuilding(bts.school, 1)).toBe(false);
+    expect(tutorialAllowsBuilding(bts.farm,   1)).toBe(false);
+  });
+  it('step 2 adds food extractors', () => {
+    expect(tutorialAllowsBuilding(bts.farm, 2)).toBe(true);
+    expect(tutorialAllowsBuilding(bts.iron, 2)).toBe(false);
+  });
+  it('step 3 adds extractors but still not processors', () => {
+    expect(tutorialAllowsBuilding(bts.iron, 3)).toBe(true);
+    expect(tutorialAllowsBuilding(bts.kiln, 3)).toBe(false);
   });
 });

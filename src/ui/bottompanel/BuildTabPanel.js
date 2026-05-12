@@ -8,6 +8,7 @@
 //   - locked (greyed + reason) — blocked by tier-unlock or tutorial step
 //   - unaffordable (red money) — not enough $ or resources
 import { state } from '../../state/store.js';
+import { tutorialAllowsBuilding } from '../../scenes/helpers.js';
 
 let selectedKey = null;
 
@@ -26,29 +27,13 @@ const CATEGORY_LABELS = {
   road: 'Road'
 };
 
-// Tutorial steps gate which buildings appear. Mirrors v1's
-// tutorialAllowsBuilding from ui.js.
-function tutorialAllowsBuilding(bt) {
-  const step = state.profile?.tutorial_step ?? 4;
-  if (step >= 4) return true;
-  if (!bt) return false;
-  if (bt.category === 'road') return true;
-  if (step === 0) return bt.category === 'housing';
-  if (step === 1) return bt.category === 'housing' || bt.key === 'well';
-  if (step === 2) return bt.category === 'housing' || bt.key === 'well' || bt.category === 'food_extractor';
-  if (step === 3) {
-    return bt.category === 'housing' || bt.key === 'well'
-      || bt.category === 'food_extractor' || bt.category === 'extractor';
-  }
-  return false;
-}
-
 export function renderBuildTab(parent, onSelect) {
+  const tutorialStep = state.profile?.tutorial_step;
   const grouped = {};
   for (const key in state.buildingTypes) {
     const bt = state.buildingTypes[key];
     if (!bt.category || !bt.is_active) continue;
-    if (!tutorialAllowsBuilding(bt)) continue;
+    if (!tutorialAllowsBuilding(bt, tutorialStep)) continue;
     (grouped[bt.category] = grouped[bt.category] || []).push(bt);
   }
 
