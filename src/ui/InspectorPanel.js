@@ -47,17 +47,35 @@ function mountInspector() {
     <div class="ip-header">
       <div class="ip-title-row">
         <h2 class="ip-title" id="ip-title"></h2>
-        <button class="ip-close" id="ip-close" aria-label="Close">×</button>
+        <div class="ip-header-actions">
+          <button class="ip-mini" id="ip-mini" aria-label="Minimize" title="Minimize">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 8,11 13,6"/></svg>
+          </button>
+          <button class="ip-close" id="ip-close" aria-label="Close" title="Close">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
+          </button>
+        </div>
       </div>
       <p class="ip-subtitle" id="ip-subtitle"></p>
     </div>
     <div class="ip-body" id="ip-body"></div>
     <div class="ip-actions" id="ip-actions"></div>
+    <div class="ip-hint">tap outside to close</div>
   `;
   root.appendChild(panel);
   mounted = true;
 
   document.getElementById('ip-close').addEventListener('click', closeInspector);
+  document.getElementById('ip-mini').addEventListener('click', () => {
+    panel.classList.toggle('minimized');
+    // Flip the chevron direction so the affordance reads either as
+    // "collapse" or "expand" depending on current state.
+    const svg = document.getElementById('ip-mini').querySelector('svg polyline');
+    if (svg) {
+      svg.setAttribute('points',
+        panel.classList.contains('minimized') ? '3,10 8,5 13,10' : '3,6 8,11 13,6');
+    }
+  });
 }
 
 function renderInspector() {
