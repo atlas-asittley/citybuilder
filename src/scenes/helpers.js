@@ -236,6 +236,34 @@ export function computeProblemTiles(allBuildings, buildingTypes, myId) {
   return tiles;
 }
 
+// ── Resource production / consumption ──────────────────────────
+//
+// Iterates myId's active staffed unpaused buildings, sums their
+// output / input rates by resource_key. Returns { prod, cons } maps
+// where keys are resource keys and values are per-minute floats.
+// Tax revenue (output_resource_key='money' or category='tax') is
+// excluded from prod — handled separately by the runway calc.
+export function computeResourceProdCons(allBuildings, buildingTypes, myId) {
+  const prod = {};
+  const cons = {};
+  for (const b of allBuildings) {
+    if (b.player_id !== myId) continue;
+    if (b.status !== 'active' || !b.is_staffed || b.paused) continue;
+    const bt = buildingTypes[b.building_type_key];
+    if (!bt) continue;
+    if (bt.output_resource_key && bt.output_rate > 0 && bt.category !== 'tax') {
+      prod[bt.output_resource_key] = (prod[bt.output_resource_key] || 0) + Number(bt.output_rate);
+    }
+    if (bt.input_resource_key && bt.input_rate > 0) {
+      cons[bt.input_resource_key] = (cons[bt.input_resource_key] || 0) + Number(bt.input_rate);
+    }
+    if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
+      cons[bt.input_resource_key_2] = (cons[bt.input_resource_key_2] || 0) + Number(bt.input_rate_2);
+    }
+  }
+  return { prod, cons };
+}
+
 // ── Walker SVG sizing ──────────────────────────────────────────
 //
 // Inject explicit width/height into a walker SVG data URI so the

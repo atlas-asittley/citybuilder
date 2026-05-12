@@ -9,7 +9,8 @@ import {
   sizeWalkerSvg,
   tutorialAllowsBuilding,
   computePoliceCoverage,
-  computeProblemTiles
+  computeProblemTiles,
+  computeResourceProdCons
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -334,5 +335,63 @@ describe('computeProblemTiles', () => {
         building_type_key: 'mill', x: 1, y: 1 }
     ];
     expect(computeProblemTiles(buildings, buildingTypes, 'me').size).toBe(0);
+  });
+});
+
+describe('computeResourceProdCons', () => {
+  const bts = {
+    timber_camp: { category: 'extractor', output_resource_key: 'timber', output_rate: 2 },
+    sawmill:     { category: 'processor', input_resource_key: 'timber', input_rate: 2, output_resource_key: 'lumber', output_rate: 1 },
+    cabinetmaker:{ category: 'processor', input_resource_key: 'lumber', input_rate: 1,
+                   input_resource_key_2: 'lime', input_rate_2: 0.5,
+                   output_resource_key: 'furniture', output_rate: 0.25 },
+    tax_office:  { category: 'tax', output_resource_key: 'money', output_rate: 50 }
+  };
+
+  it('sums output across staffed-active producers', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp' },
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp' }
+    ];
+    const { prod, cons } = computeResourceProdCons(buildings, bts, 'me');
+    expect(prod.timber).toBe(4);
+    expect(cons).toEqual({});
+  });
+
+  it('sums input across processors, including dual-input recipes', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'cabinetmaker' }
+    ];
+    const { prod, cons } = computeResourceProdCons(buildings, bts, 'me');
+    expect(cons.lumber).toBe(1);
+    expect(cons.lime).toBe(0.5);
+    expect(prod.furniture).toBe(0.25);
+  });
+
+  it('skips unstaffed / idle / paused / wrong-owner buildings', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: false,
+        building_type_key: 'timber_camp' },
+      { player_id: 'me', status: 'idle', is_staffed: true,
+        building_type_key: 'timber_camp' },
+      { player_id: 'me', status: 'active', is_staffed: true, paused: true,
+        building_type_key: 'timber_camp' },
+      { player_id: 'someone-else', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp' }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    expect(prod).toEqual({});
+  });
+
+  it('excludes tax revenue from prod (handled by runway calc)', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'tax_office' }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    expect(prod.money).toBeUndefined();
   });
 });

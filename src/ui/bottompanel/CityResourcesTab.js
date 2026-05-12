@@ -3,6 +3,7 @@
 // instead of mounting an overlay. Inventory + per-minute prod / cons
 // / net for every active resource.
 import { state } from '../../state/store.js';
+import { computeResourceProdCons } from '../../scenes/helpers.js';
 
 const GROUPS = [
   { label: 'Raw materials', match: (r) => r.kind === 'raw' && !r.is_food },
@@ -14,24 +15,9 @@ const GROUPS = [
 ];
 
 export function renderCityResources(parent) {
-  const myId = state.currentUser?.id;
-  const prod = {};
-  const cons = {};
-  for (const b of state.allBuildings) {
-    if (b.player_id !== myId) continue;
-    if (b.status !== 'active' || !b.is_staffed || b.paused) continue;
-    const bt = state.buildingTypes[b.building_type_key];
-    if (!bt) continue;
-    if (bt.output_resource_key && bt.output_rate > 0 && bt.category !== 'tax') {
-      prod[bt.output_resource_key] = (prod[bt.output_resource_key] || 0) + Number(bt.output_rate);
-    }
-    if (bt.input_resource_key && bt.input_rate > 0) {
-      cons[bt.input_resource_key] = (cons[bt.input_resource_key] || 0) + Number(bt.input_rate);
-    }
-    if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
-      cons[bt.input_resource_key_2] = (cons[bt.input_resource_key_2] || 0) + Number(bt.input_rate_2);
-    }
-  }
+  const { prod, cons } = computeResourceProdCons(
+    state.allBuildings, state.buildingTypes, state.currentUser?.id
+  );
 
   const all = Object.values(state.resourceNodes).filter((r) => r.is_active);
   let html = '';
