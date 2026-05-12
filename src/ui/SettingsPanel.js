@@ -2,9 +2,11 @@
 // migration window, clear local cache. Triggered from the top bar's
 // gear button.
 import { sb } from '../api/supabase.js';
+import { state, setCityName } from '../state/store.js';
 import { openChangelog } from './ChangelogModal.js';
 import { openHelp } from './HelpModal.js';
 import { isAnimationsEnabled, setAnimationsEnabled } from './animations.js';
+import { refreshTopBar } from './TopBar.js';
 
 let mounted = false;
 
@@ -26,6 +28,8 @@ export function openSettings() {
           <span>Animations</span>
           <span class="sp-toggle-state" id="sp-anims-state">ON</span>
         </button>
+        <button class="sp-row" id="sp-rename-district">✏️ Rename your district</button>
+        <button class="sp-row" id="sp-rename-city">✏️ Rename the city <small>(everyone sees it)</small></button>
         <button class="sp-row" id="sp-reload">Force reload (cache-bust)</button>
         <button class="sp-row" id="sp-logout">Sign out</button>
         <a class="sp-row" href="https://atlas-asittley.github.io/city-builder-mvp/" target="_blank" rel="noopener">Open v1 client (legacy)</a>
@@ -75,6 +79,47 @@ export function openSettings() {
     overlay.remove();
     mounted = false;
     openChangelog();
+  });
+
+  document.getElementById('sp-rename-district').addEventListener('click', async () => {
+    const current = state.profile?.district_name || '';
+    const name = prompt('Rename your district', current);
+    if (name == null) return;
+    const trimmed = name.trim();
+    if (trimmed.length < 2 || trimmed.length > 40) {
+      alert('District name must be 2–40 characters.');
+      return;
+    }
+    try {
+      const { data, error } = await sb.rpc('rename_district', { p_name: trimmed });
+      if (error) throw error;
+      state.profile.district_name = data || trimmed;
+      refreshTopBar();
+      close();
+    } catch (err) {
+      alert('Rename failed: ' + (err.message || err));
+    }
+  });
+
+  document.getElementById('sp-rename-city').addEventListener('click', async () => {
+    const current = state.cityName || '';
+    if (!confirm(`Rename the shared city? Every player will see the new name.\n\nCurrent: ${current || '(none)'}`)) return;
+    const name = prompt('Rename the city (shared with every player)', current);
+    if (name == null) return;
+    const trimmed = name.trim();
+    if (trimmed.length < 2 || trimmed.length > 40) {
+      alert('City name must be 2–40 characters.');
+      return;
+    }
+    try {
+      const { data, error } = await sb.rpc('rename_city', { p_name: trimmed });
+      if (error) throw error;
+      setCityName(data || trimmed);
+      refreshTopBar();
+      close();
+    } catch (err) {
+      alert('Rename failed: ' + (err.message || err));
+    }
   });
 
   document.getElementById('sp-reload').addEventListener('click', () => {
