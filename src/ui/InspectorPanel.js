@@ -140,7 +140,18 @@ function renderInspector() {
     rows.push(row('Status', issues.length === 1 ? '1 issue' : `${issues.length} issues`));
     rows.push(issueListHtml(issues));
   }
-  if (bt.worker_cost > 0) rows.push(row('Workers', b.is_staffed ? `${bt.worker_cost} (staffed)` : `${bt.worker_cost} (unstaffed)`));
+  // Transport hub/connector worker_cost is a balance knob, not a
+  // runtime allocation — server's staffing loop skips those
+  // categories. Don't render the "(staffed)/(unstaffed)" annotation
+  // for them; just show the cost as the build-time gate it is.
+  const isTransportCat = bt.category === 'transport_hub' || bt.category === 'transport_connector';
+  if (bt.worker_cost > 0) {
+    if (isTransportCat) {
+      rows.push(row('Workers', `${bt.worker_cost}`));
+    } else {
+      rows.push(row('Workers', b.is_staffed ? `${bt.worker_cost} (staffed)` : `${bt.worker_cost} (unstaffed)`));
+    }
+  }
   // Housing-only block: tier, upgrade blockers, pantry, devolve risk,
   // last-devolve reason. Gated on bt.category === 'housing' because
   // the housing_tier column is non-null even for non-housing rows

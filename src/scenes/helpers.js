@@ -62,7 +62,13 @@ export function listBuildingIssues(b, bt, roadSet, inventory, myId) {
     return [{ kind: 'paused', label: 'Paused', symbol: '⏸',
       hint: 'Tap Resume to restart production.' }];
   }
-  if (bt.worker_cost > 0 && !b.is_staffed) {
+  // Transport hubs + connectors carry a worker_cost in the catalog
+  // but the server's _pp_staff_buildings excludes those categories
+  // entirely — they never get is_staffed=true even when workers are
+  // available. Don't report them as unstaffed; the worker_cost field
+  // is a build-cost balancing knob, not a runtime allocation.
+  const isTransport = bt.category === 'transport_hub' || bt.category === 'transport_connector';
+  if (bt.worker_cost > 0 && !b.is_staffed && !isTransport) {
     return [{ kind: 'unstaffed', label: 'No workers assigned',
       hint: 'Grow population (more housing) or lower another building\'s priority so this one gets staffed.' }];
   }
@@ -721,9 +727,13 @@ export function computeProblemTiles(allBuildings, buildingTypes, myId) {
     if (b.player_id !== myId) continue;
     const bt = buildingTypes[b.building_type_key];
     if (!bt) continue;
+    // Transport hubs / connectors aren't subject to the staffing
+    // loop — their worker_cost is a build-cost knob — so don't flag
+    // them as "problem unstaffed" tiles on the issues heatmap.
+    const isTransport = bt.category === 'transport_hub' || bt.category === 'transport_connector';
     const isProblem =
       b.status === 'paused' ||
-      (bt.worker_cost > 0 && !b.is_staffed);
+      (bt.worker_cost > 0 && !b.is_staffed && !isTransport);
     if (!isProblem) continue;
     const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
     for (let dx = 0; dx < fw; dx++) {

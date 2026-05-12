@@ -68,13 +68,14 @@ export function renderBuildTab(parent, onSelect) {
       const unlockTier = bt.unlocks_at_housing_tier;
       const unlocked = unlockTier == null || maxTierEver >= unlockTier;
       const isSelected = selectedKey === bt.key;
-      // Labor-shortage hint: if the player would have to staff this
-      // building from a pool that's already short, warn early. Reads
-      // workersUsed / workerCapacity from laborInfo; some buildings
-      // (road / park / housing) are exempt because they consume zero
-      // workers.
+      // Labor-shortage hint: if placing this would exceed the worker
+      // pool, warn early. Skips zero-cost categories (road / park /
+      // housing) and transport (whose worker_cost is a balance knob
+      // that the server's staffing loop ignores).
       const li = state.laborInfo || {};
+      const skipsStaffing = bt.category === 'transport_hub' || bt.category === 'transport_connector';
       const wouldExceedCapacity = bt.worker_cost > 0
+        && !skipsStaffing
         && (li.workersUsed + bt.worker_cost) > (li.workerCapacity || 0);
 
       const classes = ['btp-item'];
