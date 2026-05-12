@@ -1069,10 +1069,12 @@ export class MainScene extends Phaser.Scene {
   }
 
   // Highlight candidate expansion chunks. Each row is { chunk_x,
-  // chunk_y }; chunks are 10×10 tiles in v1 — render a dashed
-  // rectangle so the player sees exactly which patches of land
-  // they're buying.
-  showExpansionCandidates(candidates) {
+  // chunk_y }; chunks are 10×10 tiles. Player tap-to-claim — no
+  // modal list needed; the map visualizes the choices and the
+  // expansion bar at the bottom handles cancel.
+  //
+  // onPick is invoked with the candidate when the player taps one.
+  showExpansionCandidates(candidates, onPick) {
     this.clearExpansionCandidates();
     this._expansionOverlays = this._expansionOverlays || [];
     const CHUNK = 10;
@@ -1085,15 +1087,39 @@ export class MainScene extends Phaser.Scene {
       const fill = this.add.sprite(wx + size / 2, wy + size / 2, 'square');
       fill.setDisplaySize(size, size);
       fill.setTint(0x16c79a);
-      fill.setAlpha(0.18);
+      fill.setAlpha(0.20);
       fill.setDepth(4);
+      // Make the candidate tap-targetable. Use a wider interactive
+      // area than the sprite's visual edges so the player doesn't
+      // have to be pixel-precise.
+      fill.setInteractive({ useHandCursor: true });
+      fill.candidateCoords = { chunk_x: c.chunk_x, chunk_y: c.chunk_y };
+      fill.on('pointerdown', (pointer, _lx, _ly, event) => {
+        if (event && event.stopPropagation) event.stopPropagation();
+        if (onPick) onPick({ chunk_x: c.chunk_x, chunk_y: c.chunk_y });
+      });
+      // Pulse the fill so the candidates are visibly inviting.
+      this.tweens.add({
+        targets: fill,
+        alpha: { from: 0.20, to: 0.42 },
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
       const label = this.add.text(wx + size / 2, wy + size / 2, '#' + (i + 1), {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '32px',
         color: '#16c79a',
         fontStyle: 'bold'
       }).setOrigin(0.5).setDepth(5);
-      this._expansionOverlays.push(fill, label);
+      // A gold border around each candidate so it reads as "selectable
+      // patch of land" rather than a vague tint.
+      const border = this.add.graphics();
+      border.lineStyle(2, 0x16c79a, 0.7);
+      border.strokeRect(wx + 1, wy + 1, size - 2, size - 2);
+      border.setDepth(5);
+      this._expansionOverlays.push(fill, label, border);
     });
   }
 

@@ -2113,59 +2113,47 @@ body.app-hidden *::after {
 }
 
 /* Expansion picker overlay */
-#expansion-overlay {
-  position: fixed; inset: 0;
-  z-index: 80;
-  background: rgba(10, 14, 20, 0.7);
+/* Expansion picker — thin bottom bar with instruction + cancel.
+   Candidates are painted on the map (showExpansionCandidates) so the
+   bar just provides cost context and a way out. Same chrome shape
+   as the placement bar to keep mental model consistent. */
+#expansion-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translate(-50%, 80px);
+  opacity: 0;
+  transition: opacity 180ms ease, transform 220ms ease;
+  background: rgba(15, 22, 32, 0.96);
+  border: 1px solid #16c79a;
+  border-radius: 999px;
+  padding: 10px 16px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 20px;
-  backdrop-filter: blur(4px);
+  gap: 12px;
+  font-size: 13px;
+  color: #e6e6e6;
+  z-index: 70;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
 }
-.ep-card {
-  background: #16213e;
+#expansion-bar.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.eb-text strong { color: #16c79a; }
+.eb-text small { display: block; color: #a0a0a0; font-size: 11px; margin-top: 2px; }
+.eb-cancel {
+  background: transparent;
   border: 1px solid #0f3460;
-  border-radius: 10px;
-  padding: 20px;
-  width: 100%;
-  max-width: 460px;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-.ep-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.ep-header h2 { font-size: 18px; color: #16c79a; }
-.ep-close {
-  background: transparent; border: none; color: #888;
-  font-size: 22px; cursor: pointer; padding: 0 4px;
-}
-.ep-close:hover { color: #e94560; }
-.ep-cost { color: #e6e6e6; font-size: 14px; margin: 8px 0; }
-.ep-cost strong { color: #16c79a; }
-.ep-hint { color: #888; font-size: 12px; margin-bottom: 14px; }
-.ep-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
-}
-.ep-candidate {
-  background: #0a0e14;
-  border: 1px solid #0f3460;
-  color: #e6e6e6;
+  color: #cfd6df;
   border-radius: 6px;
-  padding: 12px;
-  cursor: pointer;
+  padding: 6px 14px;
+  font-size: 12px;
   font-family: inherit;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+  cursor: pointer;
 }
-.ep-candidate:hover { border-color: #16c79a; }
-.ep-candidate:disabled { opacity: 0.5; cursor: not-allowed; }
-.ep-num { font-size: 18px; font-weight: 600; color: #16c79a; }
-.ep-coords { font-size: 11px; color: #888; }
+.eb-cancel:hover { border-color: #e94560; color: #e94560; }
 
 /* ── Build menu (left-side collapsible drawer) ── */
 #build-menu {

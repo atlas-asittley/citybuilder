@@ -1,25 +1,30 @@
-// Expansion picker — small modal listing the adjacent chunks the
-// player can claim, with the cost. Triggered from the top bar
-// "Expand" button. After a successful claim the world reloads and
-// the new tiles appear in the parcel.
+// Expansion picker — paint adjacent parcels on the map, let the
+// player tap one to claim. No modal list of "(chunk_x, chunk_y)"
+// coords; the visualization IS the picker.
+//
+// Lifecycle:
+//   1. Player taps Expand in topbar → openExpansionPanel
+//   2. Server returns candidate chunks → MainScene paints pulsing
+//      rectangles + tap handlers via showExpansionCandidates
+//   3. A thin status bar appears at the bottom: cost + Cancel button
+//   4. Tapping a candidate → confirm dialog → expandDistrict RPC
+//   5. On success, loadInitialWorld + close + onComplete callback
 import { fetchExpansionCandidates, expandDistrict, nextExpansionCost } from '../api/expansion.js';
 import { state } from '../state/store.js';
 import { loadInitialWorld } from '../state/loader.js';
 
 let onCompleteCallback = null;
-let mounted = false;
+let active = false;
+let sceneRef = null;
+export function bindSceneToExpansion(scene) { sceneRef = scene; }
 
 export async function openExpansionPanel(onComplete) {
-  if (mounted) return;       // already showing — second click is a no-op
-  // Defensive: clear any orphan overlay (e.g., from a prior session
-  // that didn't tear down cleanly).
-  const orphan = document.getElementById('expansion-overlay');
-  if (orphan) orphan.remove();
+  if (active) return;
   onCompleteCallback = onComplete;
   const cost = nextExpansionCost();
 
   if ((state.profile?.money || 0) < cost) {
-    alert(`You need $${cost} to claim another parcel.`);
+    alert(`You need $${cost.toLocaleString()} to claim another parcel. Build a tax office or trade with NPCs to earn more.`);
     return;
   }
 
@@ -31,77 +36,104 @@ export async function openExpansionPanel(onComplete) {
     return;
   }
   if (!candidates.length) {
-    alert('No adjacent parcels available to claim.');
+    alert('No adjacent parcels available to claim — your district is surrounded.');
     return;
   }
 
-  mount(candidates, cost);
+  active = true;
+  // Paint pulsing rectangles on the map; the onPick callback fires
+  // when a player taps one.
+  if (sceneRef?.showExpansionCandidates) {
+    sceneRef.showExpansionCandidates(candidates, (c) => onPickCandidate(c, cost));
+  }
+  // Frame the camera so the candidates + parcel center are all in
+  // view (otherwise the player taps Expand on a zoomed-in city and
+  // the candidates might be off-screen).
+  frameCameraToCandidates(candidates);
+  mountBar(cost);
 }
 
-function mount(candidates, cost) {
-  mounted = true;
-  // Tell the MainScene to draw outline rectangles around each
-  // candidate chunk so the player can SEE which patches of land
-  // they're choosing between, not just (chunk_x, chunk_y) numbers.
-  if (sceneRef?.showExpansionCandidates) {
-    sceneRef.showExpansionCandidates(candidates);
-  }
-  const root = document.getElementById('ui-root');
-  const overlay = document.createElement('div');
-  overlay.id = 'expansion-overlay';
-  overlay.innerHTML = `
-    <div class="ep-card">
-      <div class="ep-header">
-        <h2>Claim a new parcel</h2>
-        <button class="ep-close" aria-label="Close">×</button>
-      </div>
-      <p class="ep-cost">Cost: <strong>$${cost}</strong>  ·  You have $${Math.floor(state.profile.money || 0)}</p>
-      <p class="ep-hint">Tap a parcel to claim it. Each claim grows your district by one chunk.</p>
-      <div class="ep-grid">
-        ${candidates.map((c, i) => `
-          <button class="ep-candidate" data-cx="${c.chunk_x}" data-cy="${c.chunk_y}">
-            <span class="ep-num">#${i + 1}</span>
-            <span class="ep-coords">chunk (${c.chunk_x}, ${c.chunk_y})</span>
-          </button>
-        `).join('')}
-      </div>
-    </div>
-  `;
-  root.appendChild(overlay);
-
-  overlay.querySelector('.ep-close').addEventListener('click', close);
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
-  });
-
-  overlay.querySelectorAll('.ep-candidate').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const cx = Number(btn.dataset.cx);
-      const cy = Number(btn.dataset.cy);
-      btn.disabled = true;
-      btn.textContent = 'Claiming…';
-      try {
-        const result = await expandDistrict(cx, cy);
-        if (result?.money !== undefined) state.profile.money = result.money;
-        if (result?.chunks_owned !== undefined) state.profile.chunks_owned = result.chunks_owned;
-        // Refetch tile map + buildings so the new chunk appears.
-        await loadInitialWorld();
-        close();
-        if (onCompleteCallback) onCompleteCallback();
-      } catch (err) {
-        alert('Expansion failed: ' + (err.message || err));
-        btn.disabled = false;
-      }
+function onPickCandidate(c, cost) {
+  if (!confirm(`Claim parcel at (${c.chunk_x}, ${c.chunk_y}) for $${cost.toLocaleString()}?`)) return;
+  expandDistrict(c.chunk_x, c.chunk_y)
+    .then(async (result) => {
+      if (result?.money !== undefined) state.profile.money = result.money;
+      if (result?.chunks_owned !== undefined) state.profile.chunks_owned = result.chunks_owned;
+      await loadInitialWorld();
+      close();
+      if (onCompleteCallback) onCompleteCallback();
+    })
+    .catch((err) => {
+      alert('Expansion failed: ' + (err.message || err));
     });
-  });
+}
+
+function mountBar(cost) {
+  const root = document.getElementById('ui-root');
+  const bar = document.createElement('div');
+  bar.id = 'expansion-bar';
+  bar.innerHTML = `
+    <span class="eb-text">
+      <strong>Tap a glowing parcel to claim it.</strong>
+      <small>Cost $${cost.toLocaleString()} · you have $${Math.floor(state.profile.money || 0).toLocaleString()}</small>
+    </span>
+    <button class="eb-cancel" id="eb-cancel">Cancel</button>
+  `;
+  root.appendChild(bar);
+  // Animation frame for the "visible" class so the slide-up CSS
+  // transition fires.
+  requestAnimationFrame(() => bar.classList.add('visible'));
+  document.getElementById('eb-cancel').addEventListener('click', close);
 }
 
 function close() {
-  const el = document.getElementById('expansion-overlay');
+  const el = document.getElementById('expansion-bar');
   if (el) el.remove();
-  mounted = false;
+  active = false;
   if (sceneRef?.clearExpansionCandidates) sceneRef.clearExpansionCandidates();
 }
 
-let sceneRef = null;
-export function bindSceneToExpansion(scene) { sceneRef = scene; }
+// Pan + zoom the camera so every candidate is visible alongside the
+// player's parcel. Quick framing — no heavy easing, just snap.
+function frameCameraToCandidates(candidates) {
+  if (!sceneRef || !sceneRef.cameras) return;
+  const CHUNK = 10;
+  const TILE_PX = 48;   // matches MainScene's TILE_PX
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const c of candidates) {
+    const x = c.chunk_x * CHUNK;
+    const y = c.chunk_y * CHUNK;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x + CHUNK > maxX) maxX = x + CHUNK;
+    if (y + CHUNK > maxY) maxY = y + CHUNK;
+  }
+  // Include the player's own parcel center so the candidates are
+  // shown in context, not floating in isolation.
+  const own = state.profile;
+  if (own?.home_x != null && own?.home_y != null) {
+    if (own.home_x < minX) minX = own.home_x;
+    if (own.home_y < minY) minY = own.home_y;
+    if (own.home_x > maxX) maxX = own.home_x;
+    if (own.home_y > maxY) maxY = own.home_y;
+  }
+  if (!Number.isFinite(minX)) return;
+
+  const cam = sceneRef.cameras.main;
+  const wx = (minX - state.gridMinX) * TILE_PX;
+  const wy = (minY - state.gridMinY) * TILE_PX;
+  const ww = (maxX - minX) * TILE_PX;
+  const wh = (maxY - minY) * TILE_PX;
+  // Pad 1 tile on each side so the candidates aren't tight against
+  // the viewport edge.
+  const pad = TILE_PX * 2;
+  // Compute zoom that fits the bounding box, capped between camera
+  // zoom limits (0.25 .. 3 in MainScene).
+  const zoomX = (cam.width  - pad * 2) / Math.max(1, ww);
+  const zoomY = (cam.height - pad * 2) / Math.max(1, wh);
+  const zoom = Math.max(0.25, Math.min(1.5, Math.min(zoomX, zoomY)));
+  cam.setZoom(zoom);
+  cam.centerOn(wx + ww / 2, wy + wh / 2);
+  // Save the new view so we don't reset after expansion completes.
+  if (sceneRef._saveMapViewSoon) sceneRef._saveMapViewSoon();
+}
