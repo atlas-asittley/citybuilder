@@ -1272,6 +1272,57 @@ body.app-hidden *::after {
 .rp-error { color: #e94560; }
 .rp-loading { color: #888; text-align: center; padding: 20px; font-size: 13px; }
 
+/* Stat info modal — explainer when you tap a topbar stat */
+#stat-info-overlay {
+  position: fixed; inset: 0;
+  z-index: 92;
+  background: rgba(10, 14, 20, 0.85);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+.si-card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 20px;
+  width: 100%; max-width: 460px; max-height: 86vh;
+  overflow-y: auto;
+}
+.si-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.si-header h2 { font-size: 18px; color: #16c79a; display: flex; align-items: center; gap: 8px; }
+.si-icon { font-size: 22px; }
+.si-close { background: transparent; border: none; color: #888; font-size: 22px; cursor: pointer; padding: 0 4px; }
+.si-section {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e6e6e6;
+  margin-bottom: 12px;
+}
+.si-label {
+  display: inline-block;
+  font-size: 10px;
+  color: #16c79a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  margin-right: 6px;
+  background: rgba(22, 199, 154, 0.1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.si-section b { color: #f0c850; font-weight: 600; }
+.si-current {
+  background: rgba(15, 52, 96, 0.4);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 8px;
+}
+#si-expand-btn { width: 100%; margin-top: 12px; }
+
 /* City Resources panel */
 #city-res-overlay {
   position: fixed; inset: 0;

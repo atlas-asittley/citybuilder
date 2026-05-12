@@ -20,6 +20,7 @@ import { openSettings } from './SettingsPanel.js';
 import { openBellLog, mountBellLog } from './BellLog.js';
 import { sb } from '../api/supabase.js';
 import { showToast } from './Toast.js';
+import { openStatInfo } from './StatInfoModal.js';
 
 let mounted = false;
 let onExpandedCallback = null;
@@ -105,6 +106,24 @@ export function mountTopBar(onExpanded) {
   wireMore('tb-settings', openSettings);
 
   mountBellLog();
+
+  // Wire each topbar stat to open the explanation modal on tap.
+  // (Triple-tap on money is handled separately further down so it
+  // doesn't conflict with single-tap-to-explain.)
+  const wireStat = (id, key) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => openStatInfo(key));
+  };
+  wireStat('tb-runway-stat', 'runway');
+  wireStat('tb-workers-stat', 'workers');
+  wireStat('tb-pop-stat', 'population');
+  wireStat('tb-parcels-stat', 'parcels');
+  wireStat('tb-happiness-stat', 'happiness');
+  wireStat('tb-crime-stat', 'crime');
+  wireStat('tb-migration-stat', 'migration');
+  wireStat('tb-productivity-stat', 'productivity');
 
   // Triple-tap the money chip → server-side dev_grant_money cheat.
   // v1 has this as a developer convenience; same RPC, same gesture.
