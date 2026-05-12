@@ -1106,6 +1106,55 @@ body.app-hidden *::after {
 .tp-trader-meets .tp-trader-gate { color: #5ec49e; }
 .tp-trader-misses .tp-trader-gate { color: #e0707a; }
 
+/* Trader directory — snapshot of every known trader at top of Partners */
+.tp-directory {
+  margin: 8px 0 14px;
+  padding: 8px 10px;
+  background: rgba(15, 52, 96, 0.25);
+  border-radius: 6px;
+}
+.tp-directory > summary {
+  cursor: pointer;
+  color: #c0c0c0;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tp-directory > summary small { color: #888; font-weight: normal; margin-left: 4px; }
+.tp-trader-card {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+}
+.tp-trader-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.tp-trader-card-name { color: #e6e6e6; font-weight: 600; font-size: 13px; }
+.tp-trader-card-next { color: #888; font-size: 11px; margin-left: auto; }
+.tp-trader-card-desc { color: #a0a0a0; font-size: 11px; line-height: 1.4; }
+
+.tp-mode-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tp-mode-starter  { background: rgba(160, 160, 160, 0.20); color: #c0c0c0; }
+.tp-mode-truck    { background: rgba(200, 130, 60, 0.20);  color: #e0a060; }
+.tp-mode-seaport  { background: rgba(60, 140, 200, 0.20);  color: #80b8e0; }
+.tp-mode-train    { background: rgba(160, 100, 60, 0.20);  color: #d0a070; }
+.tp-mode-airport  { background: rgba(120, 100, 200, 0.20); color: #b0a0e0; }
+.tp-mode-rail     { background: rgba(160, 100, 60, 0.20);  color: #d0a070; }
+
 /* Black Market stepper */
 .bm-row {
   padding: 8px;

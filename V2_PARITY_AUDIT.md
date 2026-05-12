@@ -59,7 +59,7 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 - [x] **Resources: category collapse persistence** (`v1-parity audit, commit 60/N`) — `CityResourcesTab.js`. v1 localStorage `city_resources_collapsed`.
 - [x] **Resources: per-category stock summaries** (`v1-parity audit, commit 60/N`) — `CityResourcesTab.js`. v1: "7 resources · 250 total" on category header.
 - [ ] **Period toggle on Treasury + Resources** — `CityTreasuryTab.js` / `CityResourcesTab.js`. v1 has Today / Week / All-time. v2 hardcodes 24h.
-- [ ] **Partners: trader description + transport mode badge + next-visit countdown** — `TradePartnersTab.js`. v1 surfaces all three on each card.
+- [x] **Partners: trader description + transport mode badge + next-visit countdown** (`v1-parity audit, commit 61/N`) — `TradePartnersTab.js`. v1 surfaces all three on each card. v2 ships them as a "Traders in this city" directory section at the top of the Partners tab (resource-first layout doesn't have per-trader cards otherwise).
 - [x] **Bell log: 1.5s dedup window** (`v1-parity audit, commit 59/N`) — `BellLog.js`. v1 collapses identical events fired in rapid succession.
 - [x] **Inspector: trade-value row** (`v1-parity audit, commit 59/N`) — `InspectorPanel.js`. v1 shows "Trade value: $X/min" using best unlocked trader price.
 - [ ] **Inspector: walker info card** — currently no walker tap → info flow.

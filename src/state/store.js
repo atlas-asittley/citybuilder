@@ -27,6 +27,7 @@ export const state = {
   allTraderPrices: {},      // [trader_key][resource_key] → { buy_price, sell_price, daily_buy_cap, daily_sell_cap }
   tradePolicies: {},        // [resource_key] → { mode, reserve_target, min_sell_price, max_buy_price }
   traderQuotas: {},         // [trader_key][resource_key] → { buy_cap, buy_used, sell_cap, sell_used }
+  traderLastVisits: {},     // trader_key → ISO timestamp of most recent visit (for next-visit countdown)
 
   // Labor allocation — kept in sync with process_production response
   // so the topbar workers stat can show used/needed + shortage badge.

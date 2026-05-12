@@ -178,6 +178,25 @@ async function fetchTraderPrices() {
   return out;
 }
 
+// Most-recent visit timestamp per trader. Drives the "next visit in
+// Xm" countdown on the Partners trader directory. Bounded fetch (50
+// rows is more than enough to cover one row per active trader).
+async function fetchTraderLastVisits() {
+  const { data, error } = await sb
+    .from('trader_visits')
+    .select('trader_key, visited_at')
+    .eq('player_id', state.currentUser.id)
+    .order('visited_at', { ascending: false })
+    .limit(50);
+  if (error || !data) return {};
+  const out = {};
+  for (const row of data) {
+    // First (most recent) row for each trader wins; subsequent ones skip.
+    if (!out[row.trader_key]) out[row.trader_key] = row.visited_at;
+  }
+  return out;
+}
+
 // Today's per-trader-per-resource buy/sell usage vs caps. Drives the
 // "5/10 today" indicators on the Partners tab so the player can see
 // at a glance how much of each daily cap they've already burned.
@@ -237,7 +256,7 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers, traderQuotas] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers, traderQuotas, lastVisits] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
@@ -249,7 +268,8 @@ export async function loadInitialWorld() {
     fetchHousingLifestyleDemands(),
     fetchBuildingResourceCosts(),
     fetchBuildingBuffers(),
-    fetchTraderQuotas()
+    fetchTraderQuotas(),
+    fetchTraderLastVisits()
   ]);
 
   state.allBuildings = buildings;
@@ -264,6 +284,7 @@ export async function loadInitialWorld() {
   state.buildingResourceCosts = resourceCosts;
   state.buildingBuffers = buffers;
   state.traderQuotas = traderQuotas;
+  state.traderLastVisits = lastVisits;
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;

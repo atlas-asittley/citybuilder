@@ -44,6 +44,7 @@ export function renderTradePartners(parent) {
       <strong style="color:#16c79a;">Auto-trading runs every production tick.</strong>
       Set a policy per resource to tell the auto-trader what to do.
     </p>
+    ${renderTraderDirectory()}
     ${bestDeals.length ? `
       <div class="tp-best-deals">
         <h3 class="tp-section-title">Best deals matching your policies</h3>
@@ -199,6 +200,43 @@ function computeBestDeals(resourceTraders) {
     }
   }
   return out;
+}
+
+// Trader directory at the top of the Partners tab. Lists every known
+// trader with name + transport-mode badge + description + next-visit
+// countdown. Gives the player a "who's in town" snapshot without
+// scrolling resource-by-resource.
+function renderTraderDirectory() {
+  const traders = Object.values(state.traders || {});
+  if (traders.length === 0) return '';
+  const now = Date.now();
+  const rows = traders.map((t) => {
+    const lastIso = state.traderLastVisits?.[t.key];
+    const intervalMs = (t.visit_interval_minutes || 0) * 60 * 1000;
+    let countdown = '—';
+    if (intervalMs > 0) {
+      const last = lastIso ? new Date(lastIso).getTime() : (state.profile?.created_at ? new Date(state.profile.created_at).getTime() : now);
+      const next = last + intervalMs;
+      const diff = next - now;
+      if (diff <= 0) countdown = 'visiting now';
+      else if (diff < 60 * 1000) countdown = '<1m';
+      else if (diff < 60 * 60 * 1000) countdown = `${Math.ceil(diff / 60000)}m`;
+      else countdown = `${Math.floor(diff / 3600000)}h ${Math.ceil((diff % 3600000) / 60000)}m`;
+    }
+    const mode = t.mode || t.transport_mode || 'starter';
+    return `<div class="tp-trader-card">
+      <div class="tp-trader-card-head">
+        <span class="tp-trader-card-name">${escapeHtml(t.name)}</span>
+        <span class="tp-mode-badge tp-mode-${mode}">${escapeHtml(mode)}</span>
+        <span class="tp-trader-card-next">next visit · ${escapeHtml(countdown)}</span>
+      </div>
+      ${t.description ? `<div class="tp-trader-card-desc">${escapeHtml(t.description)}</div>` : ''}
+    </div>`;
+  }).join('');
+  return `<details class="tp-directory" open>
+    <summary>Traders in this city <small>(${traders.length})</small></summary>
+    ${rows}
+  </details>`;
 }
 
 function escapeHtml(s) {
