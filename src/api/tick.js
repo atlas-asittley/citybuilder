@@ -81,6 +81,11 @@ export function onPopIncrease(cb) {
   onPopIncreaseCallback = cb;
 }
 
+let onPopDecreaseCallback = null;
+export function onPopDecrease(cb) {
+  onPopDecreaseCallback = cb;
+}
+
 function applyTickResponse(data) {
   if (!data || !state.profile) return;
 
@@ -90,14 +95,16 @@ function applyTickResponse(data) {
   }
   if (data.money !== undefined) state.profile.money = data.money;
 
-  // Spawn immigrant walkers when population rises. Cap so a big
-  // immigration spike (e.g., first load after a long absence)
+  // Spawn immigrant / emigrant walkers on population change.
+  // Cap so a big delta (e.g., first load after a long absence)
   // doesn't flood the map with sprites.
   const prevPopFloor = Math.floor(state.profile.population || 0);
   const newPopFloor = data.population !== undefined ? Math.floor(data.population) : prevPopFloor;
   const popDelta = newPopFloor - prevPopFloor;
   if (popDelta > 0 && onPopIncreaseCallback) {
     onPopIncreaseCallback(Math.min(popDelta, 4));
+  } else if (popDelta < 0 && onPopDecreaseCallback) {
+    onPopDecreaseCallback(Math.min(-popDelta, 4));
   }
 
   if (data.population !== undefined) state.profile.population = data.population;

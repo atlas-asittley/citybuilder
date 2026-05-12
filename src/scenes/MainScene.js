@@ -394,12 +394,19 @@ export class MainScene extends Phaser.Scene {
       const dist = Math.hypot(dx, dy);
       const speed = w.speed || 28;
 
+      // Pause state for collector walkers — they sit at an endpoint
+      // for a beat before flipping direction, mimicking "loading up
+      // the resource" or "dropping it off".
+      if (w.pauseUntil && performance.now() < w.pauseUntil) continue;
+      if (w.pauseUntil) w.pauseUntil = 0;
+
       if (dist < 2) {
         // Arrived at the current target. Behavior depends on walker
         // kind:
         //   'road'      — pick the next connected road tile
-        //   'collector' — pause briefly, then flip direction
+        //   'collector' — short pause, then flip direction
         //   'immigrant' — despawn on arrival at the destination
+        //   'emigrant'  — despawn on arrival at the parcel edge
         if (w.kind === 'road') {
           this._advanceWalkerToNextRoad(w);
           if (!w.targetX && !w.targetY) {
@@ -408,12 +415,13 @@ export class MainScene extends Phaser.Scene {
             continue;
           }
         } else if (w.kind === 'collector') {
-          // Flip: if we were heading to the resource, now head home.
+          // Pause for ~700ms then flip toward the other endpoint.
+          w.pauseUntil = performance.now() + 700;
           const tmpX = w.homeX, tmpY = w.homeY;
           w.homeX = w.targetX; w.homeY = w.targetY;
           w.targetX = tmpX; w.targetY = tmpY;
         } else {
-          // immigrant — destination reached
+          // immigrant or emigrant — destination reached
           w.sprite.destroy();
           this._walkers.splice(i, 1);
           continue;
@@ -540,6 +548,43 @@ export class MainScene extends Phaser.Scene {
       homeX, homeY,
       targetX: resourceX, targetY: resourceY,
       life: 20   // ~2 round trips before despawning
+    });
+  }
+
+  // Public: spawn an emigrant walker. Called from the tick loop
+  // when population goes down. Walks straight through grass from
+  // a random house OUT to a random parcel edge, then despawns.
+  spawnEmigrantWalker() {
+    if (this._walkers.length >= MAX_WALKERS) return;
+    const myId = state.currentUser?.id;
+    const houses = state.allBuildings.filter((b) =>
+      b.player_id === myId && state.buildingTypes[b.building_type_key]?.category === 'housing'
+    );
+    if (!houses.length) return;
+    const house = houses[Math.floor(Math.random() * houses.length)];
+    const bt = state.buildingTypes[house.building_type_key];
+    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+    const houseX = (house.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
+    const houseY = (house.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
+
+    // Heading off the visible map in a random cardinal direction.
+    const cam = this.cameras.main;
+    const edges = [
+      { x: cam.worldView.x - 40,                              y: houseY },
+      { x: cam.worldView.x + cam.worldView.width + 40,        y: houseY },
+      { x: houseX, y: cam.worldView.y - 40 },
+      { x: houseX, y: cam.worldView.y + cam.worldView.height + 40 }
+    ];
+    const dest = edges[Math.floor(Math.random() * edges.length)];
+
+    const sprite = this.add.sprite(houseX, houseY, 'walker-citizen');
+    sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
+    sprite.setDepth(10);
+    sprite.setAlpha(0.85);    // slightly faded — they're leaving
+    this._walkers.push({
+      kind: 'emigrant', sprite, speed: 32,
+      targetX: dest.x, targetY: dest.y,
+      life: 60
     });
   }
 
