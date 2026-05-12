@@ -9,8 +9,21 @@
 //   - unaffordable (red money) — not enough $ or resources
 import { state } from '../../state/store.js';
 import { tutorialAllowsBuilding, recipeOf, periodSuffix } from '../../scenes/helpers.js';
+import { spriteIcons } from '../../sprites.js';
 
 let selectedKey = null;
+
+// Accordion mode — exactly one category open at a time. Persisted to
+// localStorage so the player's last-open section comes back on reload.
+// Empty string means "everything collapsed".
+const OPEN_KEY = 'city_build_open_v2';
+let openSection = (() => {
+  try { return localStorage.getItem(OPEN_KEY) || ''; } catch (_e) { return ''; }
+})();
+function setOpenSection(cat) {
+  openSection = cat;
+  try { localStorage.setItem(OPEN_KEY, cat); } catch (_e) { /* no-op */ }
+}
 
 const CATEGORY_ORDER = [
   'housing', 'service', 'police', 'tax',
@@ -42,15 +55,33 @@ export function renderBuildTab(parent, onSelect) {
   const inventory = state.inventory || {};
   const resourceCostsByKey = state.buildingResourceCosts || {};
 
+  // Default the first section with buildings open if the user hasn't
+  // picked one yet (post-tutorial player wants to see SOMETHING).
+  if (!openSection) {
+    for (const c of CATEGORY_ORDER) {
+      if (grouped[c]?.length) { openSection = c; break; }
+    }
+  }
+
   let html = '';
   for (const cat of CATEGORY_ORDER) {
     if (!grouped[cat] || !grouped[cat].length) continue;
     grouped[cat].sort((a, b) =>
       (a.tier_required || 0) - (b.tier_required || 0) ||
       a.name.localeCompare(b.name));
-    html += `<div class="btp-section">
-      <h3 class="btp-section-title">${CATEGORY_LABELS[cat] || cat}</h3>
-      <div class="btp-items">`;
+    const isOpen = openSection === cat;
+    const chev = isOpen ? '▾' : '▸';
+    html += `<div class="btp-section ${isOpen ? 'btp-section-open' : ''}" data-cat="${cat}">
+      <button class="btp-section-title">
+        <span class="btp-section-chev">${chev}</span>
+        ${CATEGORY_LABELS[cat] || cat}
+        <small class="btp-section-count">${grouped[cat].length}</small>
+      </button>
+      ${isOpen ? `<div class="btp-items">` : ''}`;
+    if (!isOpen) {
+      html += `</div>`;
+      continue;
+    }
     for (const bt of grouped[cat]) {
       const cost = bt.build_cost || 0;
       const canAffordMoney = money >= cost;
@@ -95,25 +126,42 @@ export function renderBuildTab(parent, onSelect) {
       }).join('');
       const description = describeBuilding(bt);
 
+      const iconUri = spriteIcons[bt.key];
+      const iconHtml = iconUri
+        ? `<img class="btp-icon" src="${iconUri}" alt="" />`
+        : `<div class="btp-icon btp-icon-fallback"></div>`;
       html += `<button class="${classes.join(' ')}" data-key="${bt.key}" ${(!unlocked) ? 'disabled' : ''}>
-        <div class="btp-head">
-          <span class="btp-name">${bt.name || bt.key}</span>
-          <span class="btp-cost ${!canAffordMoney ? 'cant-afford' : ''}">${cost ? '$' + cost : ''}</span>
+        ${iconHtml}
+        <div class="btp-body">
+          <div class="btp-head">
+            <span class="btp-name">${bt.name || bt.key}</span>
+            <span class="btp-cost ${!canAffordMoney ? 'cant-afford' : ''}">${cost ? '$' + cost : ''}</span>
+          </div>
+          <div class="btp-meta">
+            ${bt.worker_cost > 0 ? `<span class="btp-meta-bit">👷 ${bt.worker_cost}</span>` : ''}
+            ${bt.workers_provided ? `<span class="btp-meta-bit">🏠 ${bt.workers_provided}</span>` : ''}
+            ${bt.coverage_radius > 0 ? `<span class="btp-meta-bit">📡 r${bt.coverage_radius}</span>` : ''}
+            ${resourceBits}
+          </div>
+          <div class="btp-desc">${description}</div>
+          ${wouldExceedCapacity ? `<div class="btp-warn">⚠️ Will be unstaffed — population needs to grow by ${(li.workersUsed + bt.worker_cost) - (li.workerCapacity || 0)} first.</div>` : ''}
+          ${lockHint}
         </div>
-        <div class="btp-meta">
-          ${bt.worker_cost > 0 ? `<span class="btp-meta-bit">👷 ${bt.worker_cost}</span>` : ''}
-          ${bt.workers_provided ? `<span class="btp-meta-bit">🏠 ${bt.workers_provided}</span>` : ''}
-          ${bt.coverage_radius > 0 ? `<span class="btp-meta-bit">📡 r${bt.coverage_radius}</span>` : ''}
-          ${resourceBits}
-        </div>
-        <div class="btp-desc">${description}</div>
-        ${wouldExceedCapacity ? `<div class="btp-warn">⚠️ Will be unstaffed — population needs to grow by ${(li.workersUsed + bt.worker_cost) - (li.workerCapacity || 0)} first.</div>` : ''}
-        ${lockHint}
       </button>`;
     }
     html += `</div></div>`;
   }
   parent.innerHTML = html || '<p class="btp-empty">No buildings available.</p>';
+
+  // Section header click toggles accordion: open → close, closed → open
+  // and close every other section. Re-render after to redraw.
+  parent.querySelectorAll('.btp-section-title').forEach((header) => {
+    header.addEventListener('click', () => {
+      const cat = header.parentElement.dataset.cat;
+      setOpenSection(openSection === cat ? '' : cat);
+      renderBuildTab(parent, onSelect);
+    });
+  });
 
   parent.querySelectorAll('.btp-item').forEach((btn) => {
     btn.addEventListener('click', () => {

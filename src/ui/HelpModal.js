@@ -8,6 +8,7 @@
 // information needs.
 import { state } from '../state/store.js';
 import { recipeOf, periodSuffix } from '../scenes/helpers.js';
+import { spriteIcons } from '../sprites.js';
 
 // Module-scope expanded card set — persists across re-renders so
 // clicking a card and waiting for an inadvertent re-render (none
@@ -162,10 +163,15 @@ function renderCard(bt) {
   // step + the per-house drain rates. Only renders when expanded.
   const housingDetail = (bt.category === 'housing' && isOpen) ? renderHousingTierBreakdown() : '';
 
+  const iconUri = spriteIcons[bt.key];
+  const iconHtml = iconUri
+    ? `<img class="hl-bldg-icon" src="${iconUri}" alt="" />`
+    : `<div class="hl-bldg-icon hl-bldg-icon-fallback"></div>`;
   return `
     <div class="hl-bldg ${isOpen ? 'hl-bldg-open' : ''}" data-key="${escapeHtml(bt.key)}">
       <div class="hl-bldg-head hl-bldg-toggle">
         <span class="hl-chev">${isOpen ? '▾' : '▸'}</span>
+        ${iconHtml}
         <span class="hl-bldg-name">${escapeHtml(bt.name || bt.key)}</span>
         <span class="hl-bldg-cat">${escapeHtml(bt.category)}</span>
         ${bt.build_cost ? `<span class="hl-bldg-cost">$${bt.build_cost}</span>` : ''}
