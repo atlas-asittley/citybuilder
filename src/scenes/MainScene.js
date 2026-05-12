@@ -37,6 +37,30 @@ const TERRAIN_TINTS = {
 };
 const OWNED_GRASS_TINT = 0x4a6440;
 
+// Pack every visual-affecting field of a building into a string so
+// the diff renderer can decide whether the sprite needs updating.
+// If two consecutive renders produce the same signature, the existing
+// sprite + animations are kept as-is. Any change → re-render. The
+// road bitmask is included so a road tile retextures when a neighbor
+// is laid or removed.
+function buildingSignature(b, bt, roadSet, myId) {
+  let sig = b.building_type_key + '|' + b.x + ',' + b.y;
+  sig += '|t' + (b.housing_tier || 0);
+  sig += '|s' + (b.status || '-');
+  sig += '|w' + (b.is_staffed ? 1 : 0);
+  sig += '|p' + (b.paused ? 1 : 0);
+  sig += '|e' + (b.expansion_level || 0);
+  sig += '|o' + (b.player_id === myId ? 'me' : 'them');
+  if (bt.category === 'road') {
+    const n = roadSet.has(b.x + ',' + (b.y - 1)) ? 1 : 0;
+    const s = roadSet.has(b.x + ',' + (b.y + 1)) ? 1 : 0;
+    const e = roadSet.has((b.x + 1) + ',' + b.y) ? 1 : 0;
+    const w = roadSet.has((b.x - 1) + ',' + b.y) ? 1 : 0;
+    sig += '|r' + n + s + e + w;
+  }
+  return sig;
+}
+
 // Inject explicit width/height into a walker SVG data URI so the
 // browser rasterizes it at a known small size. Returns a new
 // data URI with width="<vb_w * 4>" height="<vb_h * 4>" added. If
@@ -1004,30 +1028,26 @@ export class MainScene extends Phaser.Scene {
     this._placementMode.aoeSprites = [];
   }
 
-  // Expose a re-render hook for the tick / realtime layers — they
-  // call this when state.allBuildings changes. Cheap because we
-  // rebuild only the sprite list; the camera + texture stay put.
+  // Re-render hook for the tick / realtime layers. Calls into the
+  // diff-based _renderBuildings, which only touches sprites whose
+  // visual state actually changed. Stable buildings keep their
+  // existing sprite + animations — no churn, no walker stutter
+  // (Atlas 2026-05-11).
   rerenderBuildings() {
-    if (!this._buildingSprites) return;
-    for (const s of this._buildingSprites) s.destroy();
-    this._buildingSprites = [];
-    this._buildingAtAnchor.clear();
     this._renderBuildings();
   }
 
   // Full world rerender — tiles, buildings, heatmap, camera bounds.
-  // Used after expand_district adds new chunks to the parcel.
+  // Used after expand_district adds new chunks to the parcel. Tile
+  // sprites and heatmap overlays do get torn down (parcel bounds
+  // change), but the diff in _renderBuildings keeps building sprites
+  // stable across the rebuild.
   rerenderWorld() {
     for (const s of this._tileSprites.values()) s.destroy();
     this._tileSprites.clear();
     for (const s of this._heatmapOverlays) s.destroy();
     this._heatmapOverlays = [];
     this.clearAoe();
-    if (this._buildingSprites) {
-      for (const s of this._buildingSprites) s.destroy();
-      this._buildingSprites = [];
-      this._buildingAtAnchor.clear();
-    }
     this._renderTiles();
     this._renderBuildings();
     if (this._heatmapMode !== 'normal') this._renderHeatmap();
@@ -1084,20 +1104,29 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  // Diff-based building render. Maintains a Map keyed by building.id
+  // of { sprite, anims, sig } entries. On each call we recompute the
+  // signature for every building in state and only touch sprites
+  // whose sig actually changed. Stable buildings (the vast majority
+  // on a per-tick UPDATE) keep their existing sprite + animations
+  // — no GameObject churn, no stutter.
+  //
+  // Cost model:
+  //   - N = total buildings in shared world
+  //   - K = buildings whose visual state changed since last render
+  //   The old version did O(N) destroys + O(N) creates every call.
+  //   This does O(N) signature compares + O(K) creates/updates.
+  //   K is usually 0–3 (the buildings touched by the realtime UPDATE).
   _renderBuildings() {
-    // Two passes:
-    //   1. Build a Set of road tile keys for autotile lookups
-    //   2. Render every building. Roads pick the right NSEW autotile
-    //      texture based on their neighbors. Everything else uses
-    //      its authored sprite (or a category-tinted square fallback).
     const myId = state.currentUser?.id;
-    this._buildingSprites = this._buildingSprites || [];
 
-    // Pass 1: collect road positions across ALL players, since
-    // roads connect across parcel borders (they're part of the
-    // shared network the walker pathfinder uses). Cached on the
-    // scene so the walker tick can navigate without re-scanning
-    // state.allBuildings every frame.
+    // Initialize the entry index lazily; persists across re-renders.
+    if (!this._buildingEntries) this._buildingEntries = new Map();
+    const entries = this._buildingEntries;
+
+    // Road set (used for autotile lookups + the walker pathfinder).
+    // Need to compute first so each road's signature can include its
+    // NSEW mask — a road tile re-textures whenever a neighbor lands.
     const roadSet = new Set();
     for (const b of state.allBuildings) {
       const bt = state.buildingTypes[b.building_type_key];
@@ -1105,56 +1134,115 @@ export class MainScene extends Phaser.Scene {
     }
     this._roadSet = roadSet;
 
-    // Pass 2: render.
+    // Rebuild the anchor map every render — cheap O(N) Map populate,
+    // and tap-to-inspect needs an up-to-date b reference at each
+    // (x,y) for tier/status changes to read correctly.
+    this._buildingAtAnchor.clear();
+
+    const seen = new Set();
     for (const b of state.allBuildings) {
       const bt = state.buildingTypes[b.building_type_key];
       if (!bt) continue;
-      const fw = bt.footprint_w || 1;
-      const fh = bt.footprint_h || 1;
-
-      const worldX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
-      const worldY = (b.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
-
-      const isRoad = bt.category === 'road';
-      let texKey;
-      if (isRoad) {
-        // NSEW connectivity bitmask
-        const n = roadSet.has(b.x + ',' + (b.y - 1)) ? 8 : 0;
-        const s = roadSet.has(b.x + ',' + (b.y + 1)) ? 4 : 0;
-        const e = roadSet.has((b.x + 1) + ',' + b.y) ? 2 : 0;
-        const w = roadSet.has((b.x - 1) + ',' + b.y) ? 1 : 0;
-        texKey = 'road-' + (n | s | e | w);
-      } else {
-        texKey = this.textures.exists(b.building_type_key) ? b.building_type_key : 'square';
-      }
-
-      const sprite = this.add.sprite(worldX, worldY, texKey);
-
-      if (isRoad) {
-        sprite.setDisplaySize(fw * TILE_PX, fh * TILE_PX);
-      } else if (texKey !== 'square') {
-        sprite.setDisplaySize(fw * TILE_PX, fh * TILE_PX);
-      } else {
-        sprite.setScale(fw - 0.15, fh - 0.15);
-        sprite.setTint(CATEGORY_TINTS[bt.category] || 0x888888);
-      }
-      if (b.player_id !== myId) sprite.setAlpha(0.7);
-
-      sprite.setInteractive({ useHandCursor: true });
-      sprite.buildingRef = b;
-
-      this._buildingSprites.push(sprite);
+      seen.add(b.id);
       this._buildingAtAnchor.set(b.x + ',' + b.y, b);
 
-      this._spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh);
+      const sig = buildingSignature(b, bt, roadSet, myId);
+      const prev = entries.get(b.id);
+      if (prev && prev.sig === sig) {
+        // No visual change. Still refresh buildingRef so taps read
+        // the latest row (status / tier / paused might have shifted
+        // even when the signature happens to collide).
+        prev.sprite.buildingRef = b;
+        continue;
+      }
+
+      // Either new or changed — (re)build the sprite + animations.
+      if (prev) this._destroyBuildingEntry(prev, /*keepSprite*/ true);
+      const entry = prev || { sprite: null, anims: [], sig };
+      this._renderOneBuilding(entry, b, bt, roadSet, myId);
+      entry.sig = sig;
+      entries.set(b.id, entry);
+    }
+
+    // Drop sprites for buildings that disappeared from state.
+    for (const [id, entry] of entries) {
+      if (!seen.has(id)) {
+        this._destroyBuildingEntry(entry, /*keepSprite*/ false);
+        entries.delete(id);
+      }
     }
   }
 
-  // Spawn smoke / glow sprites for a building based on its animation
-  // profile + active-staffed gate. The spawned sprites get tracked on
-  // _buildingSprites so they're torn down together with the building
-  // sprite on next render.
-  _spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh) {
+  // Build (or update in place) the sprite + animations for a single
+  // building. Called from _renderBuildings only.
+  _renderOneBuilding(entry, b, bt, roadSet, myId) {
+    const fw = bt.footprint_w || 1;
+    const fh = bt.footprint_h || 1;
+    const worldX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
+    const worldY = (b.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
+
+    const isRoad = bt.category === 'road';
+    let texKey;
+    if (isRoad) {
+      const n = roadSet.has(b.x + ',' + (b.y - 1)) ? 8 : 0;
+      const s = roadSet.has(b.x + ',' + (b.y + 1)) ? 4 : 0;
+      const e = roadSet.has((b.x + 1) + ',' + b.y) ? 2 : 0;
+      const w = roadSet.has((b.x - 1) + ',' + b.y) ? 1 : 0;
+      texKey = 'road-' + (n | s | e | w);
+    } else {
+      texKey = this.textures.exists(b.building_type_key) ? b.building_type_key : 'square';
+    }
+
+    // Re-use the existing sprite if one's there (avoids the destroy/
+    // create roundtrip when only e.g. is_staffed changed). Update
+    // its texture if the type/autotile shifted, then re-apply scale/
+    // tint/alpha/interactive every time so the visual matches.
+    let sprite = entry.sprite;
+    if (!sprite) {
+      sprite = this.add.sprite(worldX, worldY, texKey);
+      entry.sprite = sprite;
+    } else {
+      sprite.setPosition(worldX, worldY);
+      if (sprite.texture.key !== texKey) sprite.setTexture(texKey);
+      sprite.clearTint();
+    }
+
+    if (isRoad || texKey !== 'square') {
+      sprite.setScale(1);
+      sprite.setDisplaySize(fw * TILE_PX, fh * TILE_PX);
+    } else {
+      sprite.setScale(fw - 0.15, fh - 0.15);
+      sprite.setTint(CATEGORY_TINTS[bt.category] || 0x888888);
+    }
+    sprite.setAlpha(b.player_id !== myId ? 0.7 : 1);
+    sprite.setInteractive({ useHandCursor: true });
+    sprite.buildingRef = b;
+
+    // Old animation sprites belonged to the previous incarnation —
+    // destroy them and spawn a fresh set if the building qualifies.
+    for (const a of entry.anims) a.destroy();
+    entry.anims = [];
+    this._spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh, entry.anims);
+  }
+
+  // Tear down a building entry. `keepSprite=true` leaves the main
+  // sprite in place so the next _renderOneBuilding can re-use it
+  // (avoiding a destroy+create roundtrip for a same-position update).
+  _destroyBuildingEntry(entry, keepSprite) {
+    for (const a of entry.anims) a.destroy();
+    entry.anims = [];
+    if (!keepSprite && entry.sprite) {
+      entry.sprite.destroy();
+      entry.sprite = null;
+    }
+  }
+
+  // Spawn smoke / glow / figure sprites for a building based on its
+  // animation profile + active-staffed gate. Spawned sprites are
+  // pushed into the `sink` array (the entry's `anims` list) so the
+  // diff-render can tear them down individually when the building's
+  // signature changes.
+  _spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh, sink) {
     if (b.status !== 'active' || !b.is_staffed) return;
     const profile = BUILDING_ANIM_PROFILES[b.building_type_key];
     if (!profile) return;
@@ -1174,7 +1262,7 @@ export class MainScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut'
       });
-      this._buildingSprites.push(glow);
+      sink.push(glow);
     }
 
     if (profile.smoke) {
@@ -1204,7 +1292,7 @@ export class MainScene extends Phaser.Scene {
             puff.y = baseY;
           }
         });
-        this._buildingSprites.push(puff);
+        sink.push(puff);
       }
     }
 
@@ -1235,7 +1323,7 @@ export class MainScene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut'
       });
-      this._buildingSprites.push(fig);
+      sink.push(fig);
     }
   }
 
