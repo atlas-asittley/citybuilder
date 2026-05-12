@@ -21,6 +21,7 @@ import { loadInitialWorld } from './state/loader.js';
 import { mountAuthScreen, unmountAuthScreen } from './ui/AuthScreen.js';
 import { bindSceneToInspector } from './ui/InspectorPanel.js';
 import { bindSceneToExpansion } from './ui/ExpansionPanel.js';
+import { bindSceneToTileInspector } from './ui/ResourceTileInspector.js';
 import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/IndustrySelectScreen.js';
 import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js';
 import { mountTopBar, refreshTopBar, refreshOffersBadge } from './ui/TopBar.js';
@@ -231,6 +232,7 @@ async function enterGame() {
     mountHeatmapToggle(mainScene);
     bindSceneToInspector(mainScene);
     bindSceneToExpansion(mainScene);
+    bindSceneToTileInspector(mainScene);
 
     onTileMetricsChanged(() => mainScene.refreshHeatmap?.());
     onPopIncrease((count) => {

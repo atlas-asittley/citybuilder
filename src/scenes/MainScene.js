@@ -1120,6 +1120,16 @@ export class MainScene extends Phaser.Scene {
     this._renderBuildings();
   }
 
+  // Re-render only the tile layer. Used after a tile-state change
+  // (e.g. clear_resource_tile RPC) to refresh the resource icon
+  // without rebuilding buildings or the heatmap.
+  rerenderTiles() {
+    for (const s of this._tileSprites.values()) s.destroy();
+    this._tileSprites.clear();
+    this._renderTiles();
+    if (this._heatmapMode !== 'normal') this._renderHeatmap();
+  }
+
   // Full world rerender — tiles, buildings, heatmap, camera bounds.
   // Used after expand_district adds new chunks to the parcel. Tile
   // sprites and heatmap overlays do get torn down (parcel bounds

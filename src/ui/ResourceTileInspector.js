@@ -8,47 +8,21 @@
 // the chrome is consistent.
 import { sb } from '../api/supabase.js';
 import { state } from '../state/store.js';
-import { closeInspector } from './InspectorPanel.js';
+import { ensureInspectorMounted, closeInspector } from './InspectorPanel.js';
 import { showToast } from './Toast.js';
 
 let activeTile = null;
+let sceneRef = null;
+export function bindSceneToTileInspector(scene) { sceneRef = scene; }
 
 export function openResourceTileInspector(tile) {
   if (!tile?.resource_node_key) return;
   activeTile = tile;
-  // Reuse the same inspector DOM the building inspector uses.
-  if (!document.getElementById('inspector-panel')) {
-    // Force inspector mount via a no-op openInspector won't work
-    // since we want different content; just inject the panel here.
-    mountIfMissing();
-  }
+  // Mount the shared inspector DOM (no-op if already mounted by the
+  // building inspector — avoids duplicate id="ip-*" elements).
+  ensureInspectorMounted();
   renderTileInspector();
   document.getElementById('inspector-panel').classList.add('open');
-}
-
-function mountIfMissing() {
-  const root = document.getElementById('ui-root');
-  if (document.getElementById('inspector-panel')) return;
-  const panel = document.createElement('div');
-  panel.id = 'inspector-panel';
-  panel.innerHTML = `
-    <div class="ip-header">
-      <div class="ip-title-row">
-        <h2 class="ip-title" id="ip-title"></h2>
-        <button class="ip-close" id="ip-close" aria-label="Close">×</button>
-      </div>
-      <p class="ip-subtitle" id="ip-subtitle"></p>
-    </div>
-    <div class="ip-body" id="ip-body"></div>
-    <div class="ip-actions" id="ip-actions"></div>
-    <div class="ip-hint">tap outside to close</div>
-  `;
-  root.appendChild(panel);
-  document.getElementById('ip-close').addEventListener('click', () => {
-    panel.classList.remove('open');
-    activeTile = null;
-    closeInspector();
-  });
 }
 
 function renderTileInspector() {
@@ -98,8 +72,10 @@ async function clearTile() {
     const { error } = await sb.rpc('clear_resource_tile', { p_tile_id: t.id });
     if (error) throw error;
     showToast(`${resName(t.resource_node_key)} cleared.`, 'success');
-    // Refresh local tile data so the resource icon disappears.
+    // Refresh local tile data so the resource icon disappears, then
+    // trigger a tile re-render so the visual catches up immediately.
     t.resource_node_key = null;
+    if (sceneRef?.rerenderTiles) sceneRef.rerenderTiles();
     const panel = document.getElementById('inspector-panel');
     panel?.classList.remove('open');
     activeTile = null;

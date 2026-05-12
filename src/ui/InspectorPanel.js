@@ -19,6 +19,13 @@ let mounted = false;
 let activeBuilding = null;
 let onCloseCallback = null;
 
+// Public — used by ResourceTileInspector to mount the shared DOM
+// without duplicating the panel HTML (avoids ID collisions and
+// stale event listeners).
+export function ensureInspectorMounted() {
+  if (!mounted) mountInspector();
+}
+
 export function openInspector(building, onClose) {
   activeBuilding = building;
   onCloseCallback = onClose || null;
