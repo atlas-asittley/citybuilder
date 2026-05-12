@@ -13,6 +13,9 @@ import { state } from './store.js';
 
 let channel = null;
 let onChangeCallback = null;
+let onOffersChangedCallback = null;
+
+export function setOffersChangedCallback(cb) { onOffersChangedCallback = cb; }
 
 export function subscribeRealtime(onChange) {
   if (channel) sb.removeChannel(channel);
@@ -83,6 +86,19 @@ export function subscribeRealtime(onChange) {
       const before = state.allBuildings.length;
       state.allBuildings = state.allBuildings.filter((b) => b.id !== oldB.id);
       if (state.allBuildings.length !== before) notify();
+    })
+    // Trade offers: any change to a row I'm party to bumps the
+    // pending-offers count. Caller (main.js) wires this to the
+    // refresh pipeline; we don't try to mirror full row state
+    // client-side, just signal that something changed.
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'player_trade_offers'
+    }, (payload) => {
+      const row = payload.new || payload.old;
+      if (!row) return;
+      const me = state.currentUser?.id;
+      if (row.from_player_id !== me && row.to_player_id !== me) return;
+      if (onOffersChangedCallback) onOffersChangedCallback();
     })
     .subscribe();
 }

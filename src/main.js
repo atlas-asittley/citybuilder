@@ -33,8 +33,8 @@ import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
 import { checkAndShowChangelogIfUnseen } from './ui/ChangelogModal.js';
 import { mountTutorialBanner } from './ui/TutorialBanner.js';
-import { startTickLoop, onTileMetricsChanged, onPopIncrease, onPopDecrease, onOffersChanged } from './api/tick.js';
-import { subscribeRealtime } from './state/realtime.js';
+import { startTickLoop, onTileMetricsChanged, onPopIncrease, onPopDecrease, onOffersChanged, refreshPendingOfferCount } from './api/tick.js';
+import { subscribeRealtime, setOffersChangedCallback } from './state/realtime.js';
 
 // ── Boot Phaser ──
 const params = new URLSearchParams(window.location.search);
@@ -263,6 +263,11 @@ async function enterGame() {
     };
     startTickLoop(rerender);
     subscribeRealtime(rerender);
+    setOffersChangedCallback(() => {
+      // Realtime trade-offer change → bump the offers badge by
+      // refetching the count without waiting for the 30s tick.
+      refreshPendingOfferCount();
+    });
 
     // Show any unseen "what's new" entries. Fire-and-forget — never
     // gates the game UI.

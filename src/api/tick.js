@@ -96,7 +96,7 @@ export function onOffersChanged(cb) {
   onOffersChangedCallback = cb;
 }
 
-async function refreshPendingOfferCount() {
+export async function refreshPendingOfferCount() {
   const { count, error } = await sb
     .from('player_trade_offers')
     .select('*', { count: 'exact', head: true })
