@@ -1415,16 +1415,33 @@ export class MainScene extends Phaser.Scene {
   }
 
   // Full world rerender — tiles, buildings, heatmap, camera bounds.
-  // Used after expand_district adds new chunks to the parcel. Tile
-  // sprites and heatmap overlays do get torn down (parcel bounds
-  // change), but the diff in _renderBuildings keeps building sprites
-  // stable across the rebuild.
+  // Used after expand_district adds new chunks to the parcel. The
+  // grid origin (state.gridMinX/Y) can shift when the new parcel
+  // extends past the previous min — building world-pixel coords are
+  // (b.x - gridMinX) * TILE_PX, so a shifted origin means every
+  // existing sprite is at the WRONG screen position. The diff-based
+  // _renderBuildings keys on b.x/b.y in the signature, NOT on the
+  // origin, so a stale entry won't trigger rebuild on its own.
+  //
+  // Solution: force-destroy every cached building entry so the next
+  // _renderBuildings rebuilds them all from scratch against the new
+  // origin. One-shot cost; happens only on expansion (not per-tick).
   rerenderWorld() {
     for (const s of this._tileSprites.values()) s.destroy();
     this._tileSprites.clear();
     for (const s of this._heatmapOverlays) s.destroy();
     this._heatmapOverlays = [];
     this.clearAoe();
+    this.clearSelection();
+    // Nuke the building entry cache so _renderBuildings recomputes
+    // every sprite's world position against the (possibly shifted)
+    // state.gridMinX/Y.
+    if (this._buildingEntries) {
+      for (const entry of this._buildingEntries.values()) {
+        this._destroyBuildingEntry(entry, /*keepSprite*/ false);
+      }
+      this._buildingEntries.clear();
+    }
     this._renderTiles();
     this._renderBuildings();
     if (this._heatmapMode !== 'normal') this._renderHeatmap();
