@@ -14,6 +14,7 @@
 // crime value gets a color class; migration has up/down arrows;
 // productivity colors by direction.
 import { state } from '../state/store.js';
+import { computeCityRunway, formatRunway } from '../state/runway.js';
 import { openExpansionPanel } from './ExpansionPanel.js';
 import { openSettings } from './SettingsPanel.js';
 import { openPlayers } from './PlayersPanel.js';
@@ -133,6 +134,26 @@ export function refreshTopBar() {
   document.getElementById('tb-district').textContent =
     p.district_name || p.display_name || '—';
   document.getElementById('tb-money').textContent = '$' + Math.floor(p.money || 0).toLocaleString();
+
+  // Runway — money runway from tax revenue vs upkeep (v1 has a richer
+  // food/lifestyle calc; this is the v2 first cut, money only).
+  const r = computeCityRunway();
+  const runwayEl = document.getElementById('tb-runway');
+  const runwayStat = document.getElementById('tb-runway-stat');
+  runwayEl.textContent = formatRunway(r.minutes);
+  runwayStat.classList.remove('runway-stable', 'runway-warn', 'runway-bad');
+  if (!isFinite(r.minutes)) {
+    runwayStat.classList.add('runway-stable');
+    runwayStat.title = 'Reserves are sustainable — tax revenue covers upkeep.';
+  } else if (r.minutes < 60) {
+    runwayStat.classList.add('runway-bad');
+    runwayStat.title = 'CRITICAL: money runway is ' + formatRunway(r.minutes) + ' at current upkeep.';
+  } else if (r.minutes < 4 * 60) {
+    runwayStat.classList.add('runway-warn');
+    runwayStat.title = 'Money runs out in ' + formatRunway(r.minutes) + ' at current upkeep.';
+  } else {
+    runwayStat.title = 'Money runs out in ' + formatRunway(r.minutes) + ' at current upkeep (best case).';
+  }
 
   // Workers: used/needed with shortage badge.
   const used = Math.max(0, li.workersUsed || 0);

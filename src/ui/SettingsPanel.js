@@ -4,6 +4,7 @@
 import { sb } from '../api/supabase.js';
 import { openChangelog } from './ChangelogModal.js';
 import { openHelp } from './HelpModal.js';
+import { isAnimationsEnabled, setAnimationsEnabled } from './animations.js';
 
 let mounted = false;
 
@@ -21,6 +22,10 @@ export function openSettings() {
       <div class="sp-body">
         <button class="sp-row" id="sp-help">📖 Buildings reference</button>
         <button class="sp-row" id="sp-whats-new">What's new</button>
+        <button class="sp-row sp-row-toggle" id="sp-anims" aria-pressed="false">
+          <span>Animations</span>
+          <span class="sp-toggle-state" id="sp-anims-state">ON</span>
+        </button>
         <button class="sp-row" id="sp-reload">Force reload (cache-bust)</button>
         <button class="sp-row" id="sp-logout">Sign out</button>
         <a class="sp-row" href="https://atlas-asittley.github.io/city-builder-mvp/" target="_blank" rel="noopener">Open v1 client (legacy)</a>
@@ -45,6 +50,25 @@ export function openSettings() {
     overlay.remove();
     mounted = false;
     openHelp();
+  });
+
+  // Animations toggle — flips a body class that disables all CSS
+  // animations + tweens. Useful on low-perf phones (v1's escape
+  // hatch). Persisted in localStorage so the choice survives
+  // reloads.
+  const animsRow = document.getElementById('sp-anims');
+  const animsState = document.getElementById('sp-anims-state');
+  const renderAnimsState = () => {
+    const enabled = isAnimationsEnabled();
+    animsState.textContent = enabled ? 'ON' : 'OFF';
+    animsRow.setAttribute('aria-pressed', enabled ? 'false' : 'true');
+    animsRow.classList.toggle('sp-row-toggle-on', enabled);
+    animsRow.classList.toggle('sp-row-toggle-off', !enabled);
+  };
+  renderAnimsState();
+  animsRow.addEventListener('click', () => {
+    setAnimationsEnabled(!isAnimationsEnabled());
+    renderAnimsState();
   });
 
   document.getElementById('sp-whats-new').addEventListener('click', () => {

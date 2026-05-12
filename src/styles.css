@@ -225,6 +225,54 @@ html, body {
 .topbar-stat .v.productivity-up { color: #80d090; }
 .topbar-stat .v.productivity-down { color: #f08080; }
 .topbar-stat .v.productivity-neutral { color: #cfd6df; }
+.topbar-stat.runway-stable { color: #cfd6df; }
+.topbar-stat.runway-stable .runway-icon { color: #6aa86a; }
+.topbar-stat.runway-warn { color: #f0c050; }
+.topbar-stat.runway-warn .v { color: #f0c050; font-weight: 700; }
+.topbar-stat.runway-bad {
+  color: #ff7050;
+  animation: runway-pulse 1.4s ease-in-out infinite;
+}
+.topbar-stat.runway-bad .v { color: #ff7050; font-weight: 700; }
+@keyframes runway-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Animations toggle in Settings */
+.sp-row-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sp-toggle-state {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.5px;
+}
+.sp-row-toggle-on .sp-toggle-state {
+  background: rgba(22,199,154,0.15);
+  color: #16c79a;
+  border: 1px solid #16c79a;
+}
+.sp-row-toggle-off .sp-toggle-state {
+  background: rgba(200,160,80,0.15);
+  color: #c8a050;
+  border: 1px solid #c8a050;
+}
+
+/* Disable every CSS animation + transition globally when the player
+   has flipped animations off. Phaser-side animations (walkers,
+   building tweens) keep running on their own loop — this only
+   suppresses DOM-overlay motion. */
+body.anim-off *,
+body.anim-off *::before,
+body.anim-off *::after {
+  animation: none !important;
+  transition: none !important;
+}
 .topbar-actions {
   display: flex;
   align-items: center;

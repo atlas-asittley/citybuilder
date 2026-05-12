@@ -26,6 +26,7 @@ import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js'
 import { mountTopBar, refreshTopBar } from './ui/TopBar.js';
 import { mountInfoBar, refreshInfoBar } from './ui/InfoBar.js';
 import { mountVersionBadge } from './ui/VersionBadge.js';
+import { applyAnimationsPreference } from './ui/animations.js';
 import { mountBuildMenu } from './ui/BuildMenu.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
@@ -55,6 +56,10 @@ const game = new Phaser.Game({
   // saw "Waiting for data…" stuck on screen even after auth.
   scene: sandboxMode ? [SandboxScene] : []
 });
+
+// Apply the animations preference as early as possible so the auth
+// screen / loading screen also honor it.
+applyAnimationsPreference();
 
 if (sandboxMode) {
   console.log('Sandbox mode — auth bypassed');
