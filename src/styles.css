@@ -433,13 +433,15 @@ body.app-hidden *::after {
   transition: height 0.22s ease-out;
 }
 #bottom-panel.collapsed { height: 36px; }
-/* Full-size panel — leave enough room above for the topbar (74px) +
-   infobar (26px) + iOS safe-area-inset-top + a 30px gap so the
-   Hide/Compact buttons at the top of the panel are clearly visible
-   below the chrome, not tucked under it. The 30px gap is intentional
-   breathing room. */
+/* Full-size panel — leave enough room above for the topbar (~74px) +
+   infobar (26px) + safe-area-inset-top + a generous 50px gap so the
+   Hide/Compact controls clear the chrome with breathing room. Uses
+   100dvh (dynamic viewport height) rather than 100vh because mobile
+   browsers count vh from the FULL viewport including the address bar
+   area; dvh tracks the actual visible area so the panel doesn't
+   slide its controls under the topbar on phones. */
 #bottom-panel.full {
-  height: calc(100vh - 130px - env(safe-area-inset-top, 0px));
+  height: calc(100dvh - 150px - env(safe-area-inset-top, 0px));
 }
 
 .bp-controls {
@@ -2273,21 +2275,23 @@ body.bp-collapsed #zoom-controls { bottom: 52px; }
 #heatmap-toggle {
   position: fixed;
   right: 12px;
-  bottom: 456px;   /* 3× zoom buttons (each 48 + 6 gap) above the
-                      bottom-anchored zoom-controls cluster */
+  /* Sits directly above the zoom + / − cluster. zoom-controls
+     bottom = 276 (with bottom panel open); 2 buttons × 48 + 1 gap
+     = 102 height, + 6 gap before heatmap = 384. */
+  bottom: 384px;
   z-index: 55;
   width: 48px;
   height: 48px;
   padding: 0;
   font-size: 22px;
 }
-body.bp-collapsed #heatmap-toggle { bottom: 232px; }
+body.bp-collapsed #heatmap-toggle { bottom: 160px; }
 
 /* Heatmap popup — drops up + left from the toggle */
 #heatmap-popup {
   position: fixed;
   right: 12px;
-  bottom: 510px;
+  bottom: 438px;
   background: rgba(15, 22, 32, 0.96);
   border: 1px solid #0f3460;
   border-radius: 8px;
