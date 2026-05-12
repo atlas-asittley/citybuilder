@@ -52,16 +52,23 @@ export function mountBottomPanel(opts = {}) {
 
   document.getElementById('bp-hide').addEventListener('click', () => {
     panel.classList.toggle('collapsed');
+    // Mirror to body class so sibling fixed elements (zoom controls,
+    // heatmap toggle, tutorial banner) can reposition via CSS without
+    // a JS handler each.
+    document.body.classList.toggle('bp-collapsed', panel.classList.contains('collapsed'));
     document.getElementById('bp-hide').textContent =
       panel.classList.contains('collapsed') ? 'Show ▴' : 'Hide ▾';
     panel.classList.remove('full');
+    document.body.classList.remove('bp-full');
     document.getElementById('bp-full').textContent = 'Full ▴';
   });
   document.getElementById('bp-full').addEventListener('click', () => {
     panel.classList.toggle('full');
+    document.body.classList.toggle('bp-full', panel.classList.contains('full'));
     document.getElementById('bp-full').textContent =
       panel.classList.contains('full') ? 'Compact ▾' : 'Full ▴';
     panel.classList.remove('collapsed');
+    document.body.classList.remove('bp-collapsed');
     document.getElementById('bp-hide').textContent = 'Hide ▾';
   });
 

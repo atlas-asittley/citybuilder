@@ -1440,11 +1440,13 @@ body.app-hidden *::after {
 }
 .cl-actions .ui-btn-primary { width: 100%; }
 
-/* Tutorial banner — bottom strip above the build menu button */
+/* Tutorial banner — sits just below the info bar at the top of the
+   screen so it doesn't fight the bottom panel for space. Mirrors
+   v1's layout where the banner is rendered above the topbar. */
 #tutorial-banner {
   position: fixed;
-  left: 12px; right: 80px;
-  bottom: 12px;
+  left: 12px; right: 12px;
+  top: 92px;  /* below topbar (~60) + info-bar (~26) + small gap */
   background: rgba(22, 33, 62, 0.95);
   border: 1px solid #16c79a;
   border-radius: 8px;
@@ -1630,16 +1632,20 @@ body.app-hidden *::after {
   font-size: 11px;
 }
 
-/* ── Zoom controls (bottom-right, fixed) ── */
+/* ── Zoom controls — fixed at right, anchored above the bottom panel
+       so they stay reachable while the panel is open. ── */
 #zoom-controls {
   position: fixed;
-  right: 12px; bottom: 12px;
+  right: 12px;
+  bottom: 276px;   /* 260 panel + 16 gap */
   display: flex;
   flex-direction: column;
   gap: 6px;
   z-index: 55;
   pointer-events: auto;
 }
+#bottom-panel.collapsed ~ #zoom-controls,
+body.bp-collapsed #zoom-controls { bottom: 52px; }
 .zc-btn {
   width: 48px; height: 48px;
   background: rgba(22, 33, 62, 0.9);
@@ -1661,19 +1667,21 @@ body.app-hidden *::after {
 #heatmap-toggle {
   position: fixed;
   right: 12px;
-  bottom: 192px;        /* above the zoom buttons */
+  bottom: 456px;   /* 3× zoom buttons (each 48 + 6 gap) above the
+                      bottom-anchored zoom-controls cluster */
   z-index: 55;
   width: 48px;
   height: 48px;
   padding: 0;
   font-size: 22px;
 }
+body.bp-collapsed #heatmap-toggle { bottom: 232px; }
 
 /* Heatmap popup — drops up + left from the toggle */
 #heatmap-popup {
   position: fixed;
   right: 12px;
-  bottom: 246px;
+  bottom: 510px;
   background: rgba(15, 22, 32, 0.96);
   border: 1px solid #0f3460;
   border-radius: 8px;
