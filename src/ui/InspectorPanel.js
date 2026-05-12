@@ -106,6 +106,16 @@ function renderInspector() {
     const tier = state.housingTierConfig[b.housing_tier];
     rows.push(row('Housing tier', tier ? `${tier.name} (tier ${b.housing_tier})` : `tier ${b.housing_tier}`));
     if (b.population) rows.push(row('Residents', b.population));
+    const nextTier = state.housingTierConfig[b.housing_tier + 1];
+    if (nextTier) {
+      const workerDelta = (nextTier.workers || nextTier.workers_provided || 0)
+                       - (tier?.workers || tier?.workers_provided || 0);
+      const deltaStr = workerDelta > 0 ? ` (+${workerDelta} workers)` : '';
+      const readyHint = b.evolution_eligible_at
+        ? ' — ready to upgrade'
+        : ' — needs more services / lifestyle goods';
+      rows.push(row('Next tier', `${nextTier.name}${deltaStr}${readyHint}`));
+    }
     if (b.last_devolve_reason) {
       rows.push(row('Last devolved', friendlyDevolveReason(b.last_devolve_reason), true));
     }

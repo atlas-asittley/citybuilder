@@ -54,6 +54,8 @@ export function renderBuildTab(parent, onSelect) {
 
   const money = state.profile?.money || 0;
   const maxTierEver = state.profile?.highest_housing_tier_ever || 0;
+  const inventory = state.inventory || {};
+  const resourceCostsByKey = state.buildingResourceCosts || {};
 
   let html = '';
   for (const cat of CATEGORY_ORDER) {
@@ -66,10 +68,20 @@ export function renderBuildTab(parent, onSelect) {
       <div class="btp-items">`;
     for (const bt of grouped[cat]) {
       const cost = bt.build_cost || 0;
-      const canAfford = money >= cost;
+      const canAffordMoney = money >= cost;
+      const resourceCosts = resourceCostsByKey[bt.key] || [];
+      let canAffordResources = true;
+      const resourceShortages = [];
+      for (const rc of resourceCosts) {
+        const have = Math.floor(inventory[rc.resource_key] || 0);
+        if (have < rc.quantity) {
+          canAffordResources = false;
+          resourceShortages.push({ key: rc.resource_key, short: rc.quantity - have, want: rc.quantity });
+        }
+      }
+      const canAfford = canAffordMoney && canAffordResources;
       const unlockTier = bt.unlocks_at_housing_tier;
       const unlocked = unlockTier == null || maxTierEver >= unlockTier;
-      const disabled = !canAfford || !unlocked;
       const isSelected = selectedKey === bt.key;
 
       const classes = ['btp-item'];
@@ -82,18 +94,23 @@ export function renderBuildTab(parent, onSelect) {
         const tierName = state.housingTierConfig?.[unlockTier]?.name || ('Tier ' + unlockTier);
         lockHint = `<div class="btp-lock">🔒 Unlocks at ${tierName}</div>`;
       }
-
+      const resourceBits = resourceCosts.map((rc) => {
+        const have = Math.floor(inventory[rc.resource_key] || 0);
+        const short = have < rc.quantity;
+        return `<span class="btp-meta-bit ${short ? 'btp-bit-short' : ''}">${rc.quantity} ${resName(rc.resource_key)}</span>`;
+      }).join('');
       const description = describeBuilding(bt);
 
-      html += `<button class="${classes.join(' ')}" data-key="${bt.key}" ${disabled && !unlocked ? 'disabled' : ''}>
+      html += `<button class="${classes.join(' ')}" data-key="${bt.key}" ${(!unlocked) ? 'disabled' : ''}>
         <div class="btp-head">
           <span class="btp-name">${bt.name || bt.key}</span>
-          <span class="btp-cost ${!canAfford ? 'cant-afford' : ''}">${cost ? '$' + cost : ''}</span>
+          <span class="btp-cost ${!canAffordMoney ? 'cant-afford' : ''}">${cost ? '$' + cost : ''}</span>
         </div>
         <div class="btp-meta">
           ${bt.worker_cost > 0 ? `<span class="btp-meta-bit">👷 ${bt.worker_cost}</span>` : ''}
           ${bt.workers_provided ? `<span class="btp-meta-bit">🏠 ${bt.workers_provided}</span>` : ''}
           ${bt.coverage_radius > 0 ? `<span class="btp-meta-bit">📡 r${bt.coverage_radius}</span>` : ''}
+          ${resourceBits}
         </div>
         <div class="btp-desc">${description}</div>
         ${lockHint}

@@ -48,6 +48,20 @@ async function fetchBuildingTypes() {
   return map;
 }
 
+async function fetchBuildingResourceCosts() {
+  // Some buildings cost not just $money but also raw resources to
+  // place. The server enforces in place_building; UI surfaces in the
+  // build card so the player can see why a button is disabled.
+  const { data, error } = await sb.from('building_type_resource_costs').select('*');
+  if (error || !data) return {};
+  const map = {};
+  for (const c of data) {
+    if (!map[c.building_type_key]) map[c.building_type_key] = [];
+    map[c.building_type_key].push({ resource_key: c.resource_key, quantity: c.quantity });
+  }
+  return map;
+}
+
 async function fetchHousingLifestyleDemands() {
   // Each row: { tier, resource_key, qty_per_minute }. Lifestyle goods
   // (pottery, bread, furniture, statuary) consumed by housing at the
@@ -171,7 +185,7 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
@@ -180,7 +194,8 @@ export async function loadInitialWorld() {
     fetchTraders(),
     fetchTraderPrices(),
     fetchTradePolicies(),
-    fetchHousingLifestyleDemands()
+    fetchHousingLifestyleDemands(),
+    fetchBuildingResourceCosts()
   ]);
 
   state.allBuildings = buildings;
@@ -192,6 +207,7 @@ export async function loadInitialWorld() {
   state.allTraderPrices = traderPrices;
   state.tradePolicies = tradePolicies;
   state.housingLifestyleDemands = housingDemands;
+  state.buildingResourceCosts = resourceCosts;
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;
