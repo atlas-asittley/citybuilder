@@ -77,10 +77,10 @@ function renderRows() {
   }).join('');
 }
 
-function formatNotification(n) {
-  // Server fields vary by notification_kind; format the two we
-  // currently emit cleanly, fall back to a JSON dump for anything
-  // unfamiliar.
+// Server fields vary by notification_kind; format the two we
+// currently emit cleanly, fall back to a JSON dump for anything
+// unfamiliar. Exported for unit tests.
+export function formatNotification(n) {
   if (n.kind === 'housing_ready_to_upgrade') {
     const c = n.payload?.count || 1;
     return c === 1
