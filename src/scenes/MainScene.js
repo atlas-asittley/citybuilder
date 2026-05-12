@@ -78,6 +78,16 @@ const CATEGORY_TINTS = {
   transport_connector: 0x6a4a6a
 };
 
+// Cheap deterministic hash from (x, y) tile coords to a positive
+// integer. Used to pick grass variant + decoration so each tile's
+// appearance is stable across re-renders and consistent across
+// players (everyone sees the same flowers on the same tile).
+function tileHash(x, y) {
+  let h = (x | 0) * 2654435761 + (y | 0) * 1597334677;
+  // Force-unsigned 32-bit via | 0 then >>> 0
+  return (h ^ (h >>> 15)) >>> 0;
+}
+
 // World bounds (state-bound wrapper around the pure helper).
 function computeWorldBounds() {
   return _computeWorldBounds(state.tileMap, state.allBuildings);
@@ -1008,6 +1018,140 @@ export class MainScene extends Phaser.Scene {
     g.destroy();
   }
 
+  // Generate 4 base grass variants + 8 decoration overlays. Each
+  // grass variant is a tile-sized texture filled with the base owned-
+  // grass color plus pseudo-random pixel speckles in slightly darker /
+  // lighter green so the surface looks like noisy turf instead of
+  // flat color. Variant tints stay close to the base color so adjacent
+  // tiles still read as a continuous field. Decoration overlays
+  // (dandelion / daisies / clover / dirt patch / pebbles / poppies /
+  // mossy log / tall grass) are smaller graphics composited on top of
+  // ~30% of tiles per hash(x,y).
+  _ensureGrassTextures() {
+    if (this.textures.exists('grass-v0')) return;
+    const SZ = TILE_PX;
+
+    const variants = [
+      { base: 0x4a6440, accents: [0x3e5836, 0x547248] },
+      { base: 0x506a44, accents: [0x405c3a, 0x5a7a4c] },
+      { base: 0x466038, accents: [0x3a5430, 0x506a40] },
+      { base: 0x4e6a44, accents: [0x42603c, 0x587648] }
+    ];
+    for (let v = 0; v < variants.length; v++) {
+      const cfg = variants[v];
+      const g = this.add.graphics();
+      g.fillStyle(cfg.base, 1);
+      g.fillRect(0, 0, SZ, SZ);
+      // 80 small noise specks, deterministic per variant so the same
+      // texture rebuilds identically on every scene boot.
+      for (let i = 0; i < 80; i++) {
+        const seed = (v * 9301 + i * 49297 + 233280) % 233280;
+        const x = (seed % SZ);
+        const y = ((seed / SZ) | 0) % SZ;
+        const accentIdx = ((seed >> 4) & 1);
+        g.fillStyle(cfg.accents[accentIdx], 0.55);
+        g.fillRect(x, y, 1, 1);
+      }
+      // A few subtle 2x2 "darker clumps" to break up the speckle and
+      // suggest grass tufts.
+      for (let i = 0; i < 6; i++) {
+        const seed = (v * 5701 + i * 67891 + 887) % 233280;
+        const x = (seed % (SZ - 2));
+        const y = ((seed / SZ) | 0) % (SZ - 2);
+        g.fillStyle(cfg.accents[0], 0.40);
+        g.fillRect(x, y, 2, 2);
+      }
+      g.generateTexture('grass-v' + v, SZ, SZ);
+      g.destroy();
+    }
+
+    // 8 decoration overlays. All drawn into a 16x16 box so the
+    // composite stays small + readable at tile scale. Each rendered
+    // around the center point of the sprite.
+    const DECO_SZ = 16;
+    const drawDeco = (key, fn) => {
+      const g = this.add.graphics();
+      fn(g);
+      g.generateTexture(key, DECO_SZ, DECO_SZ);
+      g.destroy();
+    };
+    // 0: dandelion — single yellow flower on a thin green stem
+    drawDeco('gdeco-0', (g) => {
+      g.lineStyle(1, 0x3a6028, 0.9);
+      g.beginPath(); g.moveTo(8, 12); g.lineTo(8, 6); g.strokePath();
+      g.fillStyle(0xf0c050, 1);
+      g.fillCircle(8, 5, 2.2);
+      g.fillStyle(0xfff080, 1);
+      g.fillCircle(8, 5, 1.0);
+    });
+    // 1: daisies — three small white dots in a cluster
+    drawDeco('gdeco-1', (g) => {
+      g.fillStyle(0xf8f8ee, 1);
+      g.fillCircle(6, 8, 1.4);
+      g.fillCircle(10, 6, 1.4);
+      g.fillCircle(9, 11, 1.4);
+      g.fillStyle(0xf0d030, 1);
+      g.fillCircle(6, 8, 0.5);
+      g.fillCircle(10, 6, 0.5);
+      g.fillCircle(9, 11, 0.5);
+    });
+    // 2: clover — 3 darker green rounded leaves
+    drawDeco('gdeco-2', (g) => {
+      g.fillStyle(0x2c5a28, 0.85);
+      g.fillCircle(6, 7, 2.2);
+      g.fillCircle(10, 7, 2.2);
+      g.fillCircle(8, 10, 2.2);
+      g.fillStyle(0x3a7030, 0.7);
+      g.fillCircle(6, 7, 1);
+      g.fillCircle(10, 7, 1);
+      g.fillCircle(8, 10, 1);
+    });
+    // 3: red poppies — 2 red dots with darker centers
+    drawDeco('gdeco-3', (g) => {
+      g.fillStyle(0xb83018, 1);
+      g.fillCircle(6, 9, 1.8);
+      g.fillCircle(11, 7, 1.8);
+      g.fillStyle(0x401810, 1);
+      g.fillCircle(6, 9, 0.5);
+      g.fillCircle(11, 7, 0.5);
+    });
+    // 4: bare-dirt patch — irregular brown blob
+    drawDeco('gdeco-4', (g) => {
+      g.fillStyle(0x6a5030, 0.85);
+      g.fillCircle(8, 8, 3.5);
+      g.fillStyle(0x8a6840, 0.7);
+      g.fillCircle(9, 7, 1.5);
+      g.fillCircle(7, 9, 1.2);
+    });
+    // 5: pebbles — 3 grey dots at varying sizes
+    drawDeco('gdeco-5', (g) => {
+      g.fillStyle(0x7a7a78, 1);
+      g.fillCircle(5, 9, 1.4);
+      g.fillCircle(10, 7, 1.7);
+      g.fillCircle(9, 11, 1.0);
+      g.fillStyle(0x9a9a98, 0.7);
+      g.fillCircle(5, 8.5, 0.5);
+      g.fillCircle(10, 6.5, 0.6);
+    });
+    // 6: mossy log — short horizontal brown bar with a green moss line
+    drawDeco('gdeco-6', (g) => {
+      g.fillStyle(0x5a3a20, 1);
+      g.fillRoundedRect(3, 7, 10, 3, 1);
+      g.fillStyle(0x3a6028, 0.85);
+      g.fillRect(4, 7, 8, 1);
+      g.fillStyle(0x2a4818, 1);
+      g.fillCircle(4, 8.5, 0.4);
+      g.fillCircle(11, 8.5, 0.4);
+    });
+    // 7: tall grass — 3 darker green vertical strokes
+    drawDeco('gdeco-7', (g) => {
+      g.lineStyle(1, 0x2c5028, 0.9);
+      g.beginPath(); g.moveTo(5, 13); g.lineTo(5,  6); g.strokePath();
+      g.beginPath(); g.moveTo(8, 13); g.lineTo(7,  4); g.strokePath();
+      g.beginPath(); g.moveTo(11, 13); g.lineTo(11, 7); g.strokePath();
+    });
+  }
+
   _ensureRoadTextures() {
     if (this.textures.exists('road-0')) return;
     const SZ = TILE_PX;
@@ -1490,6 +1634,8 @@ export class MainScene extends Phaser.Scene {
       back.setDepth(-1);
     }
 
+    this._ensureGrassTextures();
+
     // Render every owned tile, plus a small dot for tiles that
     // carry a resource node (timber grove, stone outcrop, iron
     // deposit, etc.). Players need to see resource tiles so they
@@ -1500,11 +1646,35 @@ export class MainScene extends Phaser.Scene {
       const worldX = (t.x - state.gridMinX) * TILE_PX + TILE_PX / 2;
       const worldY = (t.y - state.gridMinY) * TILE_PX + TILE_PX / 2;
 
-      let tint = TERRAIN_TINTS[t.terrain_type] || OWNED_GRASS_TINT;
-      if (t.terrain_type === 'grass') tint = OWNED_GRASS_TINT;
+      let tile;
+      if (t.terrain_type === 'grass' || !TERRAIN_TINTS[t.terrain_type]) {
+        // Grass — pick one of 4 noise variants by hash(x,y) so
+        // adjacent tiles read as a continuous textured field rather
+        // than a stamped checkerboard. Same hash always returns the
+        // same variant so tiles don't flicker on re-renders.
+        const h = tileHash(t.x, t.y);
+        const variant = h % 4;
+        tile = this.add.sprite(worldX, worldY, 'grass-v' + variant);
 
-      const tile = this.add.sprite(worldX, worldY, 'square');
-      tile.setTint(tint);
+        // ~30% of tiles get a small decoration overlay (flower,
+        // pebble, clover, poppy, dirt patch, etc). Position offset
+        // also derived from hash so each tile's decoration sits in
+        // a stable spot rather than centered every time.
+        if ((h % 100) < 30) {
+          const decoIdx = (h >> 4) & 7;     // 0..7
+          const dx = ((h >> 9)  & 15) - 7;  // -7..+8 px offset
+          const dy = ((h >> 13) & 15) - 7;
+          // Decorations render at default depth (0) — same as both
+          // tiles and buildings. _renderTiles runs before
+          // _renderBuildings, so insertion order keeps decorations
+          // under buildings but above the wilderness backdrop (-1).
+          const deco = this.add.sprite(worldX + dx, worldY + dy, 'gdeco-' + decoIdx);
+          this._tileSprites.set(t.x + ',' + t.y + ':deco', deco);
+        }
+      } else {
+        tile = this.add.sprite(worldX, worldY, 'square');
+        tile.setTint(TERRAIN_TINTS[t.terrain_type]);
+      }
       this._tileSprites.set(t.x + ',' + t.y, tile);
 
       if (t.resource_node_key) {
