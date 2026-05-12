@@ -76,31 +76,19 @@ async function refreshTraderQuotas() {
 
 async function refreshTileMetrics() {
   if (!state.currentUser) return;
-  // Pull metrics for every owned tile in the city — heatmap renders
-  // pollution from neighbors' industrial output too. Paginated so a
-  // big city doesn't get capped at the 1000-row server limit.
-  const PAGE = 1000;
-  let from = 0;
-  while (true) {
-    const { data, error } = await sb
-      .from('map_tiles')
-      .select('id, x, y, pollution, desirability')
-      .not('owner_player_id', 'is', null)
-      .order('id')
-      .range(from, from + PAGE - 1);
-    if (error) {
-      console.warn('refreshTileMetrics error:', error.message);
-      return;
-    }
-    if (!data || data.length === 0) break;
-    for (const row of data) {
-      const t = state.tileMap[row.x + ',' + row.y];
-      if (!t) continue;
-      t.pollution = row.pollution;
-      t.desirability = row.desirability;
-    }
-    if (data.length < PAGE) break;
-    from += PAGE;
+  const { data, error } = await sb
+    .from('map_tiles')
+    .select('id, x, y, pollution, desirability')
+    .eq('owner_player_id', state.currentUser.id);
+  if (error) {
+    console.warn('refreshTileMetrics error:', error.message);
+    return;
+  }
+  for (const row of data) {
+    const t = state.tileMap[row.x + ',' + row.y];
+    if (!t) continue;
+    t.pollution = row.pollution;
+    t.desirability = row.desirability;
   }
   if (onTileMetricsChangedCallback) onTileMetricsChangedCallback();
 }
