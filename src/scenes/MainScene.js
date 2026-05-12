@@ -175,7 +175,7 @@ function heatmapTintFor(mode, value) {
   if (mode === 'pollution') {
     if (value <= 0) return { tint: 0, alpha: 0 };
     const t = Math.min(1, value / 30);
-    return { tint: 0xff5a3a, alpha: 0.15 + t * 0.45 };
+    return { tint: 0xe85a3a, alpha: 0.15 + t * 0.45 };
   }
   if (mode === 'desirability') {
     if (value < 30) {
@@ -187,6 +187,16 @@ function heatmapTintFor(mode, value) {
       return { tint: 0x3ac860, alpha: 0.15 + t * 0.4 };
     }
     return { tint: 0, alpha: 0 };
+  }
+  if (mode === 'crime') {
+    // value here is 0 (covered) or 100 (uncovered). Slightly fade
+    // covered tiles too so the contrast is visible.
+    if (value < 50) return { tint: 0, alpha: 0 };
+    return { tint: 0xc84878, alpha: 0.42 };
+  }
+  if (mode === 'issues') {
+    if (value < 50) return { tint: 0, alpha: 0 };
+    return { tint: 0xf0a838, alpha: 0.5 };
   }
   return { tint: 0, alpha: 0 };
 }
@@ -925,11 +935,22 @@ export class MainScene extends Phaser.Scene {
     this._heatmapOverlays = [];
     if (this._heatmapMode === 'normal') return;
 
+    // 'crime' needs the set of police-covered tiles (red on uncovered).
+    // 'issues' needs the set of problematic-building tiles (red overlay).
+    let policeCovered = null;
+    let problemTiles = null;
+    if (this._heatmapMode === 'crime') policeCovered = this._computePoliceCoverage();
+    if (this._heatmapMode === 'issues') problemTiles = this._computeProblemTiles();
+
     for (const k in state.tileMap) {
       const t = state.tileMap[k];
-      const value = this._heatmapMode === 'pollution'
-        ? Number(t.pollution || 0)
-        : Number(t.desirability || 0);
+      let value;
+      if (this._heatmapMode === 'pollution') value = Number(t.pollution || 0);
+      else if (this._heatmapMode === 'desirability') value = Number(t.desirability || 0);
+      else if (this._heatmapMode === 'crime') value = policeCovered.has(k) ? 0 : 100;
+      else if (this._heatmapMode === 'issues') value = problemTiles.has(k) ? 100 : 0;
+      else value = 0;
+
       const { tint, alpha } = heatmapTintFor(this._heatmapMode, value);
       if (alpha <= 0) continue;
       const worldX = (t.x - state.gridMinX) * TILE_PX + TILE_PX / 2;
@@ -940,6 +961,59 @@ export class MainScene extends Phaser.Scene {
       overlay.setDepth(2);
       this._heatmapOverlays.push(overlay);
     }
+  }
+
+  // Set of "x,y" tile keys that fall inside any of THIS player's
+  // staffed active police buildings' manhattan coverage radius.
+  // Used by the crime-risk heatmap to red-tint uncovered tiles.
+  _computePoliceCoverage() {
+    const covered = new Set();
+    const myId = state.currentUser?.id;
+    for (const b of state.allBuildings) {
+      if (b.player_id !== myId) continue;
+      const bt = state.buildingTypes[b.building_type_key];
+      if (!bt || bt.category !== 'police') continue;
+      if (b.status !== 'active' || !b.is_staffed) continue;
+      const r = bt.coverage_radius || 0;
+      const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+      for (let dx = 0; dx < fw; dx++) {
+        for (let dy = 0; dy < fh; dy++) {
+          for (let rx = -r; rx <= r; rx++) {
+            for (let ry = -r; ry <= r; ry++) {
+              if (Math.abs(rx) + Math.abs(ry) <= r) {
+                covered.add((b.x + dx + rx) + ',' + (b.y + dy + ry));
+              }
+            }
+          }
+        }
+      }
+    }
+    return covered;
+  }
+
+  // Tile keys covered by any of MY buildings that are in a "problem"
+  // state — idle, unstaffed (where workers are needed), or paused.
+  // Used by the building-issues heatmap.
+  _computeProblemTiles() {
+    const tiles = new Set();
+    const myId = state.currentUser?.id;
+    for (const b of state.allBuildings) {
+      if (b.player_id !== myId) continue;
+      const bt = state.buildingTypes[b.building_type_key];
+      if (!bt) continue;
+      const isProblem =
+        b.status === 'idle' ||
+        (bt.worker_cost > 0 && !b.is_staffed) ||
+        b.paused === true;
+      if (!isProblem) continue;
+      const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+      for (let dx = 0; dx < fw; dx++) {
+        for (let dy = 0; dy < fh; dy++) {
+          tiles.add((b.x + dx) + ',' + (b.y + dy));
+        }
+      }
+    }
+    return tiles;
   }
 
   // Called by BuildMenu when the player picks a building type to
