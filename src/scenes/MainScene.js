@@ -319,6 +319,28 @@ export class MainScene extends Phaser.Scene {
           const tmpX = w.homeX, tmpY = w.homeY;
           w.homeX = w.targetX; w.homeY = w.targetY;
           w.targetX = tmpX; w.targetY = tmpY;
+        } else if (w.kind === 'collector-path') {
+          // Step through a precomputed road-network path. Flip at
+          // each end of the path with a brief pause.
+          if (w.goingForward) {
+            if (w.wpIdx < w.path.length - 1) {
+              w.wpIdx++;
+              w.targetX = w.path[w.wpIdx][0];
+              w.targetY = w.path[w.wpIdx][1];
+            } else {
+              w.pauseUntil = performance.now() + 1000;
+              w.goingForward = false;
+            }
+          } else {
+            if (w.wpIdx > 0) {
+              w.wpIdx--;
+              w.targetX = w.path[w.wpIdx][0];
+              w.targetY = w.path[w.wpIdx][1];
+            } else {
+              w.pauseUntil = performance.now() + 500;
+              w.goingForward = true;
+            }
+          }
         } else {
           // immigrant or emigrant — destination reached
           w.sprite.destroy();
@@ -439,16 +461,105 @@ export class MainScene extends Phaser.Scene {
     const fh = bt.footprint_h || 1;
     const homeX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
     const homeY = (b.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
+    const sprite = this._makeWalkerSprite(b, bt, homeX, homeY);
+    const speed = 24 * (0.85 + Math.random() * 0.30);
+
+    // Find a road path from building perimeter to a road tile adjacent
+    // to the target. If found, walk waypoint-by-waypoint; if not, fall
+    // back to the straight-line-through-grass animation (covers fresh
+    // cities with no road network yet).
+    const tilePath = this._findRoadPath(b, bt, b.target_x, b.target_y);
+    if (tilePath && tilePath.length > 0) {
+      // Append: building anchor (start), then road waypoints, then the
+      // resource tile (final step off-road).
+      const worldPath = [];
+      worldPath.push([homeX, homeY]);
+      for (const [x, y] of tilePath) {
+        worldPath.push([
+          (x - state.gridMinX) * TILE_PX + TILE_PX / 2,
+          (y - state.gridMinY) * TILE_PX + TILE_PX / 2
+        ]);
+      }
+      worldPath.push([
+        (b.target_x - state.gridMinX) * TILE_PX + TILE_PX / 2,
+        (b.target_y - state.gridMinY) * TILE_PX + TILE_PX / 2
+      ]);
+      this._walkers.push({
+        kind: 'collector-path', sprite, speed,
+        path: worldPath,
+        wpIdx: 1, goingForward: true,
+        targetX: worldPath[1][0], targetY: worldPath[1][1],
+        life: 30
+      });
+      return;
+    }
+
+    // Fallback — straight line through grass.
     const resourceX = (b.target_x - state.gridMinX) * TILE_PX + TILE_PX / 2;
     const resourceY = (b.target_y - state.gridMinY) * TILE_PX + TILE_PX / 2;
-
-    const sprite = this._makeWalkerSprite(b, bt, homeX, homeY);
     this._walkers.push({
-      kind: 'collector', sprite, speed: 24,
+      kind: 'collector', sprite, speed,
       homeX, homeY,
       targetX: resourceX, targetY: resourceY,
-      life: 20   // ~2 round trips before despawning
+      life: 20
     });
+  }
+
+  // BFS from building footprint perimeter to a road tile adjacent to
+  // the resource. Returns the tile-space path (array of [x, y]) or
+  // null if no road-network route exists. Cheap on player-sized
+  // parcels — bounded by the number of road tiles, typically tens.
+  _findRoadPath(b, bt, targetX, targetY) {
+    const roads = this._roadSet;
+    if (!roads || roads.size === 0) return null;
+    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+
+    // Start set: any road tile orthogonally adjacent to the footprint.
+    const startSet = new Set();
+    for (let dx = 0; dx < fw; dx++) {
+      for (let dy = 0; dy < fh; dy++) {
+        const fx = b.x + dx, fy = b.y + dy;
+        for (const [nx, ny] of [[fx, fy - 1], [fx, fy + 1], [fx + 1, fy], [fx - 1, fy]]) {
+          if (roads.has(nx + ',' + ny)) startSet.add(nx + ',' + ny);
+        }
+      }
+    }
+    if (startSet.size === 0) return null;
+
+    // Goal set: any road tile orthogonally adjacent to the target.
+    const goalSet = new Set();
+    for (const [nx, ny] of [[targetX, targetY - 1], [targetX, targetY + 1],
+                            [targetX + 1, targetY], [targetX - 1, targetY]]) {
+      if (roads.has(nx + ',' + ny)) goalSet.add(nx + ',' + ny);
+    }
+    if (goalSet.size === 0) return null;
+
+    // BFS.
+    const visited = new Map();
+    const queue = [];
+    for (const s of startSet) { visited.set(s, null); queue.push(s); }
+    while (queue.length > 0) {
+      const cur = queue.shift();
+      if (goalSet.has(cur)) {
+        const path = [];
+        let n = cur;
+        while (n !== null) {
+          const [x, y] = n.split(',').map(Number);
+          path.unshift([x, y]);
+          n = visited.get(n);
+        }
+        return path;
+      }
+      const [cx, cy] = cur.split(',').map(Number);
+      for (const [dx, dy] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) {
+        const k = (cx + dx) + ',' + (cy + dy);
+        if (!roads.has(k)) continue;
+        if (visited.has(k)) continue;
+        visited.set(k, cur);
+        queue.push(k);
+      }
+    }
+    return null;
   }
 
   // Public: spawn an emigrant walker. Called from the tick loop
