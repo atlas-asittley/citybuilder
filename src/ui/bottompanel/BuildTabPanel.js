@@ -184,7 +184,16 @@ function describeBuilding(bt) {
     return `Reduces pollution by ${Math.abs(bt.pollution_emit || 0)} on every tile within ${bt.pollution_radius || 0}. No staffing needed.`;
   }
   if (cat === 'tax') return `+$${bt.output_rate}/min per 100 citizens. A 200-pop city earns $${(bt.output_rate || 0) * 2}/min per office.`;
-  if (cat === 'transport_hub') return 'Unlocks a city-wide procedural trade partner. Expand once to add another.';
+  if (cat === 'transport_hub') {
+    const myHubs = (state.allBuildings || []).filter((b) =>
+      b.player_id === state.currentUser?.id
+      && state.buildingTypes[b.building_type_key]?.category === 'transport_hub'
+    ).length;
+    if (myHubs === 0) {
+      return 'Your FIRST trade hub. Placing it unlocks one procedural city-wide trade partner. Each subsequent hub or expansion adds another to the pool.';
+    }
+    return `You have ${myHubs} hub${myHubs === 1 ? '' : 's'} placed. Adds another procedural trade partner to the city pool. Existing hubs can also be expanded one level from their inspector.`;
+  }
   if (cat === 'transport_connector') return 'Routes city to other players\' transport hubs over the road network.';
   return bt.description || '';
 }
