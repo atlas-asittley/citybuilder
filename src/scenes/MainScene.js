@@ -12,8 +12,12 @@ import { spriteIcons } from '../sprites.js';
 import { WALKER_SPRITES } from '../walker_sprites.js';
 
 const TILE_PX = 48;
-const MAX_WALKERS = 80;
-const WALKER_SPAWN_MS = 600;
+// Lower cap + slightly slower spawn cadence after Atlas reported
+// "started to lag a little bit with those walkers" — the detailed
+// SVG sprites cost more compositor work per frame than the dot
+// placeholders, so we run fewer of them simultaneously.
+const MAX_WALKERS = 50;
+const WALKER_SPAWN_MS = 800;
 // v1 displayed walkers at 10×14 px on a 34px tile (~30% of tile).
 // v2's tile is TILE_PX=48 so the proportional size is ~14×20. Phaser
 // rasterizes the SVG at whatever the browser's default svg→image
@@ -32,6 +36,23 @@ const TERRAIN_TINTS = {
   forest: 0x2a3e22
 };
 const OWNED_GRASS_TINT = 0x4a6440;
+
+// Inject explicit width/height into a walker SVG data URI so the
+// browser rasterizes it at a known small size. Returns a new
+// data URI with width="<vb_w * 4>" height="<vb_h * 4>" added. If
+// the viewBox can't be parsed, returns the input unchanged.
+function sizeWalkerSvg(dataUri) {
+  const m = dataUri.match(/viewBox='([\d.\s]+)'/);
+  if (!m) return dataUri;
+  const parts = m[1].split(/\s+/);
+  if (parts.length !== 4) return dataUri;
+  const vbW = parseFloat(parts[2]);
+  const vbH = parseFloat(parts[3]);
+  if (!Number.isFinite(vbW) || !Number.isFinite(vbH)) return dataUri;
+  const w = Math.round(vbW * 4);
+  const h = Math.round(vbH * 4);
+  return dataUri.replace(/<svg\s+/, `<svg width='${w}' height='${h}' `);
+}
 
 // Building → walker variant key. Picks the v1 walker SVG that best
 // fits the source building. Housing spawns one of four "citizen"
@@ -248,10 +269,18 @@ export class MainScene extends Phaser.Scene {
     }
     // Walker variants — 19 detailed humanoid sprites lifted from v1.
     // Keyed 'walker-citizen', 'walker-timber', etc.
+    //
+    // The source SVGs have a viewBox but no explicit width/height,
+    // so the browser rasterizes them at its default surface size
+    // (~300px) which blows up texture memory on a city with ~80
+    // active walkers (Atlas 2026-05-11: "started to lag a little bit
+    // with those walkers"). Inject width/height = 4× viewBox so the
+    // browser rasterizes at a small but supersampled size — crisp
+    // when displayed at the final ~14×20.
     for (const key in WALKER_SPRITES) {
       const texKey = 'walker-' + key;
       if (this.textures.exists(texKey)) continue;
-      this.load.image(texKey, WALKER_SPRITES[key]);
+      this.load.image(texKey, sizeWalkerSvg(WALKER_SPRITES[key]));
     }
   }
 
