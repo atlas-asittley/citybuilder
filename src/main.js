@@ -104,6 +104,14 @@ window.addEventListener('unhandledrejection', (e) => {
   }
   showFatalError(e.reason || e);
 });
+// Same idea for sync errors that escape an event handler.
+window.addEventListener('error', (e) => {
+  if (bootCompleted) {
+    console.error('Window error (post-boot, ignored):', e.error || e.message || e);
+    return;
+  }
+  showFatalError(e.error || new Error(e.message || 'Unknown error'));
+});
 
 function showFatalError(err) {
   console.error('Fatal:', err);
