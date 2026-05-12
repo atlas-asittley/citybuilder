@@ -104,16 +104,20 @@ function computeWorldBounds() {
 // bt.category (category default). null/missing = no animation.
 const BUILDING_ANIM_PROFILES = {
   // Specific keys with distinctive looks
+  // Kept glow on actual-fire / forge buildings only. Dropped on
+  // admin offices + brewery + toolmaker where the in-fiction
+  // rationale was thin (a desk lamp doesn't justify a full-tile
+  // pulsing wash).
   smelter:        { smoke: true, glow: 0xff7028 },
   glassworks:     { smoke: true, glow: 0xffc858 },
   iron_mine:      { glow: 0xffa040 },
-  mine_office:    { glow: 0xffa040 },
-  foreman_office: { glow: 0xffd060 },
+  mine_office:    {},
+  foreman_office: {},
   charcoal_kiln:  { smoke: true },
   lime_kiln:      { smoke: true },
   pottery_kiln:   { smoke: true, glow: 0xff8848 },
   bakery:         { smoke: true },
-  brewery:        { glow: 0xffd048 },
+  brewery:        {},
   distillery:     { smoke: true, glow: 0xffa848 },
   smokehouse:     { smoke: true },
   cannery:        { smoke: true },
@@ -125,7 +129,7 @@ const BUILDING_ANIM_PROFILES = {
   spicery:        { smoke: true },
   curing_house:   { smoke: true },
   nail_forge:     { smoke: true, glow: 0xff7028 },
-  toolmaker:      { glow: 0xff8848 },
+  toolmaker:      {},
 
   // Services + police — small bobbing figure on top of the building
   // (a citizen / officer / priest going about their work). Same
@@ -1877,15 +1881,21 @@ export class MainScene extends Phaser.Scene {
     if (!profile) return;
 
     if (profile.glow) {
+      // Smaller focal sprite (~70% of tile) instead of a full-tile
+      // wash, and a much gentler alpha range so the pulse reads as
+      // "fire visible through a window" rather than "the whole
+      // building tinting on and off". Atlas's report on charcoal_kiln
+      // was that the wider tween read as a "darker to lighter on the
+      // background" effect — same root cause across every glow.
       const glow = this.add.sprite(worldX, worldY, 'square');
-      glow.setDisplaySize(fw * TILE_PX, fh * TILE_PX);
+      glow.setDisplaySize(fw * TILE_PX * 0.7, fh * TILE_PX * 0.7);
       glow.setTint(profile.glow);
-      glow.setAlpha(0.05);
+      glow.setAlpha(0.04);
       glow.setDepth(7);
       glow.setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({
         targets: glow,
-        alpha: 0.32,
+        alpha: 0.14,
         duration: 1400 + Math.random() * 600,
         yoyo: true,
         repeat: -1,
