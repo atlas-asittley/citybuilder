@@ -178,6 +178,24 @@ async function fetchTraderPrices() {
   return out;
 }
 
+// Today's per-trader-per-resource buy/sell usage vs caps. Drives the
+// "5/10 today" indicators on the Partners tab so the player can see
+// at a glance how much of each daily cap they've already burned.
+// Cheap RPC — one row per (trader, resource) pair.
+async function fetchTraderQuotas() {
+  const { data, error } = await sb.rpc('get_trader_daily_quotas');
+  if (error || !data) return {};
+  const out = {};
+  for (const row of data) {
+    if (!out[row.trader_key]) out[row.trader_key] = {};
+    out[row.trader_key][row.resource_key] = {
+      buy_cap: row.buy_cap, buy_used: row.buy_used,
+      sell_cap: row.sell_cap, sell_used: row.sell_used
+    };
+  }
+  return out;
+}
+
 async function fetchTradePolicies() {
   const { data, error } = await sb.from('trade_policies').select('*');
   if (error || !data) return {};
@@ -219,7 +237,7 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers, traderQuotas] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
@@ -230,7 +248,8 @@ export async function loadInitialWorld() {
     fetchTradePolicies(),
     fetchHousingLifestyleDemands(),
     fetchBuildingResourceCosts(),
-    fetchBuildingBuffers()
+    fetchBuildingBuffers(),
+    fetchTraderQuotas()
   ]);
 
   state.allBuildings = buildings;
@@ -244,6 +263,7 @@ export async function loadInitialWorld() {
   state.housingLifestyleDemands = housingDemands;
   state.buildingResourceCosts = resourceCosts;
   state.buildingBuffers = buffers;
+  state.traderQuotas = traderQuotas;
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;

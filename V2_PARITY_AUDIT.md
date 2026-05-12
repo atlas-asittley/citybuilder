@@ -39,9 +39,9 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 - [ ] **Walker persona variety + overlays** — `MainScene.js` + `helpers.js pickWalkerVariant`. v1 has 11 personas + overlay accessories (cane, pet, pack, cape, umbrella, hat) + per-tier weighting. v2 picks from 5 hardcoded personas with no overlays.
 - [ ] **Walker count scales with population** — `MainScene.js MAX_WALKERS`. v1: `floor(pop / 10)` capped at 80. v2: hard 50. Big cities feel quieter than they should.
 - [ ] **Collector walker road pathing** — `MainScene.js _spawnCollectorWalker`. v1 uses weighted Dijkstra (road=1, off-road=3) so collectors visibly traverse the road network. v2 walks a straight line through grass.
-- [ ] **Partners: daily quota usage** — `TradePartnersTab.js`. v1 shows `b 5/10`, `s 3/7` per resource per trader. v2 shows `/day N` (the cap) but not how much you've used.
-- [ ] **Partners: meets/misses gate visual** — `TradePartnersTab.js`. v1 colors each trader row with `tg-meets` or `tg-misses` based on policy gates. v2 has the "Best deals" banner but no per-row indicators.
-- [ ] **Partners: trader card collapse state** — `TradePartnersTab.js`. v1 lets you collapse trader cards; state persists across panel refreshes. v2 always expands.
+- [x] **Partners: daily quota usage** (`v1-parity audit, commit 55/N`) — `TradePartnersTab.js`. v1 shows `b 5/10`, `s 3/7` per resource per trader. v2 shows `/day N` (the cap) but not how much you've used.
+- [x] **Partners: meets/misses gate visual** (`v1-parity audit, commit 55/N`) — `TradePartnersTab.js`. v1 colors each trader row with `tg-meets` or `tg-misses` based on policy gates. v2 has the "Best deals" banner but no per-row indicators.
+- ~~**Partners: trader card collapse state**~~ — N/A: v2 groups by resource (not by trader), so there are no per-trader cards to collapse. Different design choice from v1, kept on purpose for browse-by-resource use case.
 - [ ] **Black Market: inline quantity stepper** — `TradeBlackMarketTab.js`. v1 has -, qty, + buttons before commit. v2 uses `prompt()` modal.
 - [x] **Build menu: integer-ratio recipes with period labels** (`v1-parity audit, commit 54/N`) — `BuildTabPanel.js describeBuilding`. v1's `recipe_format.js` shows "5 timber / 2 min" (integer × period). v2 shows raw decimal rates.
 - [x] **Build menu: rich service input descriptions** (`v1-parity audit, commit 54/N`) — `BuildTabPanel.js describeBuilding`. v1: "Gates Townhouse (tier 3) within 5 tiles — consumes lumber + flour while staffed". v2: just the gating sentence.

@@ -1062,10 +1062,13 @@ body.app-hidden *::after {
 .tp-trader-list { display: flex; flex-direction: column; gap: 2px; }
 .tp-trader-row {
   display: grid;
-  grid-template-columns: 1fr 60px 60px 80px;
-  gap: 8px;
+  grid-template-columns: 1fr 60px 60px 90px;
+  grid-template-rows: auto auto;
+  gap: 4px 8px;
   font-size: 11px;
-  padding: 2px 0;
+  padding: 3px 6px;
+  border-radius: 4px;
+  align-items: center;
 }
 .tp-trader-name { color: #e6e6e6; }
 .tp-trader-side {
@@ -1078,6 +1081,29 @@ body.app-hidden *::after {
 .tp-trader-sells .tp-trader-side { color: #e94560; }
 .tp-trader-price { color: #e6e6e6; text-align: right; }
 .tp-trader-cap { color: #888; font-size: 10px; }
+.tp-cap-exhausted { color: #f0a838; }
+
+/* Gate-state highlight — only fires when the player has set a price
+   gate (min_sell_price / max_buy_price) and the trader's price either
+   satisfies it (green left border) or fails it (red left border). */
+.tp-trader-meets {
+  background: rgba(22, 199, 154, 0.08);
+  border-left: 2px solid #16c79a;
+  padding-left: 4px;
+}
+.tp-trader-misses {
+  background: rgba(233, 69, 96, 0.06);
+  border-left: 2px solid #e94560;
+  padding-left: 4px;
+  opacity: 0.7;
+}
+.tp-trader-gate {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: #888;
+}
+.tp-trader-meets .tp-trader-gate { color: #5ec49e; }
+.tp-trader-misses .tp-trader-gate { color: #e0707a; }
 
 /* Best deals banner */
 .tp-best-deals {

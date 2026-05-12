@@ -102,15 +102,47 @@ function renderResourceRow(resource, traderRows) {
         <button class="tp-policy-save" data-resource="${resource.key}">Save</button>
       </div>
       <div class="tp-trader-list">
-        ${traderRows.sort((a, b) => b.price - a.price).map((t) => `
-          <div class="tp-trader-row tp-trader-${t.side}">
-            <span class="tp-trader-name">${escapeHtml(state.traders[t.tk]?.name || t.tk)}</span>
-            <span class="tp-trader-side">${t.side}</span>
-            <span class="tp-trader-price">$${t.price}</span>
-            <span class="tp-trader-cap">${t.cap ? '/day ' + t.cap : ''}</span>
-          </div>`).join('')}
+        ${traderRows.sort((a, b) => b.price - a.price).map((t) => renderTraderRow(t, resource.key, policy)).join('')}
       </div>
     </div>`;
+}
+
+// Render one trader-row inside a resource group. Adds gate-meets /
+// gate-misses class when the player has set a price gate that this
+// trader's price would qualify or fail. Surfaces today's daily-cap
+// usage ("5/10 today") instead of just the cap.
+function renderTraderRow(t, resourceKey, policy) {
+  const quota = state.traderQuotas?.[t.tk]?.[resourceKey];
+  let used = null, capLabel = '';
+  if (t.side === 'buys') {
+    used = quota?.buy_used;
+    if (t.cap != null) capLabel = `${used ?? 0}/${t.cap} today`;
+  } else {
+    used = quota?.sell_used;
+    if (t.cap != null) capLabel = `${used ?? 0}/${t.cap} today`;
+  }
+  const capExhausted = t.cap != null && used != null && used >= t.cap;
+
+  // Gate matching — only applies when the player has set a price gate
+  // for this resource AND the trader is on the matching side. Mismatched
+  // side stays neutral.
+  let gateClass = '';
+  let gateNote = '';
+  if (policy?.mode === 'sell_surplus' && policy.min_sell_price && t.side === 'buys') {
+    if (t.price >= policy.min_sell_price) { gateClass = 'tp-trader-meets'; gateNote = '✓ meets your sell gate'; }
+    else { gateClass = 'tp-trader-misses'; gateNote = `× below your $${policy.min_sell_price} sell gate`; }
+  } else if (policy?.mode === 'buy_to_reserve' && policy.max_buy_price && t.side === 'sells') {
+    if (t.price <= policy.max_buy_price) { gateClass = 'tp-trader-meets'; gateNote = '✓ meets your buy gate'; }
+    else { gateClass = 'tp-trader-misses'; gateNote = `× above your $${policy.max_buy_price} buy gate`; }
+  }
+
+  return `<div class="tp-trader-row tp-trader-${t.side} ${gateClass}">
+    <span class="tp-trader-name">${escapeHtml(state.traders[t.tk]?.name || t.tk)}</span>
+    <span class="tp-trader-side">${t.side}</span>
+    <span class="tp-trader-price">$${t.price}</span>
+    <span class="tp-trader-cap ${capExhausted ? 'tp-cap-exhausted' : ''}">${capLabel}</span>
+    ${gateNote ? `<span class="tp-trader-gate">${gateNote}</span>` : ''}
+  </div>`;
 }
 
 function wirePolicyHandlers(root) {

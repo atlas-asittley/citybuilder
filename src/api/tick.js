@@ -46,6 +46,9 @@ async function runTick() {
     // server; refresh the local tileMap so heatmaps reflect current
     // values. Cheap — single SELECT bounded to this player's tiles.
     refreshTileMetrics();
+    // Trader daily-cap usage so the Partners tab's "5/10 today"
+    // indicators stay live as auto-trade runs.
+    refreshTraderQuotas();
     // Drain any new notifications (housing-ready, trade-cancel)
     // and bubble them into the bell-log badge.
     pollNotifications();
@@ -55,6 +58,20 @@ async function runTick() {
   } catch (e) {
     console.warn('tick request failed:', e.message || e);
   }
+}
+
+async function refreshTraderQuotas() {
+  const { data, error } = await sb.rpc('get_trader_daily_quotas');
+  if (error || !data) return;
+  const out = {};
+  for (const row of data) {
+    if (!out[row.trader_key]) out[row.trader_key] = {};
+    out[row.trader_key][row.resource_key] = {
+      buy_cap: row.buy_cap, buy_used: row.buy_used,
+      sell_cap: row.sell_cap, sell_used: row.sell_used
+    };
+  }
+  state.traderQuotas = out;
 }
 
 async function refreshTileMetrics() {
