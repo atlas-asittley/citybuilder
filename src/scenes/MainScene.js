@@ -1069,15 +1069,15 @@ export class MainScene extends Phaser.Scene {
   }
 
   // Highlight candidate expansion chunks. Each row is { chunk_x,
-  // chunk_y }; chunks are 10×10 tiles. Player tap-to-claim — no
-  // modal list needed; the map visualizes the choices and the
-  // expansion bar at the bottom handles cancel.
+  // chunk_y }; chunks are 15×15 tiles (matches the server's
+  // allocate_district_chunk and design doc — earlier "10" guess
+  // was wrong, candidates were painting at half-offsets).
   //
   // onPick is invoked with the candidate when the player taps one.
   showExpansionCandidates(candidates, onPick) {
     this.clearExpansionCandidates();
     this._expansionOverlays = this._expansionOverlays || [];
-    const CHUNK = 10;
+    const CHUNK = 15;
     candidates.forEach((c, i) => {
       const tlx = c.chunk_x * CHUNK;
       const tly = c.chunk_y * CHUNK;

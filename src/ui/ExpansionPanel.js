@@ -97,7 +97,7 @@ function close() {
 // player's parcel. Quick framing — no heavy easing, just snap.
 function frameCameraToCandidates(candidates) {
   if (!sceneRef || !sceneRef.cameras) return;
-  const CHUNK = 10;
+  const CHUNK = 15;     // tile-size of one chunk (server allocate_district_chunk)
   const TILE_PX = 48;   // matches MainScene's TILE_PX
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const c of candidates) {
