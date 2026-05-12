@@ -521,17 +521,41 @@ body.app-hidden *::after {
   font-family: inherit;
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 4px;
   text-align: left;
 }
-.btp-item:hover { border-color: #16c79a; }
+.btp-item:hover:not(.locked) { border-color: #16c79a; }
 .btp-item.selected {
   background: #1a3a3a;
   border-color: #16c79a;
   color: #16c79a;
+  box-shadow: 0 0 0 1px #16c79a;
 }
-.btp-cost { color: #888; font-size: 11px; }
+.btp-item.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btp-item.cant-afford .btp-cost.cant-afford { color: #e94560; }
+.btp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  width: 100%;
+}
+.btp-name { color: #e6e6e6; font-weight: 600; }
+.btp-item.selected .btp-name { color: #16c79a; }
+.btp-cost { color: #f0c850; font-size: 11px; font-weight: 600; }
+.btp-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10px;
+  color: #8a98a8;
+}
+.btp-meta-bit { background: rgba(15, 52, 96, 0.4); padding: 1px 5px; border-radius: 3px; }
+.btp-desc { color: #aaa; font-size: 11px; line-height: 1.35; }
+.btp-lock { color: #e0b070; font-size: 10px; margin-top: 2px; }
 .btp-empty { color: #888; text-align: center; padding: 20px; }
 
 /* Trade > Players roster row */
