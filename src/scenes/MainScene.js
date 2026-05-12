@@ -1297,16 +1297,18 @@ export class MainScene extends Phaser.Scene {
     if (issue && bt.category !== 'road') {
       const badgeX = worldX + (fw * TILE_PX) / 2 - 10;
       const badgeY = worldY - (fh * TILE_PX) / 2 + 10;
-      const badge = this.add.text(badgeX, badgeY, '!', {
+      // Paused gets a softer gray ⏸ badge; everything else is the
+      // attention-grabbing red `!` so players can scan urgent issues
+      // separately from "I deliberately turned this off".
+      const isPaused = issue.kind === 'paused';
+      const badge = this.add.text(badgeX, badgeY, issue.symbol || '!', {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '13px',
         color: '#ffffff',
-        backgroundColor: '#e94560',
+        backgroundColor: isPaused ? '#888888' : '#e94560',
         padding: { left: 5, right: 5, top: 1, bottom: 1 },
         fontStyle: 'bold'
       }).setOrigin(0.5).setDepth(12);
-      // Tooltip-ish — set the label so future hover or tap-context
-      // code can pull a friendly reason from it.
       badge.issueLabel = issue.label;
       sink.push(badge);
       return;

@@ -56,7 +56,7 @@ export function listBuildingIssues(b, bt, roadSet, inventory, myId) {
   if (b.player_id !== myId) return [];
 
   if (b.paused) {
-    return [{ kind: 'paused', label: 'Paused',
+    return [{ kind: 'paused', label: 'Paused', symbol: '⏸',
       hint: 'Tap Resume to restart production.' }];
   }
   if (b.status === 'idle') {

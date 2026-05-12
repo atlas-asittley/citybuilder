@@ -235,6 +235,16 @@ function renderInspector() {
     rows.push(row('Input', inputs.join(' + ') + periodSuffix(r.period_min)));
   }
   if (bt.upkeep_per_minute > 0) rows.push(row('Upkeep', `$${bt.upkeep_per_minute}/min`));
+  // Trade-value row — for producers with an output, surface what the
+  // best unlocked trader pays per minute. Helps the player see which
+  // production is paying for itself in trade revenue terms.
+  if (isMine && bt.output_resource_key && bt.output_rate > 0 && bt.category !== 'tax') {
+    const tradeValue = bestTraderBuyPrice(bt.output_resource_key);
+    if (tradeValue > 0) {
+      const perMin = tradeValue * Number(bt.output_rate);
+      rows.push(row('Trade value', `$${Math.round(perMin)}/min at best trader price ($${tradeValue}/unit)`));
+    }
+  }
   if (bt.coverage_radius > 0) rows.push(row('Coverage', `${bt.coverage_radius} tiles`));
   if (bt.boost_multiplier && bt.boost_multiplier > 1) {
     const pct = Math.round((bt.boost_multiplier - 1) * 100);
@@ -244,6 +254,34 @@ function renderInspector() {
   rows.push(row('Location', `(${b.x}, ${b.y})`));
   rows.push(row('Footprint', `${bt.footprint_w || 1} × ${bt.footprint_h || 1}`));
   if (bt.pollution_emit > 0) rows.push(row('Pollution', `${bt.pollution_emit} emit, radius ${bt.pollution_radius}`));
+  // For housing, surface this tile's environmental metrics + what tier
+  // they qualify for. Helps the player see why a fancy house won't
+  // upgrade ("desirability 48, Villa needs 60") at a glance.
+  if (bt.category === 'housing') {
+    const tile = state.tileMap?.[b.x + ',' + b.y];
+    if (tile) {
+      const d = tile.desirability != null ? Number(tile.desirability) : 50;
+      const p = Number(tile.pollution || 0);
+      // Find the highest tier this desirability qualifies for.
+      let qualifiesFor = null;
+      for (let t = 8; t >= 0; t--) {
+        const cfg = state.housingTierConfig?.[t];
+        if (!cfg) continue;
+        if (!cfg.min_desirability || d >= cfg.min_desirability) {
+          qualifiesFor = cfg;
+          break;
+        }
+      }
+      const qualLine = qualifiesFor
+        ? ` — qualifies for ${qualifiesFor.name}`
+        : '';
+      rows.push(row('Desirability', `${d}/100${qualLine}`));
+      if (p > 0) {
+        const sev = p >= 20 ? 'toxic' : p >= 10 ? 'heavy' : 'light';
+        rows.push(row('Pollution', `${p} (${sev})`));
+      }
+    }
+  }
   // Demolish refund preview (only on own buildings — only owner can demolish).
   // Server formula is floor(build_cost * 0.5).
   if (isMine && bt.build_cost > 0) {
@@ -454,6 +492,18 @@ function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
   }[c]));
+}
+
+// Find the highest buy_price across all loaded trader catalogs for
+// this resource. Returns 0 if no trader buys it.
+function bestTraderBuyPrice(resourceKey) {
+  let best = 0;
+  const prices = state.allTraderPrices || {};
+  for (const tk in prices) {
+    const p = prices[tk]?.[resourceKey];
+    if (p?.buy_price > best) best = p.buy_price;
+  }
+  return best;
 }
 
 function resName(key) {

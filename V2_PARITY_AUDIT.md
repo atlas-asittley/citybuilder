@@ -52,21 +52,21 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 
 ## TIER 4 — Low (polish / nice-to-haves)
 
-- [ ] **Walker visual jitter** — `MainScene.js`. v1 per-walker scale (0.85-1.15) + hue (±18°) + bob period + waddle period.
+- [x] **Walker visual jitter** (covered by `v1-parity audit, commit 57/N`) — `MainScene.js`. v1 per-walker scale (0.85-1.15) + hue (±18°) + bob period + waddle period. Shipped scale + tint + speed jitter in 57.
 - [ ] **Immigrant/emigrant overlays** — `MainScene.js spawnImmigrantWalker`. v1 rolls luggage/backpack/bindle/plain on each.
-- [ ] **Paused building badge** — `MainScene.js`. v1 shows ⏸ overlay; v2 has no badge (suppresses animation correctly but no visual cue).
+- [x] **Paused building badge** (`v1-parity audit, commit 59/N`) — `MainScene.js`. v1 shows ⏸ overlay; v2 has no badge (suppresses animation correctly but no visual cue).
 - [ ] **Resources: search/filter** — `CityResourcesTab.js`. v1 has prefix-match filter with live DOM hide.
 - [ ] **Resources: category collapse persistence** — `CityResourcesTab.js`. v1 localStorage `city_resources_collapsed`.
 - [ ] **Resources: per-category stock summaries** — `CityResourcesTab.js`. v1: "7 resources · 250 total" on category header.
 - [ ] **Period toggle on Treasury + Resources** — `CityTreasuryTab.js` / `CityResourcesTab.js`. v1 has Today / Week / All-time. v2 hardcodes 24h.
 - [ ] **Partners: trader description + transport mode badge + next-visit countdown** — `TradePartnersTab.js`. v1 surfaces all three on each card.
-- [ ] **Bell log: 1.5s dedup window** — `BellLog.js`. v1 collapses identical events fired in rapid succession.
-- [ ] **Inspector: trade-value row** — `InspectorPanel.js`. v1 shows "Trade value: $X/min" using best unlocked trader price.
+- [x] **Bell log: 1.5s dedup window** (`v1-parity audit, commit 59/N`) — `BellLog.js`. v1 collapses identical events fired in rapid succession.
+- [x] **Inspector: trade-value row** (`v1-parity audit, commit 59/N`) — `InspectorPanel.js`. v1 shows "Trade value: $X/min" using best unlocked trader price.
 - [ ] **Inspector: walker info card** — currently no walker tap → info flow.
-- [ ] **Inspector: pollution + desirability tier qualification** — v1 shows "qualifies for Villa (needs ≥60, you're 72)".
-- [ ] **Build menu: no-workers warning** — `BuildTabPanel.js`. v1 warns if placing this would exceed worker capacity.
+- [x] **Inspector: pollution + desirability tier qualification** (`v1-parity audit, commit 59/N`) — v1 shows "qualifies for Villa (needs ≥60, you're 72)".
+- [x] **Build menu: no-workers warning** (`v1-parity audit, commit 59/N`) — `BuildTabPanel.js`. v1 warns if placing this would exceed worker capacity.
 - [ ] **Build menu: transport hub expansion context on first build** — v1 first-build copy.
-- [ ] **Help: per-building Benefit one-liner + click-to-expand rows + recipe period labels** — `HelpModal.js`. v1 has rich interactive cards; v2 shows everything always.
+- [ ] **Help: click-to-expand rows + recipe period labels** — `HelpModal.js`. Benefit one-liner shipped in commit 48. Click-to-expand and integer-ratio recipe period labels (per-card) still pending.
 - [ ] **Zoom-at-point preservation** — `MainScene.js _setupCamera`. v1 keeps world point under cursor stable during zoom. v2's `cam.setZoom` drifts.
 - [ ] **Pinch-zoom prevention on iOS Safari** — `main.js`. v1 has explicit multi-touch handlers. v2 has gesturestart/change/end preventDefault but may need verification on Safari.
 

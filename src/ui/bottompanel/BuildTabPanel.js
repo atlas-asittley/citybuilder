@@ -68,6 +68,14 @@ export function renderBuildTab(parent, onSelect) {
       const unlockTier = bt.unlocks_at_housing_tier;
       const unlocked = unlockTier == null || maxTierEver >= unlockTier;
       const isSelected = selectedKey === bt.key;
+      // Labor-shortage hint: if the player would have to staff this
+      // building from a pool that's already short, warn early. Reads
+      // workersUsed / workerCapacity from laborInfo; some buildings
+      // (road / park / housing) are exempt because they consume zero
+      // workers.
+      const li = state.laborInfo || {};
+      const wouldExceedCapacity = bt.worker_cost > 0
+        && (li.workersUsed + bt.worker_cost) > (li.workerCapacity || 0);
 
       const classes = ['btp-item'];
       if (isSelected) classes.push('selected');
@@ -98,6 +106,7 @@ export function renderBuildTab(parent, onSelect) {
           ${resourceBits}
         </div>
         <div class="btp-desc">${description}</div>
+        ${wouldExceedCapacity ? `<div class="btp-warn">⚠️ Will be unstaffed — population needs to grow by ${(li.workersUsed + bt.worker_cost) - (li.workerCapacity || 0)} first.</div>` : ''}
         ${lockHint}
       </button>`;
     }

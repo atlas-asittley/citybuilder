@@ -557,6 +557,7 @@ body.app-hidden *::after {
 .btp-meta-bit.btp-bit-short { background: rgba(233, 69, 96, 0.25); color: #ff9090; }
 .btp-desc { color: #aaa; font-size: 11px; line-height: 1.35; }
 .btp-lock { color: #e0b070; font-size: 10px; margin-top: 2px; }
+.btp-warn { color: #e0a060; font-size: 10px; margin-top: 2px; font-style: italic; }
 .btp-empty { color: #888; text-align: center; padding: 20px; }
 
 /* Trade > Players roster row */
