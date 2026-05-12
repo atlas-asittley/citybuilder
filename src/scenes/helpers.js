@@ -12,7 +12,7 @@
 // sprite + animations are kept as-is. Any change → re-render. The
 // road bitmask is included so a road tile retextures when a neighbor
 // is laid or removed.
-export function buildingSignature(b, bt, roadSet, myId) {
+export function buildingSignature(b, bt, roadSet, myId, issueKind) {
   let sig = b.building_type_key + '|' + b.x + ',' + b.y;
   sig += '|t' + (b.housing_tier || 0);
   sig += '|s' + (b.status || '-');
@@ -27,7 +27,81 @@ export function buildingSignature(b, bt, roadSet, myId) {
     const w = roadSet.has((b.x - 1) + ',' + b.y) ? 1 : 0;
     sig += '|r' + n + s + e + w;
   }
+  // Issue state participates in the diff so the broken-building badge
+  // appears / disappears as the underlying state flips.
+  sig += '|q' + (issueKind || 'n');
   return sig;
+}
+
+// ── Building issue detection ────────────────────────────────────
+//
+// Returns the FIRST operational issue blocking a building, or null
+// if it's working / not the player's. Drives the `!` badge + sprite
+// fade in MainScene so the player can scan for broken chains at a
+// glance instead of opening every inspector.
+//
+// Kinds (in priority order):
+//   paused     — owner explicitly paused production
+//   idle       — server marked status='idle' (extractor with no path, etc.)
+//   unstaffed  — worker_cost > 0 but is_staffed is false
+//   no-road    — category needs road access, no road on the footprint perimeter
+//   no-input   — staffed but a required input resource has zero stock
+//
+// Other players' buildings always return null — we don't show issue
+// badges on neighbors' cities even if we can see they're idle.
+export function computeBuildingIssue(b, bt, roadSet, inventory, myId) {
+  if (!bt) return null;
+  if (b.player_id !== myId) return null;
+
+  if (b.paused) return { kind: 'paused', label: 'Paused' };
+  if (b.status === 'idle') return { kind: 'idle', label: 'Idle' };
+  if (bt.worker_cost > 0 && !b.is_staffed) return { kind: 'unstaffed', label: 'No workers' };
+
+  const needsRoad = (
+    bt.category === 'processor' ||
+    bt.category === 'service' ||
+    bt.category === 'tax' ||
+    bt.category === 'police' ||
+    bt.category === 'transport_hub' ||
+    bt.category === 'transport_connector' ||
+    (bt.category === 'housing' && (b.housing_tier || 0) >= 3)
+  );
+  if (needsRoad && roadSet && !hasRoadOnPerimeter(b, bt, roadSet)) {
+    return { kind: 'no-road', label: 'No road access' };
+  }
+
+  // Missing-input check fires only when staffed — otherwise unstaffed
+  // already explains the lack of production.
+  if (b.is_staffed && inventory) {
+    if (bt.input_resource_key && Number(bt.input_rate) > 0) {
+      const have = Number(inventory[bt.input_resource_key] || 0);
+      if (have <= 0) return { kind: 'no-input', label: 'Missing input' };
+    }
+    if (bt.input_resource_key_2 && Number(bt.input_rate_2) > 0) {
+      const have = Number(inventory[bt.input_resource_key_2] || 0);
+      if (have <= 0) return { kind: 'no-input', label: 'Missing input' };
+    }
+  }
+
+  return null;
+}
+
+// Walk the building's footprint perimeter (NOT just the anchor) and
+// return true if any neighbor tile is a road. Multi-tile buildings
+// touch 2(fw+fh) perimeter cells; anchor-only checks would miss the
+// right + bottom edges (see feedback_multitile_perimeter memory).
+function hasRoadOnPerimeter(b, bt, roadSet) {
+  const fw = bt.footprint_w || 1;
+  const fh = bt.footprint_h || 1;
+  for (let dx = 0; dx < fw; dx++) {
+    if (roadSet.has(b.x + dx + ',' + (b.y - 1))) return true;
+    if (roadSet.has(b.x + dx + ',' + (b.y + fh))) return true;
+  }
+  for (let dy = 0; dy < fh; dy++) {
+    if (roadSet.has((b.x - 1) + ',' + (b.y + dy))) return true;
+    if (roadSet.has((b.x + fw) + ',' + (b.y + dy))) return true;
+  }
+  return false;
 }
 
 // ── Resource-tile kind ─────────────────────────────────────────

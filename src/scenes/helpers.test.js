@@ -10,7 +10,8 @@ import {
   tutorialAllowsBuilding,
   computePoliceCoverage,
   computeProblemTiles,
-  computeResourceProdCons
+  computeResourceProdCons,
+  computeBuildingIssue
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -24,7 +25,29 @@ describe('buildingSignature', () => {
     };
     const bt = { category: 'housing' };
     const sig = buildingSignature(b, bt, roads, 'me');
-    expect(sig).toBe('house|5,10|t3|sactive|w1|p0|e0|ome');
+    expect(sig).toBe('house|5,10|t3|sactive|w1|p0|e0|ome|qn');
+  });
+
+  it('includes issue kind, defaults to "n" (none)', () => {
+    const b = {
+      building_type_key: 'mill', x: 0, y: 0, status: 'active',
+      is_staffed: true, paused: false, player_id: 'me'
+    };
+    const bt = { category: 'processor' };
+    expect(buildingSignature(b, bt, roads, 'me')).toContain('|qn');
+    expect(buildingSignature(b, bt, roads, 'me', 'unstaffed')).toContain('|qunstaffed');
+    expect(buildingSignature(b, bt, roads, 'me', 'no-input')).toContain('|qno-input');
+  });
+
+  it('changes when issue state flips, even if base fields are identical', () => {
+    const b = {
+      building_type_key: 'mill', x: 0, y: 0, status: 'active',
+      is_staffed: true, paused: false, player_id: 'me'
+    };
+    const bt = { category: 'processor' };
+    const healthy = buildingSignature(b, bt, roads, 'me', null);
+    const broken  = buildingSignature(b, bt, roads, 'me', 'no-input');
+    expect(healthy).not.toBe(broken);
   });
 
   it('changes when is_staffed flips', () => {
@@ -395,3 +418,102 @@ describe('computeResourceProdCons', () => {
     expect(prod.money).toBeUndefined();
   });
 });
+
+describe('computeBuildingIssue', () => {
+  const myId = 'me';
+  const inventory = { timber: 50, lumber: 0 };
+
+  const healthyMill = {
+    building_type_key: 'sawmill', x: 5, y: 5, status: 'active',
+    is_staffed: true, paused: false, player_id: myId
+  };
+  const millType = {
+    category: 'processor', worker_cost: 10,
+    input_resource_key: 'timber', input_rate: 2,
+    footprint_w: 1, footprint_h: 1
+  };
+
+  it('returns null for healthy active staffed road-connected fed buildings', () => {
+    const roadSet = new Set(['5,4']);   // road north of the mill
+    expect(computeBuildingIssue(healthyMill, millType, roadSet, inventory, myId)).toBeNull();
+  });
+
+  it('returns null for other players\' buildings even when broken', () => {
+    const broken = { ...healthyMill, player_id: 'someone-else', paused: true };
+    expect(computeBuildingIssue(broken, millType, new Set(), inventory, myId)).toBeNull();
+  });
+
+  it('returns null when bt is missing', () => {
+    expect(computeBuildingIssue(healthyMill, null, new Set(), inventory, myId)).toBeNull();
+  });
+
+  it('reports paused before any other issue', () => {
+    const paused = { ...healthyMill, paused: true, is_staffed: false };
+    const issue = computeBuildingIssue(paused, millType, new Set(), inventory, myId);
+    expect(issue?.kind).toBe('paused');
+  });
+
+  it('reports idle when status is idle', () => {
+    const idle = { ...healthyMill, status: 'idle' };
+    expect(computeBuildingIssue(idle, millType, new Set(['5,4']), inventory, myId)?.kind).toBe('idle');
+  });
+
+  it('reports unstaffed when worker_cost > 0 and not staffed', () => {
+    const unstaffed = { ...healthyMill, is_staffed: false };
+    expect(computeBuildingIssue(unstaffed, millType, new Set(['5,4']), inventory, myId)?.kind).toBe('unstaffed');
+  });
+
+  it('reports no-road for road-dependent categories without adjacency', () => {
+    const issue = computeBuildingIssue(healthyMill, millType, new Set(), inventory, myId);
+    expect(issue?.kind).toBe('no-road');
+  });
+
+  it('walks the multi-tile perimeter, not just the anchor', () => {
+    const bigB = { ...healthyMill, x: 5, y: 5 };
+    const bigBt = { ...millType, footprint_w: 2, footprint_h: 2 };
+    // Road only at (7,6) — beyond the anchor's neighbors but on the right
+    // perimeter of the 2x2 building (cell at (6,6) has neighbor (7,6)).
+    const issue = computeBuildingIssue(bigB, bigBt, new Set(['7,6']), inventory, myId);
+    expect(issue).toBeNull();
+  });
+
+  it('reports no-input when staffed processor lacks a primary input', () => {
+    const noInput = {
+      ...healthyMill, is_staffed: true,
+      x: 5, y: 5
+    };
+    const emptyInv = { timber: 0 };
+    const issue = computeBuildingIssue(noInput, millType, new Set(['5,4']), emptyInv, myId);
+    expect(issue?.kind).toBe('no-input');
+  });
+
+  it('reports no-input for a missing second input on a multi-input processor', () => {
+    const dualInputBt = {
+      category: 'processor', worker_cost: 10,
+      input_resource_key: 'timber', input_rate: 2,
+      input_resource_key_2: 'lumber', input_rate_2: 1,
+      footprint_w: 1, footprint_h: 1
+    };
+    // Has timber but no lumber → no-input.
+    const issue = computeBuildingIssue(healthyMill, dualInputBt, new Set(['5,4']), inventory, myId);
+    expect(issue?.kind).toBe('no-input');
+  });
+
+  it('does not flag no-road for extractors / housing tier 0-2 / roads', () => {
+    const extractor = { ...healthyMill, building_type_key: 'timber_camp' };
+    const extractorBt = { ...millType, category: 'extractor', input_resource_key: null };
+    expect(computeBuildingIssue(extractor, extractorBt, new Set(), inventory, myId)).toBeNull();
+
+    const hut = { ...healthyMill, building_type_key: 'mud_hut', housing_tier: 1, is_staffed: true };
+    const hutBt = { category: 'housing', worker_cost: 0, footprint_w: 1, footprint_h: 1 };
+    expect(computeBuildingIssue(hut, hutBt, new Set(), inventory, myId)).toBeNull();
+  });
+
+  it('does flag no-road for housing tier 3 and up (Townhouse+)', () => {
+    const townhouse = { ...healthyMill, housing_tier: 3, is_staffed: true };
+    const housingBt = { category: 'housing', worker_cost: 0, footprint_w: 1, footprint_h: 1 };
+    const issue = computeBuildingIssue(townhouse, housingBt, new Set(), inventory, myId);
+    expect(issue?.kind).toBe('no-road');
+  });
+});
+

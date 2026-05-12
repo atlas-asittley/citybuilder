@@ -22,7 +22,8 @@ import {
   computeWorldBounds as _computeWorldBounds,
   sizeWalkerSvg,
   computePoliceCoverage as _computePoliceCoverage,
-  computeProblemTiles as _computeProblemTiles
+  computeProblemTiles as _computeProblemTiles,
+  computeBuildingIssue
 } from './helpers.js';
 
 const TILE_PX = 48;
@@ -1041,7 +1042,12 @@ export class MainScene extends Phaser.Scene {
       seen.add(b.id);
       this._buildingAtAnchor.set(b.x + ',' + b.y, b);
 
-      const sig = buildingSignature(b, bt, roadSet, myId);
+      // Compute operational issue (paused / idle / unstaffed / no-road /
+      // no-input) once and use it both for the signature (so the diff
+      // detects transitions) and for the per-building render (fade +
+      // `!` badge). null for healthy and for other players' buildings.
+      const issue = computeBuildingIssue(b, bt, roadSet, state.inventory, myId);
+      const sig = buildingSignature(b, bt, roadSet, myId, issue?.kind);
       const prev = entries.get(b.id);
       if (prev && prev.sig === sig) {
         // No visual change. Still refresh buildingRef so taps read
@@ -1054,7 +1060,7 @@ export class MainScene extends Phaser.Scene {
       // Either new or changed — (re)build the sprite + animations.
       if (prev) this._destroyBuildingEntry(prev, /*keepSprite*/ true);
       const entry = prev || { sprite: null, anims: [], sig };
-      this._renderOneBuilding(entry, b, bt, roadSet, myId);
+      this._renderOneBuilding(entry, b, bt, roadSet, myId, issue);
       entry.sig = sig;
       entries.set(b.id, entry);
     }
@@ -1069,8 +1075,10 @@ export class MainScene extends Phaser.Scene {
   }
 
   // Build (or update in place) the sprite + animations for a single
-  // building. Called from _renderBuildings only.
-  _renderOneBuilding(entry, b, bt, roadSet, myId) {
+  // building. Called from _renderBuildings only. `issue` is the result
+  // of computeBuildingIssue (null when healthy) — drives the fade +
+  // `!` badge for own-player buildings that aren't operational.
+  _renderOneBuilding(entry, b, bt, roadSet, myId, issue) {
     const fw = bt.footprint_w || 1;
     const fh = bt.footprint_h || 1;
     const worldX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
@@ -1084,6 +1092,11 @@ export class MainScene extends Phaser.Scene {
       const e = roadSet.has((b.x + 1) + ',' + b.y) ? 2 : 0;
       const w = roadSet.has((b.x - 1) + ',' + b.y) ? 1 : 0;
       texKey = 'road-' + (n | s | e | w);
+    } else if (bt.category === 'housing' && b.housing_tier !== undefined) {
+      // Housing tier evolves the sprite (Shanty t0 → Mud Hut t1 → ...
+      // → Palace t8). 9 tier-specific textures are loaded at boot.
+      const tierKey = 'house-t' + Math.max(0, Math.min(8, b.housing_tier));
+      texKey = this.textures.exists(tierKey) ? tierKey : 'square';
     } else {
       texKey = this.textures.exists(b.building_type_key) ? b.building_type_key : 'square';
     }
@@ -1109,7 +1122,13 @@ export class MainScene extends Phaser.Scene {
       sprite.setScale(fw - 0.15, fh - 0.15);
       sprite.setTint(CATEGORY_TINTS[bt.category] || 0x888888);
     }
-    sprite.setAlpha(b.player_id !== myId ? 0.7 : 1);
+    // Alpha precedence: neighbor (0.7) > issue (0.55) > healthy (1.0).
+    // Roads stay fully opaque regardless of issue state — they're
+    // infrastructure, the badge would just clutter the network.
+    let alpha = 1;
+    if (b.player_id !== myId) alpha = 0.7;
+    else if (issue && !isRoad) alpha = 0.55;
+    sprite.setAlpha(alpha);
     sprite.setInteractive({ useHandCursor: true });
     sprite.buildingRef = b;
 
@@ -1117,7 +1136,7 @@ export class MainScene extends Phaser.Scene {
     // destroy them and spawn a fresh set if the building qualifies.
     for (const a of entry.anims) a.destroy();
     entry.anims = [];
-    this._spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh, entry.anims);
+    this._spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh, entry.anims, issue);
   }
 
   // Tear down a building entry. `keepSprite=true` leaves the main
@@ -1137,7 +1156,31 @@ export class MainScene extends Phaser.Scene {
   // pushed into the `sink` array (the entry's `anims` list) so the
   // diff-render can tear them down individually when the building's
   // signature changes.
-  _spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh, sink) {
+  //
+  // When `issue` is non-null, the building is in a problem state
+  // (paused / idle / unstaffed / no-road / missing-input). We skip
+  // the happy animations entirely and draw a red `!` badge in the
+  // top-right corner so the player can scan for broken chains on a
+  // busy map without opening every inspector. Roads suppress the
+  // badge so the network doesn't get visually noisy.
+  _spawnBuildingAnimations(b, bt, worldX, worldY, fw, fh, sink, issue) {
+    if (issue && bt.category !== 'road') {
+      const badgeX = worldX + (fw * TILE_PX) / 2 - 10;
+      const badgeY = worldY - (fh * TILE_PX) / 2 + 10;
+      const badge = this.add.text(badgeX, badgeY, '!', {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '13px',
+        color: '#ffffff',
+        backgroundColor: '#e94560',
+        padding: { left: 5, right: 5, top: 1, bottom: 1 },
+        fontStyle: 'bold'
+      }).setOrigin(0.5).setDepth(12);
+      // Tooltip-ish — set the label so future hover or tap-context
+      // code can pull a friendly reason from it.
+      badge.issueLabel = issue.label;
+      sink.push(badge);
+      return;
+    }
     if (b.status !== 'active' || !b.is_staffed) return;
     const profile = BUILDING_ANIM_PROFILES[b.building_type_key];
     if (!profile) return;
