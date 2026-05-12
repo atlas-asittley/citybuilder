@@ -69,6 +69,27 @@ applyAnimationsPreference();
   document.addEventListener(evt, (e) => e.preventDefault(), { passive: false });
 });
 
+// iOS Safari also fires touchstart with two fingers BEFORE the
+// gesture* events get a chance to fire. preventDefault on the
+// touchstart blocks Safari's native page-pinch path entirely.
+// Player still gets pan + tap; pinch is inert (use the +/- buttons
+// for zoom on mobile). Passive: false is required to actually
+// preventDefault on touch events.
+document.addEventListener('touchstart', (e) => {
+  if (e.touches && e.touches.length >= 2) e.preventDefault();
+}, { passive: false });
+document.addEventListener('touchmove', (e) => {
+  if (e.touches && e.touches.length >= 2) e.preventDefault();
+}, { passive: false });
+// iOS-only escape: double-tap-to-zoom on Safari can also zoom the
+// page. Inhibit by setting touch-action on the body via CSS. The
+// global rule lives in styles.css — this is just a belt-and-braces
+// listener for browsers that ignore touch-action.
+document.addEventListener('dblclick', (e) => {
+  if (e.target && e.target.closest('#ui-root')) return;   // let panels handle their own
+  e.preventDefault();
+});
+
 // Pause Phaser's main loop when the tab is backgrounded so the
 // compositor isn't drawing walker frames the player can't see.
 // Mirrors v1's app-hidden body class. The walker tween + smoke

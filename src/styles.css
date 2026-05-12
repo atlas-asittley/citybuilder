@@ -11,7 +11,12 @@ html, body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  /* Inhibit iOS double-tap-to-zoom + native pinch on the body — the
+     Phaser canvas handles pan/zoom itself via +/- buttons, and we don't
+     want Safari to also zoom the whole page on top of that. */
+  touch-action: pan-x pan-y;
 }
+#game-root, #game-root canvas { touch-action: none; }
 
 #game-root {
   position: fixed; inset: 0;

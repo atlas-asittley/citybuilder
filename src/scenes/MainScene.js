@@ -1452,9 +1452,16 @@ export class MainScene extends Phaser.Scene {
       this._saveMapViewSoon();
     });
 
-    // Wheel zoom (desktop).
-    this.input.on('wheel', (_p, _o, _dx, dy) => {
+    // Wheel zoom (desktop). Preserves the world point under the
+    // cursor across the zoom — without this, the camera's setZoom
+    // anchor on the camera centroid and the visible content slides
+    // away from where the player was pointing.
+    this.input.on('wheel', (pointer, _o, _dx, dy) => {
+      const before = cam.getWorldPoint(pointer.x, pointer.y);
       cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.25, 3));
+      const after = cam.getWorldPoint(pointer.x, pointer.y);
+      cam.scrollX -= (after.x - before.x);
+      cam.scrollY -= (after.y - before.y);
       this._saveMapViewSoon();
     });
     // Mobile zoom UI lives in DOM (ZoomControls.js) so it isn't
