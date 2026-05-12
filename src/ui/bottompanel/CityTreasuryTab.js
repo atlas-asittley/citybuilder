@@ -12,6 +12,25 @@
 import { sb } from '../../api/supabase.js';
 import { state } from '../../state/store.js';
 
+// Period toggle state. Day / Week / Month selector — corresponds to
+// the daily-series p_days arg + the recent-transactions time window.
+// Persisted in localStorage so the choice survives reloads.
+const PERIODS = [
+  { key: '1',  label: 'Today', days: 1 },
+  { key: '7',  label: 'Week',  days: 7 },
+  { key: '30', label: 'Month', days: 30 }
+];
+const PERIOD_KEY = 'city_treasury_period_v2';
+let activePeriod = loadActivePeriod();
+function loadActivePeriod() {
+  try { return localStorage.getItem(PERIOD_KEY) || '7'; }
+  catch (_e) { return '7'; }
+}
+function setActivePeriod(key) {
+  activePeriod = key;
+  try { localStorage.setItem(PERIOD_KEY, key); } catch (_e) { /* no-op */ }
+}
+
 const SOURCE_LABELS = {
   tax_revenue:      'Taxes',
   trade_sale:       'Trade (sell)',
@@ -30,14 +49,15 @@ const SOURCE_LABELS = {
 
 export async function renderCityTreasury(parent) {
   parent.innerHTML = '<p class="rp-loading">Loading…</p>';
-  const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const period = PERIODS.find((p) => p.key === activePeriod) || PERIODS[1];
+  const sinceIso = new Date(Date.now() - period.days * 24 * 60 * 60 * 1000).toISOString();
   const [seriesRes, txRes] = await Promise.all([
-    sb.rpc('get_treasury_daily_series', { p_days: 7 }),
+    sb.rpc('get_treasury_daily_series', { p_days: period.days }),
     sb.from('cash_transactions')
       .select('id, source, amount, context, created_at')
       .gte('created_at', sinceIso)
       .order('created_at', { ascending: false })
-      .limit(100)
+      .limit(200)
   ]);
   if (txRes.error) {
     parent.innerHTML = `<p class="rp-error">Couldn't load transactions: ${txRes.error.message}</p>`;
@@ -68,20 +88,37 @@ export async function renderCityTreasury(parent) {
     }
   }
 
+  const periodLabel = period.label.toLowerCase();
   parent.innerHTML = `
-    ${renderTreasuryAdvisor(series)}
+    ${renderPeriodToggle(period.key)}
+    ${renderTreasuryAdvisor(series, period)}
     <div class="rp-summary">
       <div class="rp-stat"><span class="rp-stat-label">Cash</span><span class="rp-stat-value">$${Math.floor(state.profile.money || 0).toLocaleString()}</span></div>
-      <div class="rp-stat"><span class="rp-stat-label">Income (24h)</span><span class="rp-stat-value rp-pos">+$${income.toLocaleString()}</span></div>
-      <div class="rp-stat"><span class="rp-stat-label">Expense (24h)</span><span class="rp-stat-value rp-neg">-$${expense.toLocaleString()}</span></div>
+      <div class="rp-stat"><span class="rp-stat-label">Income (${periodLabel})</span><span class="rp-stat-value rp-pos">+$${income.toLocaleString()}</span></div>
+      <div class="rp-stat"><span class="rp-stat-label">Expense (${periodLabel})</span><span class="rp-stat-value rp-neg">-$${expense.toLocaleString()}</span></div>
     </div>
-    <h3 class="rp-section-title">Income sources (24h)</h3>
+    <h3 class="rp-section-title">Income sources (${periodLabel})</h3>
     ${renderFlowBars(sources24h, 'pos') || '<p class="rp-empty">No income yet.</p>'}
-    <h3 class="rp-section-title">Spending (24h)</h3>
+    <h3 class="rp-section-title">Spending (${periodLabel})</h3>
     ${renderFlowBars(sinks24h, 'neg') || '<p class="rp-empty">No spending yet.</p>'}
     <h3 class="rp-section-title">Recent transactions</h3>
     <div class="rp-txs">${renderTxList(txs)}</div>
   `;
+
+  parent.querySelectorAll('.rp-period-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setActivePeriod(btn.dataset.period);
+      renderCityTreasury(parent);
+    });
+  });
+}
+
+function renderPeriodToggle(activeKey) {
+  return `<div class="rp-period">
+    ${PERIODS.map((p) => `
+      <button class="rp-period-btn ${p.key === activeKey ? 'rp-period-active' : ''}" data-period="${p.key}">${p.label}</button>
+    `).join('')}
+  </div>`;
 }
 
 // ── Treasury Advisor — 4-component dashboard ──
@@ -89,13 +126,14 @@ export async function renderCityTreasury(parent) {
 // Skipped entirely when the 7-day window has no activity (no chart =
 // no insight). Otherwise: burn rate text + projection, top source +
 // sink chips, daily-net bars, cumulative-balance sparkline.
-function renderTreasuryAdvisor(days) {
+function renderTreasuryAdvisor(days, period) {
   const hasActivity = days.some((d) => d.earned > 0 || d.spent > 0);
   if (!hasActivity) return '';
 
   const money = Number(state.profile?.money || 0);
-  const weekNet = days.reduce((s, d) => s + d.net, 0);
-  const avgDailyNet = weekNet / Math.max(1, days.length);
+  const totalNet = days.reduce((s, d) => s + d.net, 0);
+  const avgDailyNet = totalNet / Math.max(1, days.length);
+  const headerSuffix = period ? ` — last ${period.label.toLowerCase()}` : ' — last 7 days';
 
   let rateText, projText, rateClass;
   if (avgDailyNet > 0.5) {
@@ -129,7 +167,7 @@ function renderTreasuryAdvisor(days) {
 
   return `
     <div class="rp-advisor">
-      <div class="rp-advisor-title">Treasury Advisor — last 7 days</div>
+      <div class="rp-advisor-title">Treasury Advisor${headerSuffix}</div>
       <div class="rp-burn-row">
         <span class="rp-burn-value rp-${rateClass}">${rateText}</span>
         ${projText ? `<span class="rp-burn-proj">· ${escapeHtml(projText)}</span>` : ''}

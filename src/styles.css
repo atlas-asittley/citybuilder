@@ -1416,6 +1416,30 @@ body.app-hidden *::after {
 .rp-error { color: #e94560; }
 .rp-loading { color: #888; text-align: center; padding: 20px; font-size: 13px; }
 
+/* Period toggle row at the top of Treasury */
+.rp-period {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.rp-period-btn {
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  color: #c0c0c0;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.rp-period-btn:hover { border-color: #16c79a; }
+.rp-period-active {
+  background: #16c79a;
+  color: #0a0e14;
+  border-color: #16c79a;
+  font-weight: 600;
+}
+
 /* ── Treasury Advisor — burn rate + chips + daily-net bars + balance line ── */
 .rp-advisor {
   padding: 12px;
