@@ -3,6 +3,7 @@
 // gear button.
 import { sb } from '../api/supabase.js';
 import { openChangelog } from './ChangelogModal.js';
+import { openHelp } from './HelpModal.js';
 
 let mounted = false;
 
@@ -18,6 +19,7 @@ export function openSettings() {
         <button class="sp-close" aria-label="Close">×</button>
       </div>
       <div class="sp-body">
+        <button class="sp-row" id="sp-help">📖 Buildings reference</button>
         <button class="sp-row" id="sp-whats-new">What's new</button>
         <button class="sp-row" id="sp-reload">Force reload (cache-bust)</button>
         <button class="sp-row" id="sp-logout">Sign out</button>
@@ -37,6 +39,12 @@ export function openSettings() {
   overlay.querySelector('.sp-close').addEventListener('click', close);
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
+  });
+
+  document.getElementById('sp-help').addEventListener('click', () => {
+    overlay.remove();
+    mounted = false;
+    openHelp();
   });
 
   document.getElementById('sp-whats-new').addEventListener('click', () => {
