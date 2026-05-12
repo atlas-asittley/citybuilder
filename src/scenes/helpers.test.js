@@ -16,7 +16,8 @@ import {
   getHousingUpgradeBlockers,
   getHousingDevolveRisks,
   describeHousingBlocker,
-  describeHousingDevolveReason
+  describeHousingDevolveReason,
+  computeResourceFlow
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -771,6 +772,85 @@ describe('describeHousingBlocker / describeHousingDevolveReason', () => {
 
   it('falls back to the raw key if unknown', () => {
     expect(describeHousingBlocker('mystery', resources)).toBe('mystery');
+  });
+});
+
+describe('computeResourceFlow', () => {
+  const myId = 'me';
+  const ctx = {
+    allBuildings: [
+      // Two staffed sawmills producing lumber from timber.
+      { id: 1, player_id: myId, status: 'active', is_staffed: true, building_type_key: 'sawmill' },
+      { id: 2, player_id: myId, status: 'active', is_staffed: true, building_type_key: 'sawmill' },
+      // One staffed woodcarver consuming lumber.
+      { id: 3, player_id: myId, status: 'active', is_staffed: true, building_type_key: 'woodcarver' },
+      // Unstaffed sawmill — should NOT count.
+      { id: 4, player_id: myId, status: 'active', is_staffed: false, building_type_key: 'sawmill' },
+      // Neighbor's sawmill — should NOT count.
+      { id: 5, player_id: 'them', status: 'active', is_staffed: true, building_type_key: 'sawmill' }
+    ],
+    buildingTypes: {
+      sawmill:    { key: 'sawmill', category: 'processor', name: 'Sawmill',
+                    input_resource_key: 'timber', input_rate: 2,
+                    output_resource_key: 'lumber', output_rate: 1 },
+      woodcarver: { key: 'woodcarver', category: 'processor', name: 'Woodcarver',
+                    input_resource_key: 'lumber', input_rate: 1,
+                    output_resource_key: 'furniture', output_rate: 0.5 }
+    },
+    resources: { timber: { name: 'Timber' }, lumber: { name: 'Lumber' }, furniture: { name: 'Furniture' } },
+    housingTierConfig: {}, housingLifestyleDemands: {}, inventory: {}, tradePolicies: {},
+    traders: {}, allTraderPrices: {}
+  };
+
+  it('groups producers by building type with count + total rate', () => {
+    const flow = computeResourceFlow('lumber', ctx, myId);
+    expect(flow.production).toHaveLength(1);
+    expect(flow.production[0]).toMatchObject({ name: 'Sawmill', count: 2, rate: 2 });
+  });
+
+  it('lists processors that consume the resource with output annotation', () => {
+    const flow = computeResourceFlow('lumber', ctx, myId);
+    expect(flow.processing).toHaveLength(1);
+    expect(flow.processing[0]).toMatchObject({ name: 'Woodcarver', count: 1, rate: 1, output: 'Furniture' });
+  });
+
+  it('ignores unstaffed buildings and other players\' buildings', () => {
+    const flow = computeResourceFlow('timber', ctx, myId);
+    // The 2 staffed sawmills consume timber (input). The unstaffed
+    // sawmill and the neighbor's sawmill must not contribute.
+    expect(flow.processing).toHaveLength(1);
+    expect(flow.processing[0].count).toBe(2);
+  });
+
+  it('adds NPC trader exports when policy is sell_surplus and a buy_price exists', () => {
+    const withTrader = {
+      ...ctx,
+      tradePolicies: { lumber: { mode: 'sell_surplus', min_sell_price: 0 } },
+      traders: { river: { name: 'River Traders', visit_capacity: 20, visit_interval_minutes: 10 } },
+      allTraderPrices: { river: { lumber: { buy_price: 8, daily_buy_cap: null } } }
+    };
+    const flow = computeResourceFlow('lumber', withTrader, myId);
+    expect(flow.exports).toHaveLength(1);
+    expect(flow.exports[0]).toMatchObject({ trader: 'River Traders', price: 8 });
+    expect(flow.exports[0].rate).toBeCloseTo(2, 5);   // 20/10 burst
+  });
+
+  it('caps trader rate at daily_buy_cap/1440 when set', () => {
+    const withCap = {
+      ...ctx,
+      tradePolicies: { lumber: { mode: 'sell_surplus' } },
+      traders: { river: { name: 'River Traders', visit_capacity: 20, visit_interval_minutes: 10 } },
+      allTraderPrices: { river: { lumber: { buy_price: 8, daily_buy_cap: 144 } } }   // 0.1/min sustained
+    };
+    const flow = computeResourceFlow('lumber', withCap, myId);
+    expect(flow.exports[0].rate).toBeCloseTo(0.1, 5);
+  });
+
+  it('returns empty flow when ctx is null', () => {
+    const flow = computeResourceFlow('lumber', null, myId);
+    expect(flow.production).toEqual([]);
+    expect(flow.processing).toEqual([]);
+    expect(flow.citizens).toBe(0);
   });
 });
 

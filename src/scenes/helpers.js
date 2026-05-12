@@ -303,6 +303,137 @@ function allResourcesWithFlag(ctx, flagKey) {
   return saw;   // false if no resources had the flag at all
 }
 
+// ── Resource flow breakdown ─────────────────────────────────────
+//
+// For a single resource, returns where it's being produced (extractors
+// + processors with that output) and where it's being consumed
+// (processors + services that take it as input, housing-citizen
+// food/lifestyle drain, NPC trader exports/imports per policy).
+//
+// Shape:
+//   {
+//     production: [{ name, count, rate }],
+//     processing: [{ name, count, rate, output? }],
+//     services:   [{ name, count, rate, output? }],
+//     citizens:   number — food + lifestyle drain from housing
+//     exports:    [{ trader, rate, price }],   // sell_surplus projections
+//     imports:    [{ trader, rate, price }]    // buy_to_reserve projections
+//   }
+//
+// Trader rates are sustained (cap-aware: min(burst, daily_cap/1440min)),
+// matching v1's projection so the drilldown agrees with the top-bar
+// runway calc.
+//
+// ctx required fields: allBuildings, buildingTypes, resources,
+// housingTierConfig, housingLifestyleDemands, inventory, tradePolicies,
+// traders, allTraderPrices. Pass null for any unused subsystem and the
+// section silently returns empty.
+export function computeResourceFlow(resourceKey, ctx, myId) {
+  const flow = {
+    production: [], processing: [], services: [],
+    citizens: 0, exports: [], imports: []
+  };
+  if (!ctx || !ctx.allBuildings) return flow;
+
+  const myActive = ctx.allBuildings.filter((b) =>
+    b.player_id === myId && b.status === 'active');
+
+  // Group worker-consuming buildings by type, only counting staffed.
+  const byType = {};
+  for (const b of myActive) {
+    const bt = ctx.buildingTypes?.[b.building_type_key];
+    if (!bt) continue;
+    if (bt.category === 'road' || bt.category === 'housing') continue;
+    if (!b.is_staffed) continue;
+    if (!byType[bt.key]) byType[bt.key] = { bt, count: 0 };
+    byType[bt.key].count++;
+  }
+  for (const k in byType) {
+    const bt = byType[k].bt;
+    const count = byType[k].count;
+    if (bt.output_resource_key === resourceKey && Number(bt.output_rate) > 0) {
+      flow.production.push({ name: bt.name, count, rate: count * Number(bt.output_rate) });
+    }
+    if (bt.input_resource_key === resourceKey && Number(bt.input_rate) > 0) {
+      const item = { name: bt.name, count, rate: count * Number(bt.input_rate) };
+      if (bt.output_resource_key && ctx.resources?.[bt.output_resource_key]) {
+        item.output = ctx.resources[bt.output_resource_key].name;
+      }
+      (bt.category === 'service' ? flow.services : flow.processing).push(item);
+    }
+    if (bt.input_resource_key_2 === resourceKey && Number(bt.input_rate_2) > 0) {
+      const item = { name: bt.name, count, rate: count * Number(bt.input_rate_2) };
+      if (bt.output_resource_key && ctx.resources?.[bt.output_resource_key]) {
+        item.output = ctx.resources[bt.output_resource_key].name;
+      }
+      (bt.category === 'service' ? flow.services : flow.processing).push(item);
+    }
+  }
+
+  // Citizen food drain — proportional split across is_food resources.
+  const resInfo = ctx.resources?.[resourceKey];
+  if (resInfo?.is_food) {
+    let totalFoodPerMin = 0;
+    for (const b of myActive) {
+      const bt = ctx.buildingTypes?.[b.building_type_key];
+      if (!bt || bt.category !== 'housing') continue;
+      const tier = b.housing_tier ?? 1;
+      const cfg = ctx.housingTierConfig?.[tier];
+      if (cfg?.food_per_minute) totalFoodPerMin += Number(cfg.food_per_minute);
+    }
+    if (totalFoodPerMin > 0) {
+      const foodKeys = Object.keys(ctx.resources || {}).filter((k2) => ctx.resources[k2].is_food);
+      const totalAvail = foodKeys.reduce((s, k2) => s + Number(ctx.inventory?.[k2] || 0), 0);
+      if (totalAvail > 0) {
+        const qty = Number(ctx.inventory?.[resourceKey] || 0);
+        flow.citizens = totalFoodPerMin * (qty / totalAvail);
+      } else if (resourceKey === 'grain') {
+        flow.citizens = totalFoodPerMin;
+      }
+    }
+  }
+
+  // Lifestyle drain — direct (not pro-rata) per-tier demand.
+  if (ctx.housingLifestyleDemands) {
+    let lifestyleRate = 0;
+    for (const tier in ctx.housingLifestyleDemands) {
+      const demands = ctx.housingLifestyleDemands[tier];
+      for (const d of demands) {
+        if (d.resource_key !== resourceKey) continue;
+        const houseCount = myActive.filter((b) => {
+          const bt = ctx.buildingTypes?.[b.building_type_key];
+          return bt && bt.category === 'housing' && b.housing_tier === Number(tier);
+        }).length;
+        lifestyleRate += houseCount * Number(d.qty_per_minute);
+      }
+    }
+    if (lifestyleRate > 0) flow.citizens += lifestyleRate;
+  }
+
+  // NPC trade flow — cap-aware sustained rate projections.
+  const policy = ctx.tradePolicies?.[resourceKey];
+  if (policy && policy.mode !== 'keep') {
+    const DAY = 24 * 60;
+    for (const tk in (ctx.traders || {})) {
+      const t = ctx.traders[tk];
+      const prices = ctx.allTraderPrices?.[tk]?.[resourceKey];
+      if (!prices) continue;
+      const burst = (Number(t.visit_capacity) || 0) / (Number(t.visit_interval_minutes) || 1);
+      if (policy.mode === 'sell_surplus' && prices.buy_price) {
+        const sustained = prices.daily_buy_cap != null
+          ? Math.min(burst, Number(prices.daily_buy_cap) / DAY) : burst;
+        flow.exports.push({ trader: t.name, rate: sustained, price: prices.buy_price });
+      } else if (policy.mode === 'buy_to_reserve' && prices.sell_price) {
+        const sustained = prices.daily_sell_cap != null
+          ? Math.min(burst, Number(prices.daily_sell_cap) / DAY) : burst;
+        flow.imports.push({ trader: t.name, rate: sustained, price: prices.sell_price });
+      }
+    }
+  }
+
+  return flow;
+}
+
 function hasNearbyService(building, serviceKey, range, requiresFeeding, ctx) {
   const myId = building.player_id;
   for (const s of ctx.allBuildings || []) {

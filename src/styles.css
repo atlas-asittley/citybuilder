@@ -1492,6 +1492,56 @@ body.app-hidden *::after {
 .cr-neg { color: #f08080; }
 .cr-empty { color: #888; text-align: center; padding: 20px; }
 
+/* Click-to-expand resource drilldown */
+.cr-row-data { cursor: pointer; transition: background 100ms ease; }
+.cr-row-data:hover { background: rgba(22, 199, 154, 0.06) !important; }
+.cr-row-data.cr-open { background: rgba(22, 199, 154, 0.10) !important; }
+.cr-chev {
+  color: #888;
+  margin-right: 6px;
+  font-size: 10px;
+  display: inline-block;
+  width: 10px;
+}
+.cr-cell-name { color: #e6e6e6; }
+.cr-cell-inv { text-align: right; font-family: ui-monospace, monospace; color: #c0c0c0; }
+
+.cr-detail {
+  margin: 4px 4px 10px 18px;
+  padding: 10px 12px;
+  background: rgba(15, 52, 96, 0.30);
+  border-left: 3px solid #16c79a;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.cr-flow-section { margin-bottom: 8px; }
+.cr-flow-section:last-of-type { margin-bottom: 0; }
+.cr-flow-section-title {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.cr-flow-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 2px 0;
+  color: #c8c8c8;
+  font-size: 12px;
+}
+.cr-flow-row small { color: #888; }
+.cr-flow-net {
+  border-top: 1px solid rgba(15, 52, 96, 0.5);
+  padding-top: 6px;
+  margin-top: 6px;
+  font-weight: 600;
+  color: #c0c0c0;
+  font-size: 12px;
+}
+.cr-flow-empty { color: #888; font-style: italic; }
+
 /* Help modal */
 #help-overlay {
   position: fixed; inset: 0;
