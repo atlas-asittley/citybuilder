@@ -46,6 +46,27 @@ export function closeInspector() {
   }
 }
 
+// Called from the realtime / tick layer when state.allBuildings
+// changes. If the currently-inspected building is in the updated
+// list, refresh the panel content so the player sees live data
+// (status flips, staffed/unstaffed, devolves, etc.) without
+// closing and reopening.
+export function refreshInspectorIfOpen() {
+  if (!mounted || !activeBuilding) return;
+  const panel = document.getElementById('inspector-panel');
+  if (!panel?.classList.contains('open')) return;
+  // Re-look-up the building by id in case the realtime sub
+  // replaced the in-state row with a new object reference.
+  const fresh = state.allBuildings.find((b) => b.id === activeBuilding.id);
+  if (!fresh) {
+    // Building was demolished — close.
+    closeInspector();
+    return;
+  }
+  activeBuilding = fresh;
+  renderInspector();
+}
+
 function mountInspector() {
   const root = document.getElementById('ui-root');
   const panel = document.createElement('div');

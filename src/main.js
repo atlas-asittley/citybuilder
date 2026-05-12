@@ -19,7 +19,7 @@ import { sb } from './api/supabase.js';
 import { state, setUser, setProfile, setCityName } from './state/store.js';
 import { loadInitialWorld } from './state/loader.js';
 import { mountAuthScreen, unmountAuthScreen } from './ui/AuthScreen.js';
-import { bindSceneToInspector } from './ui/InspectorPanel.js';
+import { bindSceneToInspector, refreshInspectorIfOpen } from './ui/InspectorPanel.js';
 import { bindSceneToExpansion } from './ui/ExpansionPanel.js';
 import { bindSceneToTileInspector } from './ui/ResourceTileInspector.js';
 import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/IndustrySelectScreen.js';
@@ -268,8 +268,10 @@ async function enterGame() {
       // Bottom panel content (Build affordability, City > Resources
       // rates, etc.) also depends on the same state — refresh
       // alongside, with the idle-input check inside BottomPanel
-      // protecting in-progress typing.
+      // protecting in-progress typing. Inspector also re-renders
+      // if open so its rows reflect the latest building state.
       refreshBottomPanel();
+      refreshInspectorIfOpen();
     };
     startTickLoop(rerender);
     subscribeRealtime(rerender);
