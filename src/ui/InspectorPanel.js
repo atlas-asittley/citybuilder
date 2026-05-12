@@ -198,9 +198,25 @@ function renderInspector() {
     rows.push(row('Staffing priority', priorityLabel(b.staffing_priority)));
   }
   // Production / consumption details for processors + extractors.
+  // Extractors with a claimed target get path-aware output (effective
+  // rate falls off when the path is longer than canonical=4 tiles).
   if (bt.output_resource_key && bt.output_rate > 0) {
     if (bt.category === 'tax') {
       rows.push(row('Revenue', `$${bt.output_rate}/min per 100 citizens`));
+    } else if (bt.category === 'extractor' && b.target_x != null && b.target_y != null) {
+      const CANONICAL = 4;
+      const pathLen = b.path_length || 1;
+      const factor = Math.min(1, CANONICAL / Math.max(pathLen, 1));
+      const effective = bt.output_rate * factor;
+      rows.push(row('Target', `(${b.target_x}, ${b.target_y})`));
+      rows.push(row('Path', `${pathLen} tile${pathLen === 1 ? '' : 's'}`));
+      const fullRate = effective >= bt.output_rate - 0.001;
+      const rateStr = effective.toFixed(2).replace(/\.?0+$/, '');
+      const suffix = fullRate ? '/min (full rate)' : `/min (${Math.round(factor * 100)}% of full)`;
+      rows.push(row('Effective rate', `${rateStr} ${resName(bt.output_resource_key)}${suffix}`));
+      if (pathLen > CANONICAL) {
+        rows.push(row('', `Tip — a ${CANONICAL}-tile path produces at full rate. Shorten the road to the resource tile to boost output.`, true));
+      }
     } else {
       rows.push(row('Output', `${bt.output_rate} ${resName(bt.output_resource_key)}/min`));
     }

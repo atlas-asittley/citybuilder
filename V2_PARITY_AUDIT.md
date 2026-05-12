@@ -31,7 +31,7 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 - [x] **Players compose: counterparty inventory** (`v1-parity audit, commit 45/N`) — `TradePlayersTab.js`. v1 fetches `get_player_trade_view` so receive-side shows "they have N" annotations and refuses over-asking. v2 lets you ask for stuff they don't have, fails server-side with a confusing error.
 - [x] **Players inbox: pre-accept blocker check** (`v1-parity audit, commit 45/N`) — `TradePlayersTab.js`. v1 disables Accept with "Can't accept: missing 5 lumber" when you can't pay. v2 lets you click Accept then alerts on failure.
 - [ ] **Help / Buildings Reference: housing tier breakdown** — `HelpModal.js`. v1's `renderHousingTierBreakdown` (help.js ~798 LOC total) shows the full 9-tier ladder (Shanty → Palace) + per-tier prereqs + lifestyle goods drain rates + desirability floors. v2 (149 LOC) skips this entirely.
-- [ ] **Inspector: extractor path length + rate scaling** — `InspectorPanel.js`. v1 shows target coords, path_length, effective rate (scaled by canonical=4), and a hint about shorter paths.
+- [x] **Inspector: extractor path length + rate scaling** (`v1-parity audit, commit 46/N`) — `InspectorPanel.js`. v1 shows target coords, path_length, effective rate (scaled by canonical=4), and a hint about shorter paths.
 - [ ] **Bug-report workflow stays consistent** — verify v2's bug report writes the same `client_state` / `server_state` JSON shape v1 does. (Per audit, status is feature-complete — confirm in implementation.)
 
 ## TIER 3 — Medium (visible parity / polish)
