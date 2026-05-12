@@ -62,6 +62,13 @@ const game = new Phaser.Game({
 // screen / loading screen also honor it.
 applyAnimationsPreference();
 
+// Block Safari's built-in pinch-zoom gesture so the player can't
+// accidentally zoom the WHOLE page when they meant to pinch the
+// map. Phaser doesn't bind these — only Safari does. Mirrors v1.
+['gesturestart', 'gesturechange', 'gestureend'].forEach((evt) => {
+  document.addEventListener(evt, (e) => e.preventDefault(), { passive: false });
+});
+
 // Pause Phaser's main loop when the tab is backgrounded so the
 // compositor isn't drawing walker frames the player can't see.
 // Mirrors v1's app-hidden body class. The walker tween + smoke

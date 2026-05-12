@@ -9,17 +9,30 @@ import { sb } from './supabase.js';
 // "deadlock detected". Atlas hit this 2026-05-11 on demolish. A single
 // 250ms retry resolves it >99% of the time without surfacing the
 // scary error to the user.
-async function callWithDeadlockRetry(rpcName, args, retries = 1) {
+//
+// Exported as `_callWithDeadlockRetry` for unit tests — pass an
+// alternative rpcCaller via `_rpcOverride` to mock supabase.
+export async function _callWithDeadlockRetry(rpcName, args, retries = 1, opts = {}) {
+  return callWithDeadlockRetryInner(rpcName, args, retries, opts);
+}
+
+async function callWithDeadlockRetryInner(rpcName, args, retries = 1, opts = {}) {
+  const rpcCaller = opts._rpcOverride || ((n, a) => sb.rpc(n, a));
+  const sleep = opts._sleepOverride || ((ms) => new Promise((res) => setTimeout(res, ms)));
   let lastErr = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const { data, error } = await sb.rpc(rpcName, args);
+    const { data, error } = await rpcCaller(rpcName, args);
     if (!error) return data;
     lastErr = error;
     const isDeadlock = /deadlock/i.test(error.message || '');
     if (!isDeadlock || attempt === retries) throw error;
-    await new Promise((res) => setTimeout(res, 250));
+    await sleep(250);
   }
   throw lastErr;
+}
+
+async function callWithDeadlockRetry(rpcName, args, retries = 1) {
+  return callWithDeadlockRetryInner(rpcName, args, retries);
 }
 
 export function placeBuilding(tileId, buildingTypeKey) {
