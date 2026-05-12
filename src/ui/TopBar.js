@@ -22,6 +22,7 @@ import { openTrade } from './TradePanel.js';
 import { openBellLog, mountBellLog } from './BellLog.js';
 import { openReports } from './ReportsPanel.js';
 import { openTradeOffers } from './TradeOffersPanel.js';
+import { openCityResources } from './CityResourcesPanel.js';
 
 let mounted = false;
 let onExpandedCallback = null;
@@ -56,6 +57,7 @@ export function mountTopBar(onExpanded) {
         <div class="tb-more-menu" id="tb-more-menu" role="menu">
           <button class="tb-more-row" id="tb-expand">+ Expand parcel</button>
           <button class="tb-more-row" id="tb-offers">🤝 Player offers</button>
+          <button class="tb-more-row" id="tb-city-resources">📦 City resources</button>
           <button class="tb-more-row" id="tb-reports">📊 Treasury</button>
           <button class="tb-more-row" id="tb-players">👥 Players</button>
           <button class="tb-more-row" id="tb-settings">⚙ Settings</button>
@@ -110,6 +112,7 @@ export function mountTopBar(onExpanded) {
     });
   });
   wireMore('tb-offers', openTradeOffers);
+  wireMore('tb-city-resources', openCityResources);
   wireMore('tb-reports', openReports);
   wireMore('tb-players', openPlayers);
   wireMore('tb-settings', openSettings);

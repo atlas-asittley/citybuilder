@@ -1025,6 +1025,58 @@ body.anim-off *::after {
 .rp-error { color: #e94560; }
 .rp-loading { color: #888; text-align: center; padding: 20px; font-size: 13px; }
 
+/* City Resources panel */
+#city-res-overlay {
+  position: fixed; inset: 0;
+  z-index: 80;
+  background: rgba(10, 14, 20, 0.7);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+.cr-card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 10px;
+  padding: 0;
+  width: 100%; max-width: 560px; max-height: 86vh;
+  display: flex; flex-direction: column;
+}
+.cr-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px 8px; border-bottom: 1px solid #0f3460; }
+.cr-header h2 { font-size: 18px; color: #16c79a; }
+.cr-close { background: transparent; border: none; color: #888; font-size: 22px; cursor: pointer; padding: 0 4px; }
+.cr-hint { color: #888; font-size: 12px; line-height: 1.4; padding: 8px 20px 0; }
+.cr-body { padding: 8px 20px 20px; overflow-y: auto; flex: 1; }
+.cr-section { margin-bottom: 14px; }
+.cr-section-title {
+  color: #888; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; margin: 10px 0 6px;
+}
+.cr-table { display: flex; flex-direction: column; gap: 1px; }
+.cr-row {
+  display: grid;
+  grid-template-columns: 1.2fr 70px 80px 80px 80px;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  align-items: baseline;
+  border-radius: 4px;
+}
+.cr-row:nth-child(even) { background: rgba(15, 52, 96, 0.18); }
+.cr-row-head {
+  background: transparent !important;
+  color: #888;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(15,52,96,0.5);
+}
+.cr-name { color: #e6e6e6; }
+.cr-num { text-align: right; font-family: ui-monospace, monospace; }
+.cr-pos { color: #80d090; }
+.cr-neg { color: #f08080; }
+.cr-empty { color: #888; text-align: center; padding: 20px; }
+
 /* Help modal */
 #help-overlay {
   position: fixed; inset: 0;
