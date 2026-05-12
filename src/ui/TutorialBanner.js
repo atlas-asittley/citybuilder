@@ -26,6 +26,7 @@ const STEPS = [
 ];
 
 let mounted = false;
+let dismissedForSession = false;
 
 export function mountTutorialBanner() {
   if (mounted) return;
@@ -43,6 +44,10 @@ export function mountTutorialBanner() {
   mounted = true;
 
   banner.querySelector('.tb-dismiss').addEventListener('click', () => {
+    // Dismissed for the rest of this session. refreshTutorialBanner
+    // bails before re-showing. Next page load brings it back if the
+    // tutorial step is still active.
+    dismissedForSession = true;
     banner.classList.add('hidden');
   });
 
@@ -53,6 +58,10 @@ export function refreshTutorialBanner() {
   if (!mounted) return;
   const banner = document.getElementById('tutorial-banner');
   if (!banner) return;
+  if (dismissedForSession) {
+    banner.classList.add('hidden');
+    return;
+  }
   const step = state.profile?.tutorial_step ?? 0;
   if (step >= 4) {
     banner.classList.add('hidden');
