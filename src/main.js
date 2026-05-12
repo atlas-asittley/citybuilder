@@ -25,6 +25,7 @@ import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/Ind
 import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js';
 import { mountTopBar, refreshTopBar } from './ui/TopBar.js';
 import { mountInfoBar, refreshInfoBar } from './ui/InfoBar.js';
+import { mountVersionBadge } from './ui/VersionBadge.js';
 import { mountBuildMenu } from './ui/BuildMenu.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
@@ -179,6 +180,7 @@ async function enterGame() {
     // building changes so other players' builds appear without a
     // refresh.
     mountInfoBar();
+    mountVersionBadge();
     mountTopBar(() => {
       // After a successful expand, the grid bounds may have grown.
       // Re-derive them from the new tileMap and restart the scene.

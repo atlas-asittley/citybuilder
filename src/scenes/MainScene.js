@@ -10,6 +10,7 @@ import { placeBuilding } from '../api/buildings.js';
 import { clearSelection as clearBuildSelection } from '../ui/BuildMenu.js';
 import { spriteIcons } from '../sprites.js';
 import { WALKER_SPRITES } from '../walker_sprites.js';
+import { showToast } from '../ui/Toast.js';
 
 const TILE_PX = 48;
 // Lower cap + slightly slower spawn cadence after Atlas reported
@@ -1427,21 +1428,19 @@ export class MainScene extends Phaser.Scene {
       if (this._placementMode) {
         const tile = this._tileAtPointer(p);
         if (!tile) {
-          alert("That tile isn't in your parcel.");
+          showToast("That tile isn't in your parcel.", 'error');
           return;
         }
         const btKey = this._placementMode.buildingType.key;
         try {
           await placeBuilding(tile.id, btKey);
-          // For non-road placements, exit placement mode so the
-          // player can pan / inspect again. Roads stay sticky so
-          // chained taps work like drag-paint without holding.
+          showToast('Placed.', 'success');
           if (this._placementMode.buildingType.category !== 'road') {
             this.setPlacementMode(null);
             clearBuildSelection();
           }
         } catch (err) {
-          alert(err.message || 'Could not place building.');
+          showToast(err.message || 'Could not place building.', 'error');
         }
         return;
       }
