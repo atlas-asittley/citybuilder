@@ -47,8 +47,8 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 - [ ] **Build menu: rich service input descriptions** — `BuildTabPanel.js describeBuilding`. v1: "Gates Townhouse (tier 3) within 5 tiles — consumes lumber + flour while staffed". v2: just the gating sentence.
 - [ ] **Build menu: housing tier evolution hint** — `BuildTabPanel.js describeBuilding`. v1: "Shanty → Mud Hut → ... → Palace. Workers 2–100. Prereqs: T1 well, T2 food, ...". v2: "Citizens live here. Upgrades unlock as you provide services + food."
 - [x] **Settings: rename district + rename city** (`v1-parity audit, commit 52/N`) — `SettingsPanel.js`. v1 has both; v2 missing. RPCs `rename_district(p_name)` + `rename_city(p_name)` exist on the server.
-- [ ] **Inspector: service input requirements with period clarity** — `InspectorPanel.js`. v1: "Consumes 2 lumber + 2 flour per 2 min" (integer recipe). v2: rate only.
-- [ ] **Inspector: refund amount pre-demolish** — `InspectorPanel.js`. v1 shows the refund $ in the confirm prompt; v2 just says "partial refund".
+- [x] **Inspector: service input requirements with period clarity** (`v1-parity audit, commit 53/N`) — `InspectorPanel.js`. v1: "Consumes 2 lumber + 2 flour per 2 min" (integer recipe). v2: rate only.
+- [x] **Inspector: refund amount pre-demolish** (`v1-parity audit, commit 53/N`) — `InspectorPanel.js`. v1 shows the refund $ in the confirm prompt; v2 just says "partial refund".
 
 ## TIER 4 — Low (polish / nice-to-haves)
 

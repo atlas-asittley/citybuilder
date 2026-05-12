@@ -13,7 +13,8 @@ import {
   getHousingUpgradeBlockers,
   getHousingDevolveRisks,
   describeHousingBlocker,
-  describeHousingDevolveReason
+  describeHousingDevolveReason,
+  recipeOf, periodSuffix
 } from '../scenes/helpers.js';
 
 // Set by main.js after MainScene starts. Lets the inspector ask the
@@ -218,15 +219,20 @@ function renderInspector() {
         rows.push(row('', `Tip — a ${CANONICAL}-tile path produces at full rate. Shorten the road to the resource tile to boost output.`, true));
       }
     } else {
-      rows.push(row('Output', `${bt.output_rate} ${resName(bt.output_resource_key)}/min`));
+      // Integer-ratio output: "1 lumber/min" or "1 lumber per 2 min".
+      const r = recipeOf(bt);
+      rows.push(row('Output', `${r.output_q} ${resName(bt.output_resource_key)}${periodSuffix(r.period_min)}`));
     }
   }
   if (bt.input_resource_key && bt.input_rate > 0) {
-    const inputs = [`${bt.input_rate} ${resName(bt.input_resource_key)}`];
+    // Integer-ratio inputs share the same period as the output so
+    // "2 timber + 1 statuary → 1 cabinets per 2 min" reads cleanly.
+    const r = recipeOf(bt);
+    const inputs = [`${r.input_q} ${resName(bt.input_resource_key)}`];
     if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
-      inputs.push(`${bt.input_rate_2} ${resName(bt.input_resource_key_2)}`);
+      inputs.push(`${r.input_q_2} ${resName(bt.input_resource_key_2)}`);
     }
-    rows.push(row('Input', inputs.join(' + ') + '/min'));
+    rows.push(row('Input', inputs.join(' + ') + periodSuffix(r.period_min)));
   }
   if (bt.upkeep_per_minute > 0) rows.push(row('Upkeep', `$${bt.upkeep_per_minute}/min`));
   if (bt.coverage_radius > 0) rows.push(row('Coverage', `${bt.coverage_radius} tiles`));
@@ -238,6 +244,12 @@ function renderInspector() {
   rows.push(row('Location', `(${b.x}, ${b.y})`));
   rows.push(row('Footprint', `${bt.footprint_w || 1} × ${bt.footprint_h || 1}`));
   if (bt.pollution_emit > 0) rows.push(row('Pollution', `${bt.pollution_emit} emit, radius ${bt.pollution_radius}`));
+  // Demolish refund preview (only on own buildings — only owner can demolish).
+  // Server formula is floor(build_cost * 0.5).
+  if (isMine && bt.build_cost > 0) {
+    const refund = Math.floor(bt.build_cost * 0.5);
+    rows.push(row('Refund on demolish', `$${refund.toLocaleString()}`));
+  }
 
   document.getElementById('ip-body').innerHTML = rows.join('');
   document.getElementById('ip-actions').innerHTML = renderActions(b, bt, isMine);
@@ -292,7 +304,12 @@ function wireActionHandlers(b) {
   });
 
   bind('ip-demolish', async (btn) => {
-    if (!confirm('Demolish this building? You will get a partial refund.')) return;
+    const bt = state.buildingTypes[b.building_type_key] || {};
+    const refund = bt.build_cost > 0 ? Math.floor(bt.build_cost * 0.5) : 0;
+    const msg = refund > 0
+      ? `Demolish this ${bt.name || 'building'}? You'll get $${refund.toLocaleString()} back.`
+      : `Demolish this ${bt.name || 'building'}?`;
+    if (!confirm(msg)) return;
     btn.disabled = true; btn.textContent = 'Demolishing…';
     try { await demolishBuilding(b.id); closeInspector(); }
     catch (err) { alert(err.message || 'Could not demolish.'); btn.disabled = false; btn.textContent = 'Demolish'; }

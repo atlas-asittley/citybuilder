@@ -303,6 +303,47 @@ function allResourcesWithFlag(ctx, flagKey) {
   return saw;   // false if no resources had the flag at all
 }
 
+// ── Integer-ratio recipe formatting ─────────────────────────────
+//
+// Atlas rule: players think in whole units, not decimals. A sawmill at
+// "1 timber → 0.5 lumber per minute" reads as "2 timber → 1 lumber
+// every 2 min". recipeOf scales the rates to integers and surfaces
+// the cycle period explicitly.
+//
+// findRateScale searches for the smallest integer multiplier (cap 60)
+// that rounds every supplied rate to an integer. Cap exists so weird
+// fractional rates fall back to decimal display rather than hanging.
+export function findRateScale(rates) {
+  const nonzero = rates.filter((r) => r > 0);
+  if (nonzero.length === 0) return 1;
+  for (let k = 1; k <= 60; k++) {
+    let ok = true;
+    for (const r of nonzero) {
+      if (Math.abs(r * k - Math.round(r * k)) > 0.001) { ok = false; break; }
+    }
+    if (ok) return k;
+  }
+  return 1;
+}
+
+// Returns { input_q, input_q_2, output_q, period_min } where qty
+// fields are integers and period_min is the cycle in minutes.
+export function recipeOf(bt) {
+  const rates = [bt.input_rate || 0, bt.input_rate_2 || 0, bt.output_rate || 0].map(Number);
+  const k = findRateScale(rates);
+  return {
+    input_q:   Math.round((bt.input_rate   || 0) * k),
+    input_q_2: Math.round((bt.input_rate_2 || 0) * k),
+    output_q:  Math.round((bt.output_rate  || 0) * k),
+    period_min: k
+  };
+}
+
+// "/min" when period_min=1, " per N min" otherwise.
+export function periodSuffix(periodMin) {
+  return periodMin === 1 ? '/min' : ' per ' + periodMin + ' min';
+}
+
 // ── Resource flow breakdown ─────────────────────────────────────
 //
 // For a single resource, returns where it's being produced (extractors
