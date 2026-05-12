@@ -27,7 +27,7 @@ import { mountTopBar, refreshTopBar, refreshOffersBadge } from './ui/TopBar.js';
 import { mountInfoBar, refreshInfoBar } from './ui/InfoBar.js';
 import { mountVersionBadge } from './ui/VersionBadge.js';
 import { applyAnimationsPreference } from './ui/animations.js';
-import { mountBuildMenu } from './ui/BuildMenu.js';
+import { mountBottomPanel } from './ui/BottomPanel.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
 import { checkAndShowChangelogIfUnseen } from './ui/ChangelogModal.js';
@@ -220,9 +220,11 @@ async function enterGame() {
       const s = game.scene.getScene('MainScene');
       if (s?.rerenderWorld) s.rerenderWorld();
     });
-    mountBuildMenu((buildingType) => {
-      const s = game.scene.getScene('MainScene');
-      if (s?.setPlacementMode) s.setPlacementMode(buildingType);
+    mountBottomPanel({
+      onBuildSelect: (buildingType) => {
+        const s = game.scene.getScene('MainScene');
+        if (s?.setPlacementMode) s.setPlacementMode(buildingType);
+      }
     });
     const mainScene = game.scene.getScene('MainScene');
     mountZoomControls(mainScene);

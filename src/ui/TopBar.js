@@ -53,15 +53,10 @@ export function mountTopBar(onExpanded) {
         <span>🔄</span><span class="v" id="tb-trader-reset">—</span>
       </span>
       <div class="topbar-actions">
-        <button class="tb-btn tb-btn-icon" id="tb-trade" title="Trade">💱</button>
         <button class="tb-btn tb-btn-icon tb-btn-bell" id="tb-bell" title="Notifications">🔔<span id="tb-bell-badge" class="tb-badge"></span></button>
         <button class="tb-btn tb-btn-icon tb-btn-more" id="tb-more" title="More">⋯<span id="tb-more-badge" class="tb-badge"></span></button>
         <div class="tb-more-menu" id="tb-more-menu" role="menu">
           <button class="tb-more-row" id="tb-expand">+ Expand parcel</button>
-          <button class="tb-more-row" id="tb-offers">🤝 Player offers<span id="tb-offers-badge" class="tb-row-badge"></span></button>
-          <button class="tb-more-row" id="tb-city-resources">📦 City resources</button>
-          <button class="tb-more-row" id="tb-reports">📊 Treasury</button>
-          <button class="tb-more-row" id="tb-players">👥 Players</button>
           <button class="tb-more-row" id="tb-settings">⚙ Settings</button>
         </div>
       </div>
@@ -105,7 +100,6 @@ export function mountTopBar(onExpanded) {
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#tb-more-menu') && !e.target.closest('#tb-more')) closeMore();
   });
-  document.getElementById('tb-trade').addEventListener('click', openTrade);
   document.getElementById('tb-bell').addEventListener('click', openBellLog);
   wireMore('tb-expand', () => {
     openExpansionPanel(() => {
@@ -113,10 +107,6 @@ export function mountTopBar(onExpanded) {
       if (onExpandedCallback) onExpandedCallback();
     });
   });
-  wireMore('tb-offers', openTradeOffers);
-  wireMore('tb-city-resources', openCityResources);
-  wireMore('tb-reports', openReports);
-  wireMore('tb-players', openPlayers);
   wireMore('tb-settings', openSettings);
 
   mountBellLog();
@@ -153,18 +143,16 @@ export function mountTopBar(onExpanded) {
   refreshTopBar();
 }
 
-// Update the More / Player-offers badges from state.pendingIncomingOffers.
+// Update the Trade tab badge in the bottom panel from
+// state.pendingIncomingOffers. Mirrors v1's `trade-badge` element
+// — the count flashes red on the Trade tab when someone's sent
+// you an offer.
 export function refreshOffersBadge() {
   const n = state.pendingIncomingOffers || 0;
-  const moreBadge = document.getElementById('tb-more-badge');
-  const rowBadge = document.getElementById('tb-offers-badge');
-  if (moreBadge) {
-    if (n > 0) { moreBadge.textContent = n > 9 ? '9+' : String(n); moreBadge.classList.add('visible'); }
-    else { moreBadge.classList.remove('visible'); }
-  }
-  if (rowBadge) {
-    if (n > 0) { rowBadge.textContent = n > 9 ? '9+' : String(n); rowBadge.classList.add('visible'); }
-    else { rowBadge.classList.remove('visible'); }
+  const tradeBadge = document.getElementById('bp-trade-badge');
+  if (tradeBadge) {
+    if (n > 0) { tradeBadge.textContent = n > 9 ? '9+' : String(n); tradeBadge.classList.add('visible'); }
+    else { tradeBadge.classList.remove('visible'); }
   }
 }
 
