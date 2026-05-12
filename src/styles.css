@@ -234,8 +234,15 @@ html, body {
   padding: 4px 10px;
   gap: 6px;
   min-height: 28px;
-  flex-wrap: wrap;
+  /* Don't wrap content — on narrow phones it would push the topbar
+     past 60px and clobber the #infobar (which sits at top: 60px).
+     Scroll horizontally instead, same as row 2 already did. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.topbar-row::-webkit-scrollbar { display: none; }
 .topbar-row-1 { border-bottom: 1px solid rgba(15, 52, 96, 0.45); }
 .topbar-id {
   display: flex; align-items: baseline; gap: 4px;
@@ -335,11 +342,8 @@ body.app-hidden *::after {
 .topbar-row-2 {
   font-size: 11px;
   justify-content: flex-start;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
+  /* overflow-x: auto + nowrap inherited from .topbar-row */
 }
-.topbar-row-2::-webkit-scrollbar { display: none; }
 @media (max-width: 680px) {
   .topbar-row { padding: 3px 8px; gap: 4px; }
   .topbar-city, .topbar-district { max-width: 90px; }
@@ -705,8 +709,12 @@ body.app-hidden *::after {
 
 /* More menu (dropdown under the ⋯ button) */
 .tb-more-menu {
-  position: absolute;
-  top: 44px;
+  /* Fixed (not absolute) so the row's overflow-x: auto can't clip
+     us. The topbar itself is position: fixed at top: 0, so anchoring
+     this at top: 36px puts the dropdown directly under row 1 right
+     edge regardless of horizontal scroll position. */
+  position: fixed;
+  top: 36px;
   right: 8px;
   background: #16213e;
   border: 1px solid #0f3460;
