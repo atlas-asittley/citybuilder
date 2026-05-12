@@ -1661,6 +1661,37 @@ body.app-hidden *::after {
   border-top: 1px solid rgba(15, 52, 96, 0.4);
 }
 
+/* Filter input + category collapse */
+.cr-filter-row { padding: 0 4px 8px; }
+.cr-filter {
+  width: 100%;
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  color: #e6e6e6;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.cr-filter::placeholder { color: #888; }
+.cr-section-toggle {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.cr-section-toggle:hover { color: #16c79a; }
+.cr-section-chev { font-size: 10px; color: #888; display: inline-block; width: 10px; }
+.cr-section-summary {
+  margin-left: auto;
+  color: #888;
+  font-size: 10px;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 /* Help modal */
 #help-overlay {
   position: fixed; inset: 0;

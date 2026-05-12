@@ -55,9 +55,9 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 - [x] **Walker visual jitter** (covered by `v1-parity audit, commit 57/N`) — `MainScene.js`. v1 per-walker scale (0.85-1.15) + hue (±18°) + bob period + waddle period. Shipped scale + tint + speed jitter in 57.
 - [ ] **Immigrant/emigrant overlays** — `MainScene.js spawnImmigrantWalker`. v1 rolls luggage/backpack/bindle/plain on each.
 - [x] **Paused building badge** (`v1-parity audit, commit 59/N`) — `MainScene.js`. v1 shows ⏸ overlay; v2 has no badge (suppresses animation correctly but no visual cue).
-- [ ] **Resources: search/filter** — `CityResourcesTab.js`. v1 has prefix-match filter with live DOM hide.
-- [ ] **Resources: category collapse persistence** — `CityResourcesTab.js`. v1 localStorage `city_resources_collapsed`.
-- [ ] **Resources: per-category stock summaries** — `CityResourcesTab.js`. v1: "7 resources · 250 total" on category header.
+- [x] **Resources: search/filter** (`v1-parity audit, commit 60/N`) — `CityResourcesTab.js`. v1 has prefix-match filter with live DOM hide.
+- [x] **Resources: category collapse persistence** (`v1-parity audit, commit 60/N`) — `CityResourcesTab.js`. v1 localStorage `city_resources_collapsed`.
+- [x] **Resources: per-category stock summaries** (`v1-parity audit, commit 60/N`) — `CityResourcesTab.js`. v1: "7 resources · 250 total" on category header.
 - [ ] **Period toggle on Treasury + Resources** — `CityTreasuryTab.js` / `CityResourcesTab.js`. v1 has Today / Week / All-time. v2 hardcodes 24h.
 - [ ] **Partners: trader description + transport mode badge + next-visit countdown** — `TradePartnersTab.js`. v1 surfaces all three on each card.
 - [x] **Bell log: 1.5s dedup window** (`v1-parity audit, commit 59/N`) — `BellLog.js`. v1 collapses identical events fired in rapid succession.

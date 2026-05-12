@@ -23,6 +23,26 @@ const GROUPS = [
 // the drilldown stays open while the tick loop re-renders.
 const expanded = new Set();
 
+// Category collapse state — persisted to localStorage so the user's
+// preference survives reloads. Default: every category open.
+const COLLAPSE_KEY = 'city_resources_collapsed_v2';
+const collapsed = new Set(loadCollapsed());
+function loadCollapsed() {
+  try {
+    const raw = localStorage.getItem(COLLAPSE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) || [];
+  } catch (_e) { return []; }
+}
+function persistCollapsed() {
+  try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsed])); } catch (_e) { /* no-op */ }
+}
+
+// Search filter — prefix-match on resource name. Cleared between
+// mounts to avoid stale state; not persisted, since this is an
+// in-the-moment "find pottery" affordance.
+let filterText = '';
+
 // Cached per-partner trade flows for the trailing 7 days. Async-loaded
 // on first render; re-fetched after CACHE_MS. The drilldown renders
 // the per-partner table from `cachedFlows.byPartner` when available,
@@ -133,13 +153,25 @@ export function renderCityResources(parent) {
   );
 
   const all = Object.values(state.resourceNodes).filter((r) => r.is_active);
-  let html = '';
+  const lowFilter = filterText.trim().toLowerCase();
+  let html = `
+    <div class="cr-filter-row">
+      <input type="search" class="cr-filter" placeholder="Filter resources…" value="${escapeHtml(filterText)}" />
+    </div>
+  `;
   for (const group of GROUPS) {
-    const rows = all.filter(group.match).sort((a, b) => a.name.localeCompare(b.name));
+    let rows = all.filter(group.match).sort((a, b) => a.name.localeCompare(b.name));
+    if (lowFilter) rows = rows.filter((r) => r.name.toLowerCase().includes(lowFilter));
     if (!rows.length) continue;
-    html += `<div class="cr-section">
-      <h3 class="cr-section-title">${escapeHtml(group.label)}</h3>
-      <div class="cr-table">
+    const isCollapsed = collapsed.has(group.label);
+    const totalStock = rows.reduce((s, r) => s + Math.floor(Number(state.inventory?.[r.key] || 0)), 0);
+    html += `<div class="cr-section ${isCollapsed ? 'cr-collapsed' : ''}" data-group="${escapeHtml(group.label)}">
+      <h3 class="cr-section-title cr-section-toggle">
+        <span class="cr-section-chev">${isCollapsed ? '▸' : '▾'}</span>
+        ${escapeHtml(group.label)}
+        <small class="cr-section-summary">${rows.length} · ${totalStock.toLocaleString()} total</small>
+      </h3>
+      ${isCollapsed ? '' : `<div class="cr-table">
         <div class="cr-row cr-row-head">
           <span class="cr-cell cr-cell-name">Resource</span>
           <span class="cr-cell cr-cell-inv">Inv</span>
@@ -148,10 +180,36 @@ export function renderCityResources(parent) {
           <span class="cr-cell cr-num">Net</span>
         </div>
         ${rows.map((r) => renderRow(r, prod, cons)).join('')}
-      </div>
+      </div>`}
     </div>`;
   }
   parent.innerHTML = html || '<p class="cr-empty">No active resources.</p>';
+
+  // Filter input
+  const filterEl = parent.querySelector('.cr-filter');
+  if (filterEl) {
+    filterEl.addEventListener('input', (e) => {
+      filterText = e.target.value || '';
+      renderCityResources(parent);
+      // Re-focus the input + restore caret position after re-render.
+      const fresh = parent.querySelector('.cr-filter');
+      if (fresh) {
+        fresh.focus();
+        fresh.setSelectionRange(filterText.length, filterText.length);
+      }
+    });
+  }
+
+  // Category collapse toggles
+  parent.querySelectorAll('.cr-section-toggle').forEach((header) => {
+    header.addEventListener('click', () => {
+      const label = header.parentElement.dataset.group;
+      if (collapsed.has(label)) collapsed.delete(label);
+      else collapsed.add(label);
+      persistCollapsed();
+      renderCityResources(parent);
+    });
+  });
 
   parent.querySelectorAll('.cr-row-data[data-resource]').forEach((row) => {
     row.addEventListener('click', () => {
