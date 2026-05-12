@@ -30,13 +30,29 @@ async function fetchAllBuildings() {
 }
 
 async function fetchTileMap(playerId) {
-  const { data, error } = await sb
-    .from('map_tiles')
-    .select('id, x, y, terrain_type, resource_node_key, pollution, desirability, owner_player_id')
-    .eq('owner_player_id', playerId);
-  if (error) throw error;
+  // Load EVERY owned tile in the shared city (any player's), so the
+  // pollution + desirability heatmaps work across parcel boundaries
+  // — pollution from a neighbor's smelter visibly spills onto your
+  // tiles. Paginated since multi-player cities may have >1000 tiles.
+  void playerId;   // kept in the signature for callsites; no longer filtered
+  const all = [];
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await sb
+      .from('map_tiles')
+      .select('id, x, y, terrain_type, resource_node_key, pollution, desirability, owner_player_id')
+      .not('owner_player_id', 'is', null)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
   const map = {};
-  for (const t of data) map[t.x + ',' + t.y] = t;
+  for (const t of all) map[t.x + ',' + t.y] = t;
   return map;
 }
 

@@ -460,7 +460,11 @@ export class MainScene extends Phaser.Scene {
     }
 
     const candidates = state.allBuildings.filter((b) => {
-      if (b.player_id !== myId || !b.is_staffed || b.status !== 'active') return false;
+      // Walkers spawn from any player's staffed buildings — shared
+      // map shows everyone's foot traffic. The own-vs-neighbor
+      // distinction is carried by the building sprite alpha (0.7
+      // for neighbors), not by hiding walkers entirely.
+      if (!b.is_staffed || b.status !== 'active') return false;
       const bt = state.buildingTypes[b.building_type_key];
       if (!bt) return false;
       const isExt = bt.category === 'extractor' || bt.category === 'food_extractor';
@@ -1420,14 +1424,25 @@ export class MainScene extends Phaser.Scene {
     if (this._heatmapMode === 'crime') policeCovered = this._computePoliceCoverage();
     if (this._heatmapMode === 'issues') problemTiles = this._computeProblemTiles();
 
+    const myId = state.currentUser?.id;
     for (const k in state.tileMap) {
       const t = state.tileMap[k];
+      // Pollution + desirability span the whole city — pollution
+      // from a neighbor's smelter drifts onto your tiles, so the
+      // overlay needs to paint across parcel boundaries. Crime +
+      // building-issues only make sense on YOUR tiles (your police
+      // only protect your land), so those skip foreign tiles.
+      const isMine = t.owner_player_id === myId;
       let value;
       if (this._heatmapMode === 'pollution') value = Number(t.pollution || 0);
       else if (this._heatmapMode === 'desirability') value = Number(t.desirability || 0);
-      else if (this._heatmapMode === 'crime') value = policeCovered.has(k) ? 0 : 100;
-      else if (this._heatmapMode === 'issues') value = problemTiles.has(k) ? 100 : 0;
-      else value = 0;
+      else if (this._heatmapMode === 'crime') {
+        if (!isMine) continue;
+        value = policeCovered.has(k) ? 0 : 100;
+      } else if (this._heatmapMode === 'issues') {
+        if (!isMine) continue;
+        value = problemTiles.has(k) ? 100 : 0;
+      } else value = 0;
 
       const { tint, alpha } = heatmapTintFor(this._heatmapMode, value);
       if (alpha <= 0) continue;
