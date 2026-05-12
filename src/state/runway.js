@@ -53,22 +53,24 @@ export function computeCityRunway() {
 
   // ── 2) Lifestyle goods runway ──
   // For each lifestyle resource consumed by housing at any tier the
-  // player has, compute total drain (sum over each house's per-min
-  // demand) and check against current inventory + any per-minute
-  // production from staffed processors. Pick the worst.
+  // player has, compute net drain (demand minus production) and the
+  // effective stock that backs it. Effective stock for pantried goods
+  // is the sum of every house's pantry buffer for that resource — NOT
+  // city inventory, because the server drains from pantries first.
+  // City inventory only contributes via refill (modeled as production
+  // here for simplicity — it's the upper bound on sustained drain).
   const houseTiers = {};
   for (const b of myActive) {
     if (!b.housing_tier || b.player_id !== state.currentUser.id) continue;
     houseTiers[b.housing_tier] = (houseTiers[b.housing_tier] || 0) + 1;
   }
-  const drainPer = {};       // resource → demand/min from houses
+  const drainPer = {};
   for (const tier in houseTiers) {
     const demands = state.housingLifestyleDemands?.[tier] || [];
     for (const d of demands) {
       drainPer[d.resource_key] = (drainPer[d.resource_key] || 0) + d.qty_per_minute * houseTiers[tier];
     }
   }
-  // Subtract production from this player's active staffed processors.
   for (const b of myActive) {
     const bt = state.buildingTypes[b.building_type_key];
     if (!bt || !b.is_staffed || b.paused) continue;
@@ -76,10 +78,30 @@ export function computeCityRunway() {
       drainPer[bt.output_resource_key] -= Number(bt.output_rate);
     }
   }
+
+  // Sum pantry buffers across own housing. If pantries aren't loaded
+  // (older sessions / sandbox), fall back to city inventory.
+  const pantryStock = {};
+  if (state.buildingBuffers && Object.keys(state.buildingBuffers).length > 0) {
+    for (const b of myActive) {
+      if (!b.housing_tier || b.player_id !== state.currentUser.id) continue;
+      const buf = state.buildingBuffers[b.id];
+      if (!buf) continue;
+      for (const rk in buf) {
+        pantryStock[rk] = (pantryStock[rk] || 0) + Number(buf[rk].quantity || 0);
+      }
+    }
+  }
+
   for (const rk in drainPer) {
-    const net = drainPer[rk];   // positive = consuming faster than producing
+    const net = drainPer[rk];
     if (net <= 0) continue;
-    const stock = Number(state.inventory[rk] || 0);
+    // Pantry-first when available, city stock as fallback. The server
+    // drains the pantry; once it hits zero a missing-refill is what
+    // triggers devolve, not the city stock.
+    const stock = rk in pantryStock
+      ? pantryStock[rk]
+      : Number(state.inventory[rk] || 0);
     const min = stock / net;
     if (min < bottleneckMin) {
       bottleneckMin = min;

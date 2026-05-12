@@ -184,9 +184,55 @@ export function getHousingUpgradeBlockers(building, tierCfg, ctx) {
 // bathhouse-override check that mirrors the server's safeguard. A
 // staffed + fed bathhouse within 4 tiles suppresses devolve even when
 // other gates are failing — useful as a temporary buffer.
+//
+// When per-house pantry buffers are loaded (ctx.buildingBuffers[b.id]),
+// the food + lifestyle:<rk> gates re-evaluate against the building's
+// OWN buffer rather than city stock. A house with 50 timber in city
+// but a half-full food pantry will NOT show food devolve risk — the
+// buffer is what the server actually drains from.
 export function getHousingDevolveRisks(building, currentTierCfg, ctx) {
   if (!currentTierCfg) return { blockers: [], hasBathhouseCover: false, willDevolve: false };
-  const blockers = getHousingUpgradeBlockers(building, currentTierCfg, ctx);
+  const globalBlockers = getHousingUpgradeBlockers(building, currentTierCfg, ctx);
+  const buf = (ctx.buildingBuffers && ctx.buildingBuffers[building.id]) || null;
+
+  // If we have buffer data, re-evaluate the food + lifestyle keys
+  // against the pantry rather than city stock. Other gates (road, well,
+  // services, desirability, luxury food, industrial luxury) stay as-is
+  // — they're not per-house pantried.
+  let blockers;
+  if (buf) {
+    blockers = globalBlockers.filter((key) => {
+      if (key === 'food') {
+        const entry = buf['food'];
+        return !entry || entry.quantity <= 0;
+      }
+      if (key.startsWith('lifestyle:')) {
+        const rk = key.slice('lifestyle:'.length);
+        const entry = buf[rk];
+        return !entry || entry.quantity <= 0;
+      }
+      return true;
+    });
+    // Also surface pantry-empty cases the global check didn't catch
+    // (city stock refilled but pantry hasn't refilled yet).
+    const demands = ctx.housingLifestyleDemands?.[currentTierCfg.tier] || [];
+    for (const d of demands) {
+      const entry = buf[d.resource_key];
+      const key = 'lifestyle:' + d.resource_key;
+      if ((!entry || entry.quantity <= 0) && !blockers.includes(key)) {
+        blockers.push(key);
+      }
+    }
+    if (currentTierCfg.needs_food) {
+      const entry = buf['food'];
+      if ((!entry || entry.quantity <= 0) && !blockers.includes('food')) {
+        blockers.push('food');
+      }
+    }
+  } else {
+    blockers = globalBlockers;
+  }
+
   if (blockers.length === 0) {
     return { blockers, hasBathhouseCover: false, willDevolve: false };
   }

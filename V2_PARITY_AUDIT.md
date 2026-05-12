@@ -25,8 +25,8 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 ## TIER 2 — High (significant information density loss)
 
 - [ ] **Treasury Advisor (4-component dashboard)** — `CityTreasuryTab.js`. Missing burn rate + runway projection, top-source/top-sink chips, daily-net 7-bar SVG, cumulative-balance sparkline. v1's `renderTreasuryAdvisor` (reports.js ~571-707).
-- [ ] **Per-house pantry buffer display in inspector** — `InspectorPanel.js`. v1 shows per-resource fill % (food, pottery, bread, etc.) so player knows actual time-to-devolve. v2 missing.
-- [ ] **Per-house pantries in runway calc** — `state/runway.js`. v2 only models city-wide drain. v1 models per-house buffers (30-min capacity). Top-bar runway is optimistic.
+- [x] **Per-house pantry buffer display in inspector** (`v1-parity audit, commit 44/N`) — `InspectorPanel.js`. v1 shows per-resource fill % (food, pottery, bread, etc.) so player knows actual time-to-devolve. v2 missing.
+- [x] **Per-house pantries in runway calc** (`v1-parity audit, commit 44/N`) — `state/runway.js`. v2 only models city-wide drain. v1 models per-house buffers (30-min capacity). Top-bar runway is optimistic.
 - [ ] **Resources drilldown** — `CityResourcesTab.js`. v1: click a row to expand "where it's going" (production sources, processor sinks, citizen drain, exports + per-partner flow). v2: flat table.
 - [ ] **Players compose: counterparty inventory** — `TradePlayersTab.js`. v1 fetches `get_player_trade_view` so receive-side shows "they have N" annotations and refuses over-asking. v2 lets you ask for stuff they don't have, fails server-side with a confusing error.
 - [ ] **Players inbox: pre-accept blocker check** — `TradePlayersTab.js`. v1 disables Accept with "Can't accept: missing 5 lumber" when you can't pay. v2 lets you click Accept then alerts on failure.

@@ -728,6 +728,32 @@ describe('getHousingDevolveRisks', () => {
     expect(r.hasBathhouseCover).toBe(true);
     expect(r.willDevolve).toBe(false);
   });
+
+  it('with pantry: clears food/lifestyle global blockers when buffer has stock', () => {
+    // City stock empty but pantry full → no food / lifestyle blocker.
+    const tier = { tier: 2, needs_food: true };
+    const ctx = {
+      ...baseCtx,
+      inventory: { grain: 0, brick: 1, clay: 1 },   // grain empty in city
+      resources: { grain: { is_food: true, name: 'Grain' } },
+      buildingBuffers: { 1: { food: { quantity: 5, capacity: 30 } } }
+    };
+    const r = getHousingDevolveRisks(house, tier, ctx);
+    expect(r.blockers).not.toContain('food');
+  });
+
+  it('with pantry: adds lifestyle:<rk> blocker when pantry empty even if city stock has it', () => {
+    const tier = { tier: 3 };
+    const ctx = {
+      ...baseCtx,
+      inventory: { pottery: 9999 },
+      resources: { pottery: { name: 'Pottery' } },
+      housingLifestyleDemands: { 3: [{ resource_key: 'pottery', qty_per_minute: 0.1 }] },
+      buildingBuffers: { 1: { pottery: { quantity: 0, capacity: 30 } } }
+    };
+    const r = getHousingDevolveRisks(house, tier, ctx);
+    expect(r.blockers).toContain('lifestyle:pottery');
+  });
 });
 
 describe('describeHousingBlocker / describeHousingDevolveReason', () => {

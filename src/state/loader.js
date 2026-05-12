@@ -48,6 +48,40 @@ async function fetchBuildingTypes() {
   return map;
 }
 
+// Per-house pantry buffers. Each row = one resource's buffer on one
+// building (food + lifestyle goods on housing). Indexed in state as
+// state.buildingBuffers[building_id][resource_key] = { quantity, capacity }.
+// Used by:
+//   - runway calc (lifestyle drain reads buffer fill, not city stock)
+//   - inspector pantry display (per-resource %)
+//   - housing devolve-risk gate (per-house, not global)
+async function fetchBuildingBuffers() {
+  const all = [];
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await sb
+      .from('building_resource_buffers')
+      .select('building_id, resource_key, quantity, capacity')
+      .order('building_id')
+      .range(from, from + PAGE - 1);
+    if (error || !data) break;
+    if (data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  const map = {};
+  for (const b of all) {
+    if (!map[b.building_id]) map[b.building_id] = {};
+    map[b.building_id][b.resource_key] = {
+      quantity: Number(b.quantity),
+      capacity: Number(b.capacity)
+    };
+  }
+  return map;
+}
+
 async function fetchBuildingResourceCosts() {
   // Some buildings cost not just $money but also raw resources to
   // place. The server enforces in place_building; UI surfaces in the
@@ -185,7 +219,7 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
@@ -195,7 +229,8 @@ export async function loadInitialWorld() {
     fetchTraderPrices(),
     fetchTradePolicies(),
     fetchHousingLifestyleDemands(),
-    fetchBuildingResourceCosts()
+    fetchBuildingResourceCosts(),
+    fetchBuildingBuffers()
   ]);
 
   state.allBuildings = buildings;
@@ -208,6 +243,7 @@ export async function loadInitialWorld() {
   state.tradePolicies = tradePolicies;
   state.housingLifestyleDemands = housingDemands;
   state.buildingResourceCosts = resourceCosts;
+  state.buildingBuffers = buffers;
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;

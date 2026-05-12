@@ -1957,6 +1957,53 @@ body.bp-collapsed #heatmap-toggle { bottom: 232px; }
   color: #888;
 }
 
+/* Per-house pantry display — small horizontal bars showing the buffer
+   fill ratio for food + lifestyle goods. Bars use the issue palette:
+   green ok, amber warn (<25%), red bad (0%). */
+.ip-pantry {
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 6px 0;
+  background: rgba(22, 199, 154, 0.06);
+  border-left: 3px solid #16c79a;
+}
+.ip-pantry-header {
+  font-weight: 600;
+  font-size: 12px;
+  color: #f5f5f5;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ip-pantry-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 100px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 12px;
+  color: #d0d0d0;
+}
+.ip-pantry-name { color: #e6e6e6; }
+.ip-pantry-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ip-pantry-fill {
+  height: 100%;
+  background: #3ac860;
+  transition: width 200ms ease;
+}
+.ip-pantry-warn .ip-pantry-fill { background: #f0a838; }
+.ip-pantry-bad  .ip-pantry-fill { background: #e94560; }
+.ip-pantry-value {
+  text-align: right;
+  color: #a0a0a0;
+  font-variant-numeric: tabular-nums;
+}
+
 .ip-actions {
   display: flex;
   gap: 8px;

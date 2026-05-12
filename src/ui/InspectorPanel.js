@@ -164,6 +164,14 @@ function renderInspector() {
       rows.push(row('Next tier', nextTier.name));
     }
 
+    // Per-house pantry fill rows. Shows how much food + lifestyle
+    // buffer this specific house holds — the actual gate the server
+    // drains from, not city stock.
+    if (isMine) {
+      const pantry = pantryHtml(b);
+      if (pantry) rows.push(pantry);
+    }
+
     // Active devolve-risk section for own buildings — surfaces the
     // failing prereqs at the CURRENT tier before they actually fire,
     // plus whether a bathhouse is shielding the house in the meantime.
@@ -349,8 +357,36 @@ function buildHousingCtx() {
     tileMap: state.tileMap,
     inventory: state.inventory || {},
     resources: state.resourceNodes,
-    housingLifestyleDemands: state.housingLifestyleDemands
+    housingLifestyleDemands: state.housingLifestyleDemands,
+    buildingBuffers: state.buildingBuffers
   };
+}
+
+// Render the per-house pantry fill section. Each gated resource on
+// this tier shows fill % + raw quantity/capacity. Yellow when <25%,
+// red at 0. Drives the "you have 7 minutes of pottery left" mental
+// model that v1 surfaces by default.
+function pantryHtml(b) {
+  const pantry = state.buildingBuffers?.[b.id];
+  if (!pantry) return '';
+  const keys = Object.keys(pantry).sort();
+  if (keys.length === 0) return '';
+  const rows = keys.map((rk) => {
+    const entry = pantry[rk];
+    if (!entry || !entry.capacity) return '';
+    const pct = Math.max(0, Math.min(100, Math.round(entry.quantity / entry.capacity * 100)));
+    const label = rk === 'food' ? 'Food' : (state.resourceNodes?.[rk]?.name || rk);
+    const sev = pct === 0 ? 'bad' : pct < 25 ? 'warn' : 'ok';
+    return `<div class="ip-pantry-row ip-pantry-${sev}">
+      <div class="ip-pantry-name">${escapeHtml(label)}</div>
+      <div class="ip-pantry-bar"><div class="ip-pantry-fill" style="width:${pct}%"></div></div>
+      <div class="ip-pantry-value">${entry.quantity.toFixed(1)} / ${entry.capacity.toFixed(0)} (${pct}%)</div>
+    </div>`;
+  }).join('');
+  return `<div class="ip-pantry">
+    <div class="ip-pantry-header">Pantry · per-house buffer</div>
+    ${rows}
+  </div>`;
 }
 
 // Render a labeled list of housing blockers, each line as

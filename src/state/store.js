@@ -37,6 +37,7 @@ export const state = {
     housingCapacity: 0
   },
   housingLifestyleDemands: {},  // tier → [{ resource_key, qty_per_minute }]
+  buildingBuffers: {},          // building_id → resource_key → { quantity, capacity } — per-house pantry
 
   // Camera / UI hints — only what the renderer needs
   gridMinX: 0,

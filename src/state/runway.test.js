@@ -13,6 +13,7 @@ function resetState() {
   state.buildingTypes = {};
   state.inventory = {};
   state.housingLifestyleDemands = {};
+  state.buildingBuffers = {};
 }
 
 describe('formatRunway', () => {
@@ -151,5 +152,50 @@ describe('computeCityRunway', () => {
     ];
     const r = computeCityRunway();
     expect(r.minutes).toBe(Infinity);
+  });
+
+  it('uses pantry buffers for lifestyle stock when buildingBuffers is loaded', () => {
+    state.housingLifestyleDemands = { 2: [{ resource_key: 'pottery', qty_per_minute: 1 }] };
+    state.buildingTypes = { cottage: { category: 'housing' } };
+    state.allBuildings = [
+      { id: 1, player_id: 'me', status: 'active', is_staffed: true, building_type_key: 'cottage', housing_tier: 2 }
+    ];
+    // City stock says we have plenty; pantry says 5 minutes left.
+    state.inventory = { pottery: 9999 };
+    state.buildingBuffers = { 1: { pottery: { quantity: 5, capacity: 30 } } };
+    const r = computeCityRunway();
+    expect(r.bottleneck).toBe('pottery');
+    expect(r.minutes).toBeCloseTo(5, 0);
+  });
+
+  it('falls back to city inventory when pantry buffers absent', () => {
+    state.housingLifestyleDemands = { 2: [{ resource_key: 'pottery', qty_per_minute: 1 }] };
+    state.buildingTypes = { cottage: { category: 'housing' } };
+    state.allBuildings = [
+      { id: 1, player_id: 'me', status: 'active', is_staffed: true, building_type_key: 'cottage', housing_tier: 2 }
+    ];
+    state.inventory = { pottery: 12 };
+    state.buildingBuffers = {};   // none loaded
+    const r = computeCityRunway();
+    expect(r.bottleneck).toBe('pottery');
+    expect(r.minutes).toBeCloseTo(12, 0);
+  });
+
+  it('sums pantry across multiple houses for the same resource', () => {
+    state.housingLifestyleDemands = { 2: [{ resource_key: 'bread', qty_per_minute: 1 }] };
+    state.buildingTypes = { cottage: { category: 'housing' } };
+    state.allBuildings = [
+      { id: 1, player_id: 'me', status: 'active', is_staffed: true, building_type_key: 'cottage', housing_tier: 2 },
+      { id: 2, player_id: 'me', status: 'active', is_staffed: true, building_type_key: 'cottage', housing_tier: 2 }
+    ];
+    state.inventory = {};
+    state.buildingBuffers = {
+      1: { bread: { quantity: 4, capacity: 30 } },
+      2: { bread: { quantity: 6, capacity: 30 } }
+    };
+    // 2 houses × 1/min drain = 2/min; pantry sum = 10; 10 / 2 = 5 min.
+    const r = computeCityRunway();
+    expect(r.bottleneck).toBe('bread');
+    expect(r.minutes).toBeCloseTo(5, 0);
   });
 });
