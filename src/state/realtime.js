@@ -52,11 +52,19 @@ export function subscribeRealtime(onChange) {
 
       // Was this a visually-meaningful change? Per-tick updates touch
       // last_processed_at on every building; we don't redraw for those.
+      // Include every field the building-render signature reads so a
+      // realtime UPDATE on any of them flows through to the scene.
       const visuallyChanged = (
         oldB.housing_tier !== newB.housing_tier ||
         oldB.status !== newB.status ||
         oldB.expansion_level !== newB.expansion_level ||
-        oldB.is_staffed !== newB.is_staffed
+        oldB.is_staffed !== newB.is_staffed ||
+        oldB.paused !== newB.paused ||
+        oldB.auto_upgrade !== newB.auto_upgrade ||
+        oldB.staffing_priority !== newB.staffing_priority ||
+        oldB.last_devolve_reason !== newB.last_devolve_reason ||
+        (!!oldB.evolution_eligible_at) !== (!!newB.evolution_eligible_at) ||
+        oldB.x !== newB.x || oldB.y !== newB.y
       );
 
       // Preserve the joined player_profiles; the realtime payload
