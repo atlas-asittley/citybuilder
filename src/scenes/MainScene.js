@@ -6,6 +6,7 @@
 import Phaser from 'phaser';
 import { state } from '../state/store.js';
 import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
+import { openResourceTileInspector } from '../ui/ResourceTileInspector.js';
 import { placeBuilding } from '../api/buildings.js';
 import { clearBuildTabSelection as clearBuildSelection } from '../ui/bottompanel/BuildTabPanel.js';
 import { spriteIcons } from '../sprites.js';
@@ -1537,7 +1538,8 @@ export class MainScene extends Phaser.Scene {
         return;
       }
 
-      // Inspect mode (default): tap on a building → open inspector.
+      // Inspect mode (default): tap on a building → building inspector;
+      // tap on a resource tile (no building) → tile inspector.
       if (currentlyOver && currentlyOver.length > 0) {
         for (const obj of currentlyOver) {
           if (obj.buildingRef) {
@@ -1545,6 +1547,11 @@ export class MainScene extends Phaser.Scene {
             return;
           }
         }
+      }
+      const tile = this._tileAtPointer(p);
+      if (tile && tile.resource_node_key) {
+        openResourceTileInspector(tile);
+        return;
       }
       closeInspector();
     });
