@@ -1294,9 +1294,19 @@ export class MainScene extends Phaser.Scene {
       camW + SLACK * 2,
       camH + SLACK + BOTTOM_PANEL_HEIGHT
     );
-    // Center on the player's OWN parcel — they expect to see their
-    // city on load, not the world centroid.
-    cam.centerOn(this._worldW / 2, this._worldH / 2);
+    // Restore saved scroll + zoom for this player if we have it.
+    // localStorage key is scoped per user so different accounts on the
+    // same browser don't clobber each other. If nothing saved, center
+    // on the player's own parcel — they expect to see their city on
+    // load, not the world centroid.
+    const restored = this._loadSavedMapView();
+    if (restored) {
+      cam.setZoom(Phaser.Math.Clamp(restored.zoom, 0.25, 3));
+      cam.scrollX = restored.scrollX;
+      cam.scrollY = restored.scrollY;
+    } else {
+      cam.centerOn(this._worldW / 2, this._worldH / 2);
+    }
 
     // Drag-to-pan, but only when we're not drag-painting roads.
     // Otherwise the same drag motion both paints AND scrolls and the
@@ -1307,14 +1317,63 @@ export class MainScene extends Phaser.Scene {
       if (this._dragPaintActive) return;
       cam.scrollX -= (pointer.x - pointer.prevPosition.x) / cam.zoom;
       cam.scrollY -= (pointer.y - pointer.prevPosition.y) / cam.zoom;
+      this._saveMapViewSoon();
     });
 
     // Wheel zoom (desktop).
     this.input.on('wheel', (_p, _o, _dx, dy) => {
       cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.25, 3));
+      this._saveMapViewSoon();
     });
     // Mobile zoom UI lives in DOM (ZoomControls.js) so it isn't
     // affected by the camera's zoom transform.
+  }
+
+  // ── Map view persistence ──────────────────────────────────────
+  //
+  // Saves scroll + zoom to localStorage so a page reload lands the
+  // player on the same view they left. Keyed per Supabase user id so
+  // multiple accounts on the same browser keep separate views.
+  //
+  // Debounced to ~400ms because pan generates a flood of pointermove
+  // events — we only need the steady-state result.
+  _mapViewKey() {
+    const uid = state.currentUser?.id;
+    return uid ? 'city_map_view_v2_' + uid : null;
+  }
+
+  _saveMapViewSoon() {
+    if (this._saveViewTimer) clearTimeout(this._saveViewTimer);
+    this._saveViewTimer = setTimeout(() => this._saveMapView(), 400);
+  }
+
+  _saveMapView() {
+    const key = this._mapViewKey();
+    if (!key) return;
+    const cam = this.cameras.main;
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        scrollX: cam.scrollX, scrollY: cam.scrollY, zoom: cam.zoom
+      }));
+    } catch (_e) {
+      // Storage disabled / quota exceeded — silent. View persistence
+      // is a convenience, not a contract.
+    }
+  }
+
+  _loadSavedMapView() {
+    const key = this._mapViewKey();
+    if (!key) return null;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.scrollX !== 'number' || typeof parsed?.scrollY !== 'number'
+          || typeof parsed?.zoom !== 'number') return null;
+      return parsed;
+    } catch (_e) {
+      return null;
+    }
   }
 
   _setupTapToInspect() {

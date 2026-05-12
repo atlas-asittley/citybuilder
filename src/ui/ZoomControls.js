@@ -40,6 +40,7 @@ export function mountZoomControls(scene) {
         const worldH = sceneRef._worldH || 0;
         if (worldW && worldH) cam.centerOn(worldW / 2, worldH / 2);
       }
+      sceneRef._saveMapViewSoon?.();
       e.stopPropagation();
     });
   });
