@@ -286,7 +286,11 @@ async function enterGame() {
     setOffersChangedCallback(() => {
       // Realtime trade-offer change → bump the offers badge by
       // refetching the count without waiting for the 30s tick.
+      // Also re-render the bottom panel so if the user is on the
+      // Trade > Players tab the new offer appears in their inbox
+      // immediately.
       refreshPendingOfferCount();
+      refreshBottomPanel();
     });
 
     // From here on, the in-game UI is fully mounted. Stray unhandled
