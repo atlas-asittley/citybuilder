@@ -35,27 +35,40 @@ export function buildingSignature(b, bt, roadSet, myId, issueKind) {
 
 // ── Building issue detection ────────────────────────────────────
 //
-// Returns the FIRST operational issue blocking a building, or null
-// if it's working / not the player's. Drives the `!` badge + sprite
-// fade in MainScene so the player can scan for broken chains at a
-// glance instead of opening every inspector.
+// Returns ALL operational issues blocking a building, in render
+// order. Empty array means the building is working (or belongs to
+// another player — we don't badge neighbors). Used by:
+//   - the `!` badge + sprite fade in MainScene (takes issues[0]?.kind)
+//   - the inspector "Issues" section (renders every entry with hints)
 //
-// Kinds (in priority order):
-//   paused     — owner explicitly paused production
-//   idle       — server marked status='idle' (extractor with no path, etc.)
-//   unstaffed  — worker_cost > 0 but is_staffed is false
-//   no-road    — category needs road access, no road on the footprint perimeter
-//   no-input   — staffed but a required input resource has zero stock
+// Each issue carries:
+//   kind        — short slug (paused / idle / unstaffed / no-road / no-input)
+//   label       — display string ("Paused", "No road access", ...)
+//   hint        — one-sentence player-actionable fix
+//   resource_key — only for no-input issues, the missing resource's key
 //
-// Other players' buildings always return null — we don't show issue
-// badges on neighbors' cities even if we can see they're idle.
-export function computeBuildingIssue(b, bt, roadSet, inventory, myId) {
-  if (!bt) return null;
-  if (b.player_id !== myId) return null;
+// Mutually-exclusive states (paused / idle / unstaffed) short-circuit:
+// reporting "no road" on top of "paused" is just noise. Once we're
+// past those, road + missing-input checks can stack — a brand-new
+// sawmill might lack both road access AND timber stock simultaneously.
+export function listBuildingIssues(b, bt, roadSet, inventory, myId) {
+  if (!bt) return [];
+  if (b.player_id !== myId) return [];
 
-  if (b.paused) return { kind: 'paused', label: 'Paused' };
-  if (b.status === 'idle') return { kind: 'idle', label: 'Idle' };
-  if (bt.worker_cost > 0 && !b.is_staffed) return { kind: 'unstaffed', label: 'No workers' };
+  if (b.paused) {
+    return [{ kind: 'paused', label: 'Paused',
+      hint: 'Tap Resume to restart production.' }];
+  }
+  if (b.status === 'idle') {
+    return [{ kind: 'idle', label: 'Idle',
+      hint: 'Server has no work to give this building right now (no path, no eligible target, or no demand).' }];
+  }
+  if (bt.worker_cost > 0 && !b.is_staffed) {
+    return [{ kind: 'unstaffed', label: 'No workers assigned',
+      hint: 'Grow population (more housing) or lower another building\'s priority so this one gets staffed.' }];
+  }
+
+  const issues = [];
 
   const needsRoad = (
     bt.category === 'processor' ||
@@ -67,23 +80,36 @@ export function computeBuildingIssue(b, bt, roadSet, inventory, myId) {
     (bt.category === 'housing' && (b.housing_tier || 0) >= 3)
   );
   if (needsRoad && roadSet && !hasRoadOnPerimeter(b, bt, roadSet)) {
-    return { kind: 'no-road', label: 'No road access' };
+    issues.push({ kind: 'no-road', label: 'No road access',
+      hint: 'Place a road on any tile adjacent to this building (perimeter — not diagonal).' });
   }
 
-  // Missing-input check fires only when staffed — otherwise unstaffed
-  // already explains the lack of production.
   if (b.is_staffed && inventory) {
     if (bt.input_resource_key && Number(bt.input_rate) > 0) {
       const have = Number(inventory[bt.input_resource_key] || 0);
-      if (have <= 0) return { kind: 'no-input', label: 'Missing input' };
+      if (have <= 0) {
+        issues.push({ kind: 'no-input', label: 'Missing input',
+          resource_key: bt.input_resource_key,
+          hint: 'Produce, buy from a trader, or set up a player trade for this resource.' });
+      }
     }
     if (bt.input_resource_key_2 && Number(bt.input_rate_2) > 0) {
       const have = Number(inventory[bt.input_resource_key_2] || 0);
-      if (have <= 0) return { kind: 'no-input', label: 'Missing input' };
+      if (have <= 0) {
+        issues.push({ kind: 'no-input', label: 'Missing input',
+          resource_key: bt.input_resource_key_2,
+          hint: 'Produce, buy from a trader, or set up a player trade for this resource.' });
+      }
     }
   }
 
-  return null;
+  return issues;
+}
+
+// Convenience for callsites that only need the top issue (e.g., the
+// sprite badge picks one kind to drive its color/icon).
+export function computeBuildingIssue(b, bt, roadSet, inventory, myId) {
+  return listBuildingIssues(b, bt, roadSet, inventory, myId)[0] || null;
 }
 
 // Walk the building's footprint perimeter (NOT just the anchor) and

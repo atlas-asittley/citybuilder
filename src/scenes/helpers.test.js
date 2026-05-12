@@ -11,7 +11,8 @@ import {
   computePoliceCoverage,
   computeProblemTiles,
   computeResourceProdCons,
-  computeBuildingIssue
+  computeBuildingIssue,
+  listBuildingIssues
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -514,6 +515,74 @@ describe('computeBuildingIssue', () => {
     const housingBt = { category: 'housing', worker_cost: 0, footprint_w: 1, footprint_h: 1 };
     const issue = computeBuildingIssue(townhouse, housingBt, new Set(), inventory, myId);
     expect(issue?.kind).toBe('no-road');
+  });
+});
+
+describe('listBuildingIssues', () => {
+  const myId = 'me';
+  const millBt = {
+    category: 'processor', worker_cost: 10,
+    input_resource_key: 'timber', input_rate: 2,
+    footprint_w: 1, footprint_h: 1
+  };
+  const baseMill = {
+    building_type_key: 'sawmill', x: 5, y: 5, status: 'active',
+    is_staffed: true, paused: false, player_id: myId
+  };
+
+  it('returns [] when healthy', () => {
+    expect(listBuildingIssues(baseMill, millBt, new Set(['5,4']), { timber: 50 }, myId)).toEqual([]);
+  });
+
+  it('returns [] for other players\' buildings', () => {
+    const them = { ...baseMill, player_id: 'neighbor' };
+    expect(listBuildingIssues(them, millBt, new Set(), {}, myId)).toEqual([]);
+  });
+
+  it('paused short-circuits — only paused, no road / input piled on', () => {
+    const paused = { ...baseMill, paused: true, is_staffed: false };
+    const issues = listBuildingIssues(paused, millBt, new Set(), { timber: 0 }, myId);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].kind).toBe('paused');
+    expect(issues[0].hint).toContain('Resume');
+  });
+
+  it('idle short-circuits — same exclusivity as paused', () => {
+    const idle = { ...baseMill, status: 'idle' };
+    const issues = listBuildingIssues(idle, millBt, new Set(), { timber: 0 }, myId);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].kind).toBe('idle');
+  });
+
+  it('unstaffed short-circuits — no road / input reported alongside', () => {
+    const unstaffed = { ...baseMill, is_staffed: false };
+    const issues = listBuildingIssues(unstaffed, millBt, new Set(), { timber: 0 }, myId);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].kind).toBe('unstaffed');
+    expect(issues[0].hint).toContain('Grow population');
+  });
+
+  it('reports no-road AND no-input together when both apply', () => {
+    const issues = listBuildingIssues(baseMill, millBt, new Set(), { timber: 0 }, myId);
+    expect(issues).toHaveLength(2);
+    expect(issues.map((i) => i.kind).sort()).toEqual(['no-input', 'no-road']);
+  });
+
+  it('attaches resource_key to no-input issues for inspector formatting', () => {
+    const issues = listBuildingIssues(baseMill, millBt, new Set(['5,4']), { timber: 0 }, myId);
+    const noInput = issues.find((i) => i.kind === 'no-input');
+    expect(noInput?.resource_key).toBe('timber');
+  });
+
+  it('reports BOTH inputs as separate issues for a multi-input processor', () => {
+    const dualBt = {
+      ...millBt,
+      input_resource_key_2: 'lumber', input_rate_2: 1
+    };
+    const issues = listBuildingIssues(baseMill, dualBt, new Set(['5,4']), { timber: 0, lumber: 0 }, myId);
+    const inputs = issues.filter((i) => i.kind === 'no-input');
+    expect(inputs).toHaveLength(2);
+    expect(inputs.map((i) => i.resource_key).sort()).toEqual(['lumber', 'timber']);
   });
 });
 

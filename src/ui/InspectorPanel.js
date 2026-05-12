@@ -8,6 +8,7 @@ import {
   demolishBuilding, upgradeHouse,
   setHouseAutoUpgrade, setBuildingPaused, setBuildingPriority, expandTransportHub
 } from '../api/buildings.js';
+import { listBuildingIssues } from '../scenes/helpers.js';
 
 // Set by main.js after MainScene starts. Lets the inspector ask the
 // scene to draw / clear the AoE highlight without an awkward import
@@ -120,8 +121,18 @@ function renderInspector() {
     `${bt.category || 'building'} · owned by ${isMine ? 'you' : owner}`;
 
   const rows = [];
-  rows.push(row('Status', formatStatus(b)));
-  if (b.paused) rows.push(row('Paused', 'Yes — production stopped'));
+
+  // Issues section — every reason this building isn't operational, with
+  // a fix hint per item. Mirrors v1's consolidated Issues list. Only
+  // computed for own-player buildings (the helper short-circuits).
+  // When healthy, header reads "Operational" and no Issues panel renders.
+  const issues = isMine ? listBuildingIssues(b, bt, buildRoadSet(), state.inventory, state.currentUser?.id) : [];
+  if (issues.length === 0) {
+    rows.push(row('Status', isMine ? 'Operational' : formatStatus(b)));
+  } else {
+    rows.push(row('Status', issues.length === 1 ? '1 issue' : `${issues.length} issues`));
+    rows.push(issueListHtml(issues));
+  }
   if (bt.worker_cost > 0) rows.push(row('Workers', b.is_staffed ? `${bt.worker_cost} (staffed)` : `${bt.worker_cost} (unstaffed)`));
   if (b.housing_tier) {
     const tier = state.housingTierConfig[b.housing_tier];
@@ -333,6 +344,39 @@ function escapeHtml(s) {
 
 function resName(key) {
   return (state.resourceNodes[key]?.name || key).toLowerCase();
+}
+
+// Build the road-set the issue helper needs. Walks state.allBuildings
+// for road-category entries. Cheap O(N) — only fires when inspector
+// is rendering an own-player building, which is bounded by player
+// interaction frequency.
+function buildRoadSet() {
+  const s = new Set();
+  for (const b of state.allBuildings) {
+    const bt = state.buildingTypes[b.building_type_key];
+    if (bt && bt.category === 'road') s.add(b.x + ',' + b.y);
+  }
+  return s;
+}
+
+// Render the Issues bulleted list. Each issue gets a colored severity
+// dot, the label, the friendly resource name (if applicable), and a
+// fix-hint paragraph. Returned as a row-html chunk so the caller can
+// splice it into the inspector body.
+function issueListHtml(issues) {
+  const items = issues.map((iss) => {
+    const resName = iss.resource_key
+      ? (state.resourceNodes[iss.resource_key]?.name || iss.resource_key)
+      : null;
+    const label = resName ? `${iss.label}: ${resName}` : iss.label;
+    return `<li class="ip-issue ip-issue-${iss.kind}">
+      <span class="ip-issue-label">${escapeHtml(label)}</span>
+      <span class="ip-issue-hint">${escapeHtml(iss.hint || '')}</span>
+    </li>`;
+  }).join('');
+  return `<div class="ip-issues">
+    <ul class="ip-issue-list">${items}</ul>
+  </div>`;
 }
 
 export function isInspectorOpen() {
