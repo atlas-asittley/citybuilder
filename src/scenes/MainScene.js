@@ -1014,54 +1014,168 @@ export class MainScene extends Phaser.Scene {
     const L = Math.floor(SZ * 0.18);      // inner margin (grass shoulder)
     const R = SZ - L;                     // inner road right/bottom edge
     const RW = R - L;                     // road body width
-    const TRACK = Math.max(2, Math.floor(RW * 0.18));   // worn-track width
+
+    // Deterministic pseudo-random: same mask + index always picks the
+    // same gravel/pebble positions so the texture stays stable.
+    const rng = (mask, i, span) => {
+      const seed = (mask * 9301 + i * 49297 + 233280) % 233280;
+      return Math.floor((seed / 233280) * span);
+    };
+    // Is a pixel (px,py) on the road surface for the given NSEW mask?
+    // Used to gate gravel/pebble placement so dots never spill onto
+    // grass.
+    const onRoad = (px, py, n, s, e, w) => {
+      if (px >= L && px <= R && py >= L && py <= R) return true;
+      if (n && px >= L && px <= R && py < L) return true;
+      if (s && px >= L && px <= R && py > R) return true;
+      if (e && px > R && py >= L && py <= R) return true;
+      if (w && px < L && py >= L && py <= R) return true;
+      if (n && w && px < L && py < L) return true;
+      if (n && e && px > R && py < L) return true;
+      if (s && w && px < L && py > R) return true;
+      if (s && e && px > R && py > R) return true;
+      return false;
+    };
 
     for (let mask = 0; mask < 16; mask++) {
       const n = !!(mask & 8), s = !!(mask & 4), e = !!(mask & 2), w = !!(mask & 1);
       const g = this.add.graphics();
 
-      // 1. Grass background — dark earthy green, matches owned-grass tint
+      // 1. Grass background — dark earthy green
       g.fillStyle(0x4a6440, 1);
       g.fillRect(0, 0, SZ, SZ);
 
-      // 2. Road body (always centered) + arms toward connected neighbors
-      g.fillStyle(0x6b5436, 1);
+      // 2. Road body (always centered) + arms toward connected neighbors.
+      //    Slightly warmer brown than before so the road reads as
+      //    packed earth, not asphalt.
+      g.fillStyle(0x7a5e3a, 1);
       g.fillRect(L, L, RW, RW);
       if (n) g.fillRect(L, 0, RW, L);
       if (s) g.fillRect(L, R, RW, SZ - R);
       if (e) g.fillRect(R, L, SZ - R, RW);
       if (w) g.fillRect(0, L, L, RW);
-      // Corner fills so two-arm bends look continuous
       if (n && w) g.fillRect(0, 0, L, L);
       if (n && e) g.fillRect(R, 0, SZ - R, L);
       if (s && w) g.fillRect(0, R, L, SZ - R);
       if (s && e) g.fillRect(R, R, SZ - R, SZ - R);
 
-      // 3. Worn center track — lighter strip down the middle of each
-      //    connected arm. Skipped on dead-end "stubs" so single tiles
-      //    look like a clean roundabout.
-      const trackOffset = Math.floor((RW - TRACK) / 2);
-      g.fillStyle(0x8a7048, 1);
+      // 3. Worn center track — broader, softer "well-trodden middle".
+      //    Lighter brown with alpha so the underlying packed-earth
+      //    colour shows through; reads as a path within the path.
+      const CT = Math.max(4, Math.floor(RW * 0.45));
+      const co = Math.floor((RW - CT) / 2);
+      g.fillStyle(0x9a7a52, 0.6);
       if (n || s) {
-        // Vertical strip through the body
-        g.fillRect(L + trackOffset, L, TRACK, RW);
-        if (n) g.fillRect(L + trackOffset, 0, TRACK, L);
-        if (s) g.fillRect(L + trackOffset, R, TRACK, SZ - R);
+        g.fillRect(L + co, L, CT, RW);
+        if (n) g.fillRect(L + co, 0, CT, L);
+        if (s) g.fillRect(L + co, R, CT, SZ - R);
       }
       if (e || w) {
-        // Horizontal strip
-        g.fillRect(L, L + trackOffset, RW, TRACK);
-        if (e) g.fillRect(R, L + trackOffset, SZ - R, TRACK);
-        if (w) g.fillRect(0, L + trackOffset, L, TRACK);
+        g.fillRect(L, L + co, RW, CT);
+        if (e) g.fillRect(R, L + co, SZ - R, CT);
+        if (w) g.fillRect(0, L + co, L, CT);
+      }
+      // 1-tile islands (no connections): tighter worn ring rather
+      // than just the wide center strip.
+      if (!n && !s && !e && !w) {
+        g.fillStyle(0x8a6a48, 0.5);
+        g.fillCircle(SZ / 2, SZ / 2, RW * 0.32);
       }
 
-      // 4. Road edges — darker line at every grass→dirt boundary.
-      //    Only along edges that AREN'T connecting to a neighbor.
-      g.lineStyle(1, 0x3e2a18, 0.6);
+      // 4. Grass-shoulder softening — light dirt strip along the inside
+      //    edge of every grass/road boundary. Makes the transition
+      //    look organic instead of a stamped border.
+      g.fillStyle(0x584028, 0.30);
+      const SHOULD = 2;
+      if (!n) g.fillRect(L, L, RW, SHOULD);
+      if (!s) g.fillRect(L, R - SHOULD, RW, SHOULD);
+      if (!w) g.fillRect(L, L, SHOULD, RW);
+      if (!e) g.fillRect(R - SHOULD, L, SHOULD, RW);
+
+      // 5. Wheel ruts — two faint parallel dark strokes along the
+      //    direction of travel. Skipped on isolated single tiles so
+      //    they don't look streaked.
+      const r1 = L + Math.floor(RW * 0.32);
+      const r2 = L + Math.floor(RW * 0.62);
+      g.lineStyle(1, 0x3a2a18, 0.30);
+      if (n || s) {
+        const y1 = n ? 0 : L;
+        const y2 = s ? SZ : R;
+        g.beginPath(); g.moveTo(r1, y1); g.lineTo(r1, y2); g.strokePath();
+        g.beginPath(); g.moveTo(r2, y1); g.lineTo(r2, y2); g.strokePath();
+      }
+      if (e || w) {
+        const x1 = w ? 0 : L;
+        const x2 = e ? SZ : R;
+        g.beginPath(); g.moveTo(x1, r1); g.lineTo(x2, r1); g.strokePath();
+        g.beginPath(); g.moveTo(x1, r2); g.lineTo(x2, r2); g.strokePath();
+      }
+
+      // 6. Gravel scatter — small light dots across the road surface.
+      //    Deterministic per-tile so identical autotiles have identical
+      //    texture (no flicker on re-renders).
+      g.fillStyle(0xa68a64, 0.45);
+      for (let i = 0; i < 14; i++) {
+        const px = rng(mask, i * 3 + 7, SZ);
+        const py = rng(mask, i * 5 + 13, SZ);
+        if (onRoad(px, py, n, s, e, w)) g.fillCircle(px, py, 0.7);
+      }
+
+      // 7. Larger pebbles — fewer, darker, deeper into the surface.
+      g.fillStyle(0x4a3820, 0.55);
+      for (let i = 0; i < 5; i++) {
+        const px = rng(mask, i * 11 + 2, SZ);
+        const py = rng(mask, i * 7 + 5, SZ);
+        if (onRoad(px, py, n, s, e, w)) g.fillCircle(px, py, 1.1);
+      }
+
+      // 8. Edge border lines — darker stroke where road meets grass.
+      g.lineStyle(1, 0x2e1f10, 0.55);
       if (!n) { g.beginPath(); g.moveTo(L, L); g.lineTo(R, L); g.strokePath(); }
       if (!s) { g.beginPath(); g.moveTo(L, R); g.lineTo(R, R); g.strokePath(); }
       if (!w) { g.beginPath(); g.moveTo(L, L); g.lineTo(L, R); g.strokePath(); }
       if (!e) { g.beginPath(); g.moveTo(R, L); g.lineTo(R, R); g.strokePath(); }
+      // Also stroke the arm/corner outer edges for connected sides
+      // so the road doesn't dissolve into the grass at the tile seam.
+      if (n && !w) { g.beginPath(); g.moveTo(L, 0); g.lineTo(L, L); g.strokePath(); }
+      if (n && !e) { g.beginPath(); g.moveTo(R, 0); g.lineTo(R, L); g.strokePath(); }
+      if (s && !w) { g.beginPath(); g.moveTo(L, R); g.lineTo(L, SZ); g.strokePath(); }
+      if (s && !e) { g.beginPath(); g.moveTo(R, R); g.lineTo(R, SZ); g.strokePath(); }
+      if (e && !n) { g.beginPath(); g.moveTo(R, L); g.lineTo(SZ, L); g.strokePath(); }
+      if (e && !s) { g.beginPath(); g.moveTo(R, R); g.lineTo(SZ, R); g.strokePath(); }
+      if (w && !n) { g.beginPath(); g.moveTo(0, L); g.lineTo(L, L); g.strokePath(); }
+      if (w && !s) { g.beginPath(); g.moveTo(0, R); g.lineTo(L, R); g.strokePath(); }
+
+      // 9. Grass tufts at the road edges — small angled green flecks
+      //    so the grass-road boundary feels alive rather than stamped.
+      g.lineStyle(0.8, 0x2a5028, 0.7);
+      const tuft = (x1, y1, x2, y2) => {
+        g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.strokePath();
+      };
+      if (!n) {
+        tuft(L + 4, L,     L + 3, L - 3);
+        tuft(L + 5, L,     L + 6, L - 3);
+        tuft(R - 6, L,     R - 7, L - 4);
+        tuft(R - 5, L,     R - 4, L - 3);
+      }
+      if (!s) {
+        tuft(L + 5, R,     L + 4, R + 3);
+        tuft(L + 6, R,     L + 7, R + 4);
+        tuft(R - 7, R,     R - 8, R + 3);
+        tuft(R - 5, R,     R - 4, R + 3);
+      }
+      if (!w) {
+        tuft(L, L + 4,     L - 3, L + 3);
+        tuft(L, L + 5,     L - 4, L + 6);
+        tuft(L, R - 6,     L - 3, R - 7);
+        tuft(L, R - 5,     L - 3, R - 4);
+      }
+      if (!e) {
+        tuft(R, L + 5,     R + 3, L + 4);
+        tuft(R, L + 6,     R + 4, L + 7);
+        tuft(R, R - 6,     R + 3, R - 8);
+        tuft(R, R - 4,     R + 3, R - 3);
+      }
 
       g.generateTexture('road-' + mask, SZ, SZ);
       g.destroy();
