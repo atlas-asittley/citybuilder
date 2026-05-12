@@ -20,7 +20,9 @@ import {
   getBuildingAoeRange,
   heatmapTintFor,
   computeWorldBounds as _computeWorldBounds,
-  sizeWalkerSvg
+  sizeWalkerSvg,
+  computePoliceCoverage as _computePoliceCoverage,
+  computeProblemTiles as _computeProblemTiles
 } from './helpers.js';
 
 const TILE_PX = 48;
@@ -812,53 +814,10 @@ export class MainScene extends Phaser.Scene {
   // staffed active police buildings' manhattan coverage radius.
   // Used by the crime-risk heatmap to red-tint uncovered tiles.
   _computePoliceCoverage() {
-    const covered = new Set();
-    const myId = state.currentUser?.id;
-    for (const b of state.allBuildings) {
-      if (b.player_id !== myId) continue;
-      const bt = state.buildingTypes[b.building_type_key];
-      if (!bt || bt.category !== 'police') continue;
-      if (b.status !== 'active' || !b.is_staffed) continue;
-      const r = bt.coverage_radius || 0;
-      const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
-      for (let dx = 0; dx < fw; dx++) {
-        for (let dy = 0; dy < fh; dy++) {
-          for (let rx = -r; rx <= r; rx++) {
-            for (let ry = -r; ry <= r; ry++) {
-              if (Math.abs(rx) + Math.abs(ry) <= r) {
-                covered.add((b.x + dx + rx) + ',' + (b.y + dy + ry));
-              }
-            }
-          }
-        }
-      }
-    }
-    return covered;
+    return _computePoliceCoverage(state.allBuildings, state.buildingTypes, state.currentUser?.id);
   }
-
-  // Tile keys covered by any of MY buildings that are in a "problem"
-  // state — idle, unstaffed (where workers are needed), or paused.
-  // Used by the building-issues heatmap.
   _computeProblemTiles() {
-    const tiles = new Set();
-    const myId = state.currentUser?.id;
-    for (const b of state.allBuildings) {
-      if (b.player_id !== myId) continue;
-      const bt = state.buildingTypes[b.building_type_key];
-      if (!bt) continue;
-      const isProblem =
-        b.status === 'idle' ||
-        (bt.worker_cost > 0 && !b.is_staffed) ||
-        b.paused === true;
-      if (!isProblem) continue;
-      const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
-      for (let dx = 0; dx < fw; dx++) {
-        for (let dy = 0; dy < fh; dy++) {
-          tiles.add((b.x + dx) + ',' + (b.y + dy));
-        }
-      }
-    }
-    return tiles;
+    return _computeProblemTiles(state.allBuildings, state.buildingTypes, state.currentUser?.id);
   }
 
   // Called by BuildMenu when the player picks a building type to

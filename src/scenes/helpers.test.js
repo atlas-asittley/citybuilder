@@ -7,7 +7,9 @@ import {
   heatmapTintFor,
   computeWorldBounds,
   sizeWalkerSvg,
-  tutorialAllowsBuilding
+  tutorialAllowsBuilding,
+  computePoliceCoverage,
+  computeProblemTiles
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -242,5 +244,95 @@ describe('tutorialAllowsBuilding', () => {
   it('step 3 adds extractors but still not processors', () => {
     expect(tutorialAllowsBuilding(bts.iron, 3)).toBe(true);
     expect(tutorialAllowsBuilding(bts.kiln, 3)).toBe(false);
+  });
+});
+
+describe('computePoliceCoverage', () => {
+  const buildingTypes = {
+    watch_house: { category: 'police', coverage_radius: 2, footprint_w: 1, footprint_h: 1 },
+    house: { category: 'housing', footprint_w: 1, footprint_h: 1 }
+  };
+
+  it('returns empty set with no police', () => {
+    expect(computePoliceCoverage([], buildingTypes, 'me').size).toBe(0);
+  });
+  it('includes anchor + manhattan disk around a 1x1 r2 police', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'watch_house', x: 5, y: 5 }
+    ];
+    const covered = computePoliceCoverage(buildings, buildingTypes, 'me');
+    expect(covered.has('5,5')).toBe(true);     // anchor
+    expect(covered.has('5,7')).toBe(true);     // r=2 south
+    expect(covered.has('7,5')).toBe(true);     // r=2 east
+    expect(covered.has('6,6')).toBe(true);     // diagonal sum=2
+    expect(covered.has('7,7')).toBe(false);    // diagonal sum=4
+    expect(covered.has('5,8')).toBe(false);    // r=3 south
+  });
+  it('excludes unstaffed / idle / wrong-owner police', () => {
+    const buildings = [
+      { player_id: 'someone-else', status: 'active', is_staffed: true,
+        building_type_key: 'watch_house', x: 5, y: 5 },
+      { player_id: 'me', status: 'idle', is_staffed: true,
+        building_type_key: 'watch_house', x: 10, y: 10 },
+      { player_id: 'me', status: 'active', is_staffed: false,
+        building_type_key: 'watch_house', x: 20, y: 20 }
+    ];
+    expect(computePoliceCoverage(buildings, buildingTypes, 'me').size).toBe(0);
+  });
+});
+
+describe('computeProblemTiles', () => {
+  const buildingTypes = {
+    house: { category: 'housing', worker_cost: 0, footprint_w: 1, footprint_h: 1 },
+    mill: { category: 'processor', worker_cost: 10, footprint_w: 1, footprint_h: 1 },
+    smelter: { category: 'processor', worker_cost: 10, footprint_w: 2, footprint_h: 1 }
+  };
+
+  it('flags idle buildings', () => {
+    const buildings = [
+      { player_id: 'me', status: 'idle', is_staffed: true,
+        building_type_key: 'mill', x: 1, y: 1 }
+    ];
+    const tiles = computeProblemTiles(buildings, buildingTypes, 'me');
+    expect(tiles.has('1,1')).toBe(true);
+  });
+  it('flags unstaffed worker buildings', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: false,
+        building_type_key: 'mill', x: 2, y: 2 }
+    ];
+    expect(computeProblemTiles(buildings, buildingTypes, 'me').has('2,2')).toBe(true);
+  });
+  it('does NOT flag worker-less housing for staffing', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: false,
+        building_type_key: 'house', x: 3, y: 3 }
+    ];
+    expect(computeProblemTiles(buildings, buildingTypes, 'me').size).toBe(0);
+  });
+  it('flags paused buildings', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: true, paused: true,
+        building_type_key: 'mill', x: 4, y: 4 }
+    ];
+    expect(computeProblemTiles(buildings, buildingTypes, 'me').has('4,4')).toBe(true);
+  });
+  it('covers every footprint tile of a multi-tile building', () => {
+    const buildings = [
+      { player_id: 'me', status: 'idle', is_staffed: true,
+        building_type_key: 'smelter', x: 5, y: 5 }
+    ];
+    const tiles = computeProblemTiles(buildings, buildingTypes, 'me');
+    expect(tiles.has('5,5')).toBe(true);
+    expect(tiles.has('6,5')).toBe(true);   // fw=2
+    expect(tiles.size).toBe(2);
+  });
+  it('ignores other players', () => {
+    const buildings = [
+      { player_id: 'someone-else', status: 'idle', is_staffed: true,
+        building_type_key: 'mill', x: 1, y: 1 }
+    ];
+    expect(computeProblemTiles(buildings, buildingTypes, 'me').size).toBe(0);
   });
 });

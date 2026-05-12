@@ -183,6 +183,59 @@ export function tutorialAllowsBuilding(bt, tutorialStep) {
   return false;
 }
 
+// ── Heatmap data computation ────────────────────────────────────
+//
+// Set of "x,y" tile keys covered by any of `myId`'s staffed active
+// police buildings' manhattan disks. Pure function so tests don't
+// need a Phaser scene to validate the geometry.
+export function computePoliceCoverage(allBuildings, buildingTypes, myId) {
+  const covered = new Set();
+  for (const b of allBuildings) {
+    if (b.player_id !== myId) continue;
+    const bt = buildingTypes[b.building_type_key];
+    if (!bt || bt.category !== 'police') continue;
+    if (b.status !== 'active' || !b.is_staffed) continue;
+    const r = bt.coverage_radius || 0;
+    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+    for (let dx = 0; dx < fw; dx++) {
+      for (let dy = 0; dy < fh; dy++) {
+        for (let rx = -r; rx <= r; rx++) {
+          for (let ry = -r; ry <= r; ry++) {
+            if (Math.abs(rx) + Math.abs(ry) <= r) {
+              covered.add((b.x + dx + rx) + ',' + (b.y + dy + ry));
+            }
+          }
+        }
+      }
+    }
+  }
+  return covered;
+}
+
+// Tile keys covered by buildings owned by `myId` that are in a
+// problem state — idle, unstaffed-but-needs-workers, or paused.
+// Used by the building-issues heatmap.
+export function computeProblemTiles(allBuildings, buildingTypes, myId) {
+  const tiles = new Set();
+  for (const b of allBuildings) {
+    if (b.player_id !== myId) continue;
+    const bt = buildingTypes[b.building_type_key];
+    if (!bt) continue;
+    const isProblem =
+      b.status === 'idle' ||
+      (bt.worker_cost > 0 && !b.is_staffed) ||
+      b.paused === true;
+    if (!isProblem) continue;
+    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+    for (let dx = 0; dx < fw; dx++) {
+      for (let dy = 0; dy < fh; dy++) {
+        tiles.add((b.x + dx) + ',' + (b.y + dy));
+      }
+    }
+  }
+  return tiles;
+}
+
 // ── Walker SVG sizing ──────────────────────────────────────────
 //
 // Inject explicit width/height into a walker SVG data URI so the
