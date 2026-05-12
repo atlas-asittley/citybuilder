@@ -141,7 +141,12 @@ function renderInspector() {
     rows.push(issueListHtml(issues));
   }
   if (bt.worker_cost > 0) rows.push(row('Workers', b.is_staffed ? `${bt.worker_cost} (staffed)` : `${bt.worker_cost} (unstaffed)`));
-  if (b.housing_tier !== undefined && b.housing_tier !== null) {
+  // Housing-only block: tier, upgrade blockers, pantry, devolve risk,
+  // last-devolve reason. Gated on bt.category === 'housing' because
+  // the housing_tier column is non-null even for non-housing rows
+  // (defaults to 0), so checking the column alone would surface "needs
+  // a well" / "needs food" on extractors and processors too.
+  if (bt.category === 'housing') {
     const tier = state.housingTierConfig[b.housing_tier];
     rows.push(row('Housing tier', tier ? `${tier.name} (tier ${b.housing_tier})` : `tier ${b.housing_tier}`));
     if (b.population) rows.push(row('Residents', b.population));
