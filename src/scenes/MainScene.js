@@ -373,7 +373,15 @@ export class MainScene extends Phaser.Scene {
   }
 
   _tickWalkers(_time, delta) {
-    const dt = delta / 1000;
+    // Clamp dt to ~50ms (Atlas 2026-05-11: "walkers slow down like
+    // they're lagging, then speed up"). When the main thread is
+    // blocked (rerenderBuildings, realtime bursts, etc.), Phaser's
+    // next update fires with a `delta` reflecting the full pause.
+    // Without clamping, walkers would multiply that delta by their
+    // speed and teleport forward. Capping at 50ms means the walker
+    // just appears to hold still during the block, then resumes
+    // smoothly — no jarring catch-up jump.
+    const dt = Math.min(delta, 50) / 1000;
     this._walkerSpawnTimer += dt;
 
     if (this._walkerSpawnTimer >= WALKER_SPAWN_MS / 1000) {
