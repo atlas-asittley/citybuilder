@@ -67,6 +67,19 @@ export async function cancelTrade(offerId) {
   return data;
 }
 
+// Fetch the counterparty's tradeable money + inventory. RLS-scoped on
+// the server so this is the only way to see another player's stock.
+// Returns { money, inventory: { resource_key: quantity, ... } }.
+// Used by the compose dialog to annotate the "receive" side with
+// "they have N" and refuse asking for more than they can give.
+export async function getPlayerTradeView(otherPlayerId) {
+  const { data, error } = await sb.rpc('get_player_trade_view', {
+    p_player_id: otherPlayerId
+  });
+  if (error) throw error;
+  return data;
+}
+
 // Pulls every offer the current player is a party to (incoming +
 // outgoing, pending only). RLS scopes by player_id already.
 export async function listMyOffers() {

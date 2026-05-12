@@ -6,11 +6,16 @@ import {
   listMyOffers, listTradeAgreements,
   acceptTrade, rejectTrade, cancelTrade,
   acceptTradeAgreement, cancelTradeAgreement,
-  proposeTrade, proposeTradeAgreement
+  proposeTrade, proposeTradeAgreement,
+  getPlayerTradeView
 } from '../../api/trade.js';
 import { sb } from '../../api/supabase.js';
 
 let composeTarget = null;
+// Counterparty's tradeable stock — populated async after compose
+// opens. Lets the receive-side annotate "they have N" + the Send
+// button refuse to ask for more than they have.
+let composeTargetView = null;
 
 export async function renderTradePlayers(parent) {
   if (composeTarget) {
@@ -66,6 +71,20 @@ export async function renderTradePlayers(parent) {
   parent.querySelectorAll('.tp-roster-trade').forEach((btn) => {
     btn.addEventListener('click', () => {
       composeTarget = { id: btn.dataset.pid, display_name: btn.dataset.name };
+      composeTargetView = null;   // null = still loading
+      // Kick off the trade-view fetch in parallel with the compose
+      // render. When it lands, we re-render so the receive-side picks
+      // up "they have N" annotations.
+      const fetchedFor = composeTarget.id;
+      getPlayerTradeView(composeTarget.id).then((view) => {
+        if (composeTarget?.id !== fetchedFor) return;   // user closed / switched
+        composeTargetView = view || { money: 0, inventory: {} };
+        renderTradePlayers(parent);
+      }).catch(() => {
+        // Server error — leave view null. Compose still works, just
+        // without availability annotations or pre-validation.
+        if (composeTarget?.id === fetchedFor) composeTargetView = { money: 0, inventory: {} };
+      });
       renderTradePlayers(parent);
     });
   });
@@ -89,6 +108,24 @@ function renderOfferRow(o, dir) {
     : (o.to_player?.display_name || 'someone');
   const youGet = dir === 'incoming' ? give : receive;
   const youGive = dir === 'incoming' ? receive : give;
+
+  // For incoming offers, pre-check whether I can actually fulfill the
+  // give-side. If not, the Accept button disables and we show what's
+  // missing so the player doesn't tap, get a vague error, and lose
+  // trust. The carve-out matches the server (`accept_trade` accepts
+  // zero-money even with a negative-cash counterparty).
+  let blockerHtml = '';
+  let acceptDisabled = '';
+  if (dir === 'incoming') {
+    const blockers = computeInboxBlockers(o);
+    if (blockers.length > 0) {
+      acceptDisabled = 'disabled';
+      blockerHtml = `<div class="to-offer-blocker">
+        Can't accept yet: missing ${blockers.map(escapeHtml).join(', ')}
+      </div>`;
+    }
+  }
+
   return `<div class="to-offer">
     <div class="to-offer-head">
       <span class="to-offer-who">${dir === 'incoming' ? 'from' : 'to'} ${escapeHtml(otherName)}</span>
@@ -99,13 +136,43 @@ function renderOfferRow(o, dir) {
       <div class="to-bundle to-bundle-get"><span class="to-bundle-label">${dir === 'incoming' ? 'You get' : 'You receive'}</span>${youGet}</div>
     </div>
     ${o.message ? `<div class="to-offer-msg">"${escapeHtml(o.message)}"</div>` : ''}
+    ${blockerHtml}
     <div class="to-offer-actions">
       ${dir === 'incoming'
-        ? `<button class="ip-btn ip-btn-primary" data-act="accept" data-id="${o.id}">Accept</button>
+        ? `<button class="ip-btn ip-btn-primary" data-act="accept" data-id="${o.id}" ${acceptDisabled}>Accept</button>
            <button class="ip-btn ip-btn-danger"  data-act="reject" data-id="${o.id}">Reject</button>`
         : `<button class="ip-btn ip-btn-danger"  data-act="cancel" data-id="${o.id}">Cancel</button>`}
     </div>
   </div>`;
+}
+
+// For an incoming offer, return labels of resources / money I'd need
+// to fulfill the give-side but don't currently have. Empty array means
+// I can accept. Money carve-out: the offer expects ME to send X cash —
+// if I have less, that's a blocker. (No symmetric reverse — the server
+// gates the counterparty's ability to deliver separately at accept.)
+//
+// Exported with ctx-bag so it's unit-testable. The render path uses
+// the no-arg overload that reads from `state` directly.
+export function computeInboxBlockers(offer, ctx) {
+  const myMoney = Number((ctx?.money) ?? state.profile?.money ?? 0);
+  const inv = ctx?.inventory ?? state.inventory ?? {};
+  const resources = ctx?.resources ?? state.resourceNodes ?? {};
+
+  const blockers = [];
+  const askedMoney = Number(offer.receive_money || 0);
+  if (askedMoney > myMoney) {
+    blockers.push(`$${askedMoney - myMoney}`);
+  }
+  const askedResources = Array.isArray(offer.receive_resources) ? offer.receive_resources : [];
+  for (const r of askedResources) {
+    const have = Math.floor(Number(inv[r.resource_key] || 0));
+    if (have < r.quantity) {
+      const name = resources[r.resource_key]?.name || r.resource_key;
+      blockers.push(`${r.quantity - have} ${name}`);
+    }
+  }
+  return blockers;
 }
 
 function renderAgreementRow(a, myId, status) {
@@ -144,20 +211,46 @@ function renderCompose(parent) {
   const resourceOptions = Object.values(state.resourceNodes)
     .filter((r) => r.is_active && r.base_price)
     .sort((a, b) => a.name.localeCompare(b.name));
+  const targetLoaded = composeTargetView !== null;
+  const targetInventory = composeTargetView?.inventory || {};
+  const targetMoney = composeTargetView?.money;
+
+  // Receive-side dropdown lists every resource but annotates with
+  // "(they have N)" for ones the counterparty holds. While the view
+  // is still loading, show "loading…" instead of bogus zeros.
+  const receiveOptions = resourceOptions.map((r) => {
+    const have = Math.floor(Number(targetInventory[r.key] || 0));
+    const note = !targetLoaded ? ' (loading…)'
+      : have > 0 ? ` (they have ${have})`
+      : ' (they have 0)';
+    return `<option value="${r.key}">${r.name}${note}</option>`;
+  }).join('');
+
+  // Give-side annotates with what *I* have so the player doesn't
+  // accidentally promise more than they can deliver.
+  const giveOptions = resourceOptions.map((r) => {
+    const mine = Math.floor(Number(state.inventory?.[r.key] || 0));
+    const note = mine > 0 ? ` (you have ${mine})` : ' (you have 0)';
+    return `<option value="${r.key}">${r.name}${note}</option>`;
+  }).join('');
+
+  const moneyHint = !targetLoaded ? 'loading…'
+    : targetMoney != null ? `they have $${targetMoney}`
+    : '';
 
   parent.innerHTML = `
     <p class="to-hint">Trade with <strong>${escapeHtml(composeTarget.display_name)}</strong> — one-off or recurring.</p>
     <div class="to-compose">
       <div class="to-compose-half">
         <h3 class="to-section-title">You give</h3>
-        <label class="to-field"><span>$ money</span><input type="number" min="0" id="give-money" value="0"/></label>
-        <label class="to-field"><span>Resource</span><select id="give-res"><option value="">(none)</option>${resourceOptions.map((r) => `<option value="${r.key}">${r.name}</option>`).join('')}</select></label>
+        <label class="to-field"><span>$ money <small class="to-avail">you have $${Math.floor(state.profile?.money || 0)}</small></span><input type="number" min="0" id="give-money" value="0"/></label>
+        <label class="to-field"><span>Resource</span><select id="give-res"><option value="">(none)</option>${giveOptions}</select></label>
         <label class="to-field"><span>Quantity</span><input type="number" min="0" id="give-qty" value="0"/></label>
       </div>
       <div class="to-compose-half">
         <h3 class="to-section-title">You receive</h3>
-        <label class="to-field"><span>$ money</span><input type="number" min="0" id="recv-money" value="0"/></label>
-        <label class="to-field"><span>Resource</span><select id="recv-res"><option value="">(none)</option>${resourceOptions.map((r) => `<option value="${r.key}">${r.name}</option>`).join('')}</select></label>
+        <label class="to-field"><span>$ money <small class="to-avail">${escapeHtml(moneyHint)}</small></span><input type="number" min="0" id="recv-money" value="0"/></label>
+        <label class="to-field"><span>Resource</span><select id="recv-res"><option value="">(none)</option>${receiveOptions}</select></label>
         <label class="to-field"><span>Quantity</span><input type="number" min="0" id="recv-qty" value="0"/></label>
       </div>
     </div>
@@ -201,6 +294,40 @@ function renderCompose(parent) {
     if (recurring && (!Number.isFinite(interval) || interval <= 0)) {
       alert('Enter a positive interval in minutes.');
       return;
+    }
+
+    // If we have the counterparty view, refuse asking for more than
+    // they actually have. Money check has a carve-out for receiveMoney
+    // = 0 so a recipient with negative cash can still ACCEPT an offer
+    // that asks them for goods only (matches accept_trade server gate).
+    if (composeTargetView) {
+      if (recvMoney > 0 && (composeTargetView.money || 0) < recvMoney) {
+        alert(`${composeTarget.display_name} only has $${Math.max(0, composeTargetView.money || 0)} — lower the requested money.`);
+        return;
+      }
+      for (const r of recvBundle) {
+        const have = Math.floor(Number(composeTargetView.inventory?.[r.resource_key] || 0));
+        if (have < r.quantity) {
+          const name = state.resourceNodes?.[r.resource_key]?.name || r.resource_key;
+          alert(`${composeTarget.display_name} only has ${have} ${name} — they can't fulfill this offer.`);
+          return;
+        }
+      }
+    }
+
+    // Symmetric: refuse over-promising on the give side too. Server
+    // catches this at accept time but client-side is faster + clearer.
+    if (giveMoney > 0 && giveMoney > Math.floor(state.profile?.money || 0)) {
+      alert(`You only have $${Math.floor(state.profile?.money || 0)} — lower the give amount.`);
+      return;
+    }
+    for (const r of giveBundle) {
+      const mine = Math.floor(Number(state.inventory?.[r.resource_key] || 0));
+      if (mine < r.quantity) {
+        const name = state.resourceNodes?.[r.resource_key]?.name || r.resource_key;
+        alert(`You only have ${mine} ${name} — lower the give quantity.`);
+        return;
+      }
     }
 
     btn.disabled = true; btn.textContent = 'Sending…';
