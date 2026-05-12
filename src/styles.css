@@ -738,9 +738,13 @@ body.app-hidden *::after {
 }
 .tb-btn:hover { background: #1a2a40; }
 .tb-btn-icon {
-  padding: 4px 8px;
-  font-size: 15px;
-  min-width: 30px;
+  padding: 0;
+  font-size: 17px;
+  width: 36px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Settings + Players overlays — same modal shape as expansion */
