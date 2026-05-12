@@ -1031,34 +1031,35 @@ export class MainScene extends Phaser.Scene {
     if (this.textures.exists('grass-v0')) return;
     const SZ = TILE_PX;
 
-    const variants = [
-      { base: 0x4a6440, accents: [0x3e5836, 0x547248] },
-      { base: 0x506a44, accents: [0x405c3a, 0x5a7a4c] },
-      { base: 0x466038, accents: [0x3a5430, 0x506a40] },
-      { base: 0x4e6a44, accents: [0x42603c, 0x587648] }
-    ];
-    for (let v = 0; v < variants.length; v++) {
-      const cfg = variants[v];
+    // All 4 variants share the SAME base color so adjacent tiles
+    // blend into a continuous field. Variation lives only inside an
+    // inner box (5..SZ-5) so the outer 5px ring is always the same
+    // exact green across every tile — no seam visible at the join.
+    const BASE = 0x4a6440;
+    const ACCENT_DARK  = 0x3e5836;
+    const ACCENT_LIGHT = 0x547248;
+    const MARGIN = 5;
+    const INNER_W = SZ - MARGIN * 2;
+    for (let v = 0; v < 4; v++) {
       const g = this.add.graphics();
-      g.fillStyle(cfg.base, 1);
+      g.fillStyle(BASE, 1);
       g.fillRect(0, 0, SZ, SZ);
-      // 80 small noise specks, deterministic per variant so the same
-      // texture rebuilds identically on every scene boot.
+      // 80 single-pixel speckles, confined to the inner box.
       for (let i = 0; i < 80; i++) {
         const seed = (v * 9301 + i * 49297 + 233280) % 233280;
-        const x = (seed % SZ);
-        const y = ((seed / SZ) | 0) % SZ;
-        const accentIdx = ((seed >> 4) & 1);
-        g.fillStyle(cfg.accents[accentIdx], 0.55);
+        const x = MARGIN + (seed % INNER_W);
+        const y = MARGIN + (((seed / INNER_W) | 0) % INNER_W);
+        const accent = ((seed >> 4) & 1) ? ACCENT_LIGHT : ACCENT_DARK;
+        g.fillStyle(accent, 0.55);
         g.fillRect(x, y, 1, 1);
       }
-      // A few subtle 2x2 "darker clumps" to break up the speckle and
-      // suggest grass tufts.
+      // 6 darker 2x2 clumps inside the same inner box.
+      const INNER_W_2 = INNER_W - 2;
       for (let i = 0; i < 6; i++) {
         const seed = (v * 5701 + i * 67891 + 887) % 233280;
-        const x = (seed % (SZ - 2));
-        const y = ((seed / SZ) | 0) % (SZ - 2);
-        g.fillStyle(cfg.accents[0], 0.40);
+        const x = MARGIN + (seed % INNER_W_2);
+        const y = MARGIN + (((seed / INNER_W_2) | 0) % INNER_W_2);
+        g.fillStyle(ACCENT_DARK, 0.40);
         g.fillRect(x, y, 2, 2);
       }
       g.generateTexture('grass-v' + v, SZ, SZ);
