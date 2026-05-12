@@ -23,6 +23,8 @@ import { openBellLog, mountBellLog } from './BellLog.js';
 import { openReports } from './ReportsPanel.js';
 import { openTradeOffers } from './TradeOffersPanel.js';
 import { openCityResources } from './CityResourcesPanel.js';
+import { sb } from '../api/supabase.js';
+import { showToast } from './Toast.js';
 
 let mounted = false;
 let onExpandedCallback = null;
@@ -118,6 +120,29 @@ export function mountTopBar(onExpanded) {
   wireMore('tb-settings', openSettings);
 
   mountBellLog();
+
+  // Triple-tap the money chip → server-side dev_grant_money cheat.
+  // v1 has this as a developer convenience; same RPC, same gesture.
+  let moneyTaps = 0;
+  let moneyTapTimer = null;
+  document.getElementById('tb-money-stat').addEventListener('click', async () => {
+    moneyTaps++;
+    if (moneyTapTimer) clearTimeout(moneyTapTimer);
+    if (moneyTaps >= 3) {
+      moneyTaps = 0;
+      try {
+        const { data, error } = await sb.rpc('dev_grant_money', { p_amount: 100000 });
+        if (error) throw error;
+        if (data?.money !== undefined) state.profile.money = data.money;
+        refreshTopBar();
+        showToast('+$100,000 (dev cheat)', 'success');
+      } catch (err) {
+        showToast('Cheat failed: ' + (err.message || err), 'error');
+      }
+      return;
+    }
+    moneyTapTimer = setTimeout(() => { moneyTaps = 0; }, 600);
+  });
 
   // Trader reset countdown: refresh every second so the displayed
   // "Xh Ym" doesn't drift.

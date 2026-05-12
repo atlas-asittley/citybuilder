@@ -313,6 +313,14 @@ body.anim-off *::after {
   animation: none !important;
   transition: none !important;
 }
+
+/* When the tab is hidden, pause every CSS animation too — same
+   spirit as Phaser.loop.sleep() above. Mirrors v1's app-hidden. */
+body.app-hidden *,
+body.app-hidden *::before,
+body.app-hidden *::after {
+  animation-play-state: paused !important;
+}
 .topbar-actions {
   display: flex;
   align-items: center;

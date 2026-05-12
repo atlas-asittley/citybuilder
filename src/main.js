@@ -61,6 +61,19 @@ const game = new Phaser.Game({
 // screen / loading screen also honor it.
 applyAnimationsPreference();
 
+// Pause Phaser's main loop when the tab is backgrounded so the
+// compositor isn't drawing walker frames the player can't see.
+// Mirrors v1's app-hidden body class. The walker tween + smoke
+// puffs stop along with the rest of the scene; resume on focus.
+document.addEventListener('visibilitychange', () => {
+  document.body.classList.toggle('app-hidden', document.hidden);
+  if (document.hidden) {
+    game.loop?.sleep?.();
+  } else {
+    game.loop?.wake?.();
+  }
+});
+
 if (sandboxMode) {
   console.log('Sandbox mode — auth bypassed');
 } else {
