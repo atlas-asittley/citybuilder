@@ -64,8 +64,8 @@ export function openBugReport() {
       active_subtab: document.querySelector('.bp-subtab.active')?.dataset.sub || null,
       city_name: state.cityName,
       version: 'v2',
-      recent_notifications: (state.notifications || []).slice(-10).map((n) => ({
-        kind: n.kind, msg: n.message || null, at: n.created_at
+      recent_notifications: ((state.notifications) || []).slice(-10).map((n) => ({
+        kind: n?.kind, msg: n?.message || null, at: n?.created_at
       }))
     };
 

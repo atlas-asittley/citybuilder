@@ -1160,6 +1160,19 @@ body.app-hidden *::after {
 .tp-mode-airport  { background: rgba(120, 100, 200, 0.20); color: #b0a0e0; }
 .tp-mode-rail     { background: rgba(160, 100, 60, 0.20);  color: #d0a070; }
 
+.tp-trader-locked {
+  opacity: 0.7;
+  background: rgba(15, 52, 96, 0.5);
+}
+.tp-trader-locked .tp-trader-card-name { color: #888; }
+.tp-trader-lock { font-size: 12px; }
+.tp-trader-card-hint {
+  color: #e0b070;
+  font-size: 11px;
+  font-style: italic;
+  margin-top: 4px;
+}
+
 /* Black Market stepper */
 .bm-row {
   padding: 8px;

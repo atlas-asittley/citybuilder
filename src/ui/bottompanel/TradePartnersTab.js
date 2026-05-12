@@ -203,12 +203,14 @@ function computeBestDeals(resourceTraders) {
 }
 
 // Trader directory at the top of the Partners tab. Lists every known
-// trader with name + transport-mode badge + description + next-visit
-// countdown. Gives the player a "who's in town" snapshot without
-// scrolling resource-by-resource.
+// trader with lock state + name + transport-mode badge + description +
+// next-visit countdown. Gives the player a "who's in town" snapshot
+// AND tells them why some traders are locked out (the missing piece
+// that v2 was previously hiding entirely).
 function renderTraderDirectory() {
   const traders = Object.values(state.traders || {});
   if (traders.length === 0) return '';
+  const unlocks = computeTraderUnlocks();
   const now = Date.now();
   const rows = traders.map((t) => {
     const lastIso = state.traderLastVisits?.[t.key];
@@ -224,19 +226,102 @@ function renderTraderDirectory() {
       else countdown = `${Math.floor(diff / 3600000)}h ${Math.ceil((diff % 3600000) / 60000)}m`;
     }
     const mode = t.mode || t.transport_mode || 'starter';
-    return `<div class="tp-trader-card">
+    const unlock = unlocks[t.key] || { unlocked: true, hint: '' };
+    return `<div class="tp-trader-card ${unlock.unlocked ? '' : 'tp-trader-locked'}">
       <div class="tp-trader-card-head">
+        ${unlock.unlocked ? '' : '<span class="tp-trader-lock">🔒</span>'}
         <span class="tp-trader-card-name">${escapeHtml(t.name)}</span>
         <span class="tp-mode-badge tp-mode-${mode}">${escapeHtml(mode)}</span>
-        <span class="tp-trader-card-next">next visit · ${escapeHtml(countdown)}</span>
+        ${unlock.unlocked ? `<span class="tp-trader-card-next">next visit · ${escapeHtml(countdown)}</span>` : ''}
       </div>
-      ${t.description ? `<div class="tp-trader-card-desc">${escapeHtml(t.description)}</div>` : ''}
+      ${unlock.unlocked
+        ? (t.description ? `<div class="tp-trader-card-desc">${escapeHtml(t.description)}</div>` : '')
+        : `<div class="tp-trader-card-hint">${escapeHtml(unlock.hint || 'Locked.')}</div>`}
     </div>`;
   }).join('');
+  const lockedCount = traders.filter((t) => !(unlocks[t.key]?.unlocked ?? true)).length;
+  const totalLabel = lockedCount > 0
+    ? `${traders.length} <small>(${lockedCount} locked)</small>`
+    : String(traders.length);
   return `<details class="tp-directory" open>
-    <summary>Traders in this city <small>(${traders.length})</small></summary>
+    <summary>Traders in this city ${totalLabel}</summary>
     ${rows}
   </details>`;
+}
+
+// Compute unlock state per trader. Mirrors v1's state.js
+// computeTraderUnlocks model (auto-port from 2026-05-10):
+//   - river_traders ("Neighboring City"): always on
+//   - desert_caravan / mountain_folk: legacy, retired
+//   - transport_mode traders: unlocked when this player has access
+//     to that mode (owns matching hub on a road, OR owns a road-
+//     connected truck_depot AND the city has any road-connected hub
+//     of that mode)
+function computeTraderUnlocks() {
+  const out = {};
+  const traders = state.traders || {};
+  const my = state.allBuildings.filter((b) => b.player_id === state.currentUser?.id);
+  const city = state.allBuildings;
+
+  const isRoadConnected = (b) => {
+    const bt = state.buildingTypes[b.building_type_key];
+    if (!bt) return false;
+    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+    for (let dx = 0; dx < fw; dx++) {
+      if (hasRoad(b.x + dx, b.y - 1)) return true;
+      if (hasRoad(b.x + dx, b.y + fh)) return true;
+    }
+    for (let dy = 0; dy < fh; dy++) {
+      if (hasRoad(b.x - 1, b.y + dy)) return true;
+      if (hasRoad(b.x + fw, b.y + dy)) return true;
+    }
+    return false;
+  };
+  const roadSet = new Set();
+  for (const b of state.allBuildings) {
+    if (state.buildingTypes[b.building_type_key]?.category === 'road') {
+      roadSet.add(b.x + ',' + b.y);
+    }
+  }
+  function hasRoad(x, y) { return roadSet.has(x + ',' + y); }
+
+  const modeHubKey = (mode) => mode === 'airport' ? 'airport'
+    : mode === 'seaport' ? 'seaport'
+    : mode === 'train' ? 'train_depot' : null;
+
+  const hubMatches = (b, mode) => {
+    const bt = state.buildingTypes[b.building_type_key];
+    if (!bt || bt.category !== 'transport_hub') return false;
+    if (b.status !== 'active') return false;
+    return b.building_type_key === modeHubKey(mode) && isRoadConnected(b);
+  };
+  const isTruckDepot = (b) =>
+    b.building_type_key === 'truck_depot' && b.status === 'active' && isRoadConnected(b);
+
+  const playerHasAccess = (mode) => {
+    if (mode === 'truck') return my.some(isTruckDepot);
+    if (my.some((b) => hubMatches(b, mode))) return true;
+    if (!my.some(isTruckDepot)) return false;
+    return city.some((b) => hubMatches(b, mode));
+  };
+
+  for (const tk in traders) {
+    const t = traders[tk];
+    if (tk === 'river_traders') {
+      out[tk] = { unlocked: true, hint: '' };
+    } else if (tk === 'desert_caravan' || tk === 'mountain_folk') {
+      out[tk] = { unlocked: false, hint: 'Retired — collapsed into Neighboring City.' };
+    } else if (t.transport_mode) {
+      const has = playerHasAccess(t.transport_mode);
+      const hint = has ? '' : (t.transport_mode === 'truck'
+        ? 'Build a Truck Depot (with road access) to unlock this trader.'
+        : `Build a ${t.transport_mode} hub or a Truck Depot to plug into the city's ${t.transport_mode} network.`);
+      out[tk] = { unlocked: has, hint };
+    } else {
+      out[tk] = { unlocked: true, hint: '' };
+    }
+  }
+  return out;
 }
 
 function escapeHtml(s) {

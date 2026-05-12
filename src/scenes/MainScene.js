@@ -1531,6 +1531,24 @@ export class MainScene extends Phaser.Scene {
     });
     // Mobile zoom UI lives in DOM (ZoomControls.js) so it isn't
     // affected by the camera's zoom transform.
+
+    // Escape cancels placement + expansion preview. Useful muscle
+    // memory from v1 (and just standard "I changed my mind" affordance).
+    // Bound at document scope so it works even if the canvas hasn't
+    // grabbed focus; ignored if a panel input has focus.
+    this._escHandler = (e) => {
+      if (e.key !== 'Escape') return;
+      const t = document.activeElement;
+      if (t && ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
+      if (this._placementMode) {
+        this.setPlacementMode(null);
+        e.preventDefault();
+      } else if (this._expansionOverlays?.length > 0) {
+        this.clearExpansionCandidates();
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('keydown', this._escHandler);
   }
 
   // ── Map view persistence ──────────────────────────────────────

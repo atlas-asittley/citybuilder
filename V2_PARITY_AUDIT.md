@@ -72,6 +72,14 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 
 ---
 
+## Post-audit discoveries (commit 68 and beyond)
+
+Items found by a fresh "unknown unknowns" scan after the original 47 closed.
+
+- [x] **Trader unlock state + UI lock badges** (`v1-parity audit, commit 68/N`) — Partners trader directory was listing locked traders as if they were available. Ported v1's computeTraderUnlocks (per-mode road-connectivity + truck-depot bridge) so locked traders show with a 🔒 + hint ("Build a Truck Depot to plug into the city's airport network").
+- [x] **Escape cancels placement + expansion preview** (`v1-parity audit, commit 68/N`) — keydown listener on document, ignored when a panel input has focus.
+- [x] **BugReportModal nullguard on state.notifications** (`v1-parity audit, commit 68/N`) — defensive `?.` in case notifications hasn't loaded yet at bug-report time.
+
 ## Out of scope (or already-decided design changes)
 
 - Trade policies moved from per-resource drilldown to Trade > Partners — keep v2's location.
