@@ -22,28 +22,45 @@ export function mountIndustrySelectScreen(onComplete) {
   });
 
   function render(isFirstPlayer) {
+    // v1 ordering: title + sub, FORM FIRST (name, district, city),
+    // THEN industry cards, then confirm. Mirror that here.
     root.innerHTML = `
       <div class="ui-screen ui-screen-center">
         <div class="ui-card ui-card-wide">
-          <h1 class="ui-title">Welcome</h1>
-          <p class="ui-subtitle">Pick your starting industry and set up your district.</p>
-
-          <div class="industry-grid">
-            ${INDUSTRIES.map((ind) => `
-              <button class="industry-card" data-industry="${ind.key}">
-                <div class="ic-icon" style="color:${ind.color};">${ind.icon}</div>
-                <div class="ic-name">${ind.name}</div>
-                <div class="ic-desc">${ind.desc}</div>
-              </button>
-            `).join('')}
-          </div>
+          <h1 class="ui-title">Choose Your Industry</h1>
+          <p class="ui-subtitle">Pick your specialization. This decides your buildings and resources.</p>
 
           <form class="ui-form" id="industry-form">
-            <input type="text" id="industry-name" placeholder="Screen name" minlength="2" maxlength="24" required />
-            <input type="text" id="industry-district" placeholder="District name" minlength="2" maxlength="40" required />
-            ${isFirstPlayer ? '<input type="text" id="industry-city" placeholder="City name (you are the first founder)" minlength="2" maxlength="40" required />' : ''}
-            <button type="submit" class="ui-btn-primary" id="industry-confirm" disabled>Choose an industry first</button>
+            <label class="ui-field">
+              <span class="ui-field-label">Screen Name</span>
+              <input type="text" id="industry-name" placeholder="Pick a name other players will see" minlength="2" maxlength="24" required />
+              <span class="ui-field-hint">2–24 characters. Players see this; your email stays private.</span>
+            </label>
+            <label class="ui-field">
+              <span class="ui-field-label">District Name</span>
+              <input type="text" id="industry-district" placeholder="e.g. Riverside, Old Town" minlength="2" maxlength="40" required />
+              <span class="ui-field-hint">Your slice of the city. 2–40 characters.</span>
+            </label>
+            ${isFirstPlayer ? `
+              <label class="ui-field">
+                <span class="ui-field-label">City Name</span>
+                <input type="text" id="industry-city" placeholder="What should the new city be called?" minlength="2" maxlength="40" required />
+                <span class="ui-field-hint">You're the first founder here — you name the city.</span>
+              </label>
+            ` : ''}
+
+            <div class="industry-grid">
+              ${INDUSTRIES.map((ind) => `
+                <button type="button" class="industry-card" data-industry="${ind.key}">
+                  <div class="ic-icon" style="color:${ind.color};">${ind.icon}</div>
+                  <div class="ic-name">${ind.name}</div>
+                  <div class="ic-desc">${ind.desc}</div>
+                </button>
+              `).join('')}
+            </div>
+
             <p class="ui-error" id="industry-error"></p>
+            <button type="submit" class="ui-btn-primary" id="industry-confirm" disabled>Choose an industry first</button>
           </form>
         </div>
       </div>

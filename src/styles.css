@@ -120,6 +120,46 @@ html, body {
   color: #6a7a8a;
   cursor: not-allowed;
 }
+.ui-btn-secondary {
+  background: transparent;
+  color: #16c79a;
+  border: 1px solid #16c79a;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ui-btn-secondary:hover { background: rgba(22,199,154,0.1); }
+
+.ui-link {
+  color: #16c79a;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.ui-link:hover { text-decoration: underline; }
+
+/* Labeled field used by Industry Select */
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ui-field-label {
+  color: #888;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.ui-field-hint {
+  color: #6a7a8a;
+  font-size: 11px;
+}
 
 .ui-error {
   color: #e94560;
