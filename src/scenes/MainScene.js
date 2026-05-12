@@ -11,6 +11,7 @@ import { clearSelection as clearBuildSelection } from '../ui/BuildMenu.js';
 import { spriteIcons } from '../sprites.js';
 import { WALKER_SPRITES } from '../walker_sprites.js';
 import { showToast } from '../ui/Toast.js';
+import { showPlacementBar, hidePlacementBar, showDragCost, hideDragCost } from '../ui/PlacementBar.js';
 
 const TILE_PX = 48;
 // Lower cap + slightly slower spawn cadence after Atlas reported
@@ -1026,8 +1027,14 @@ export class MainScene extends Phaser.Scene {
     this._clearPlacementAoe();
     if (!buildingType) {
       this._placementMode = null;
+      hidePlacementBar();
+      hideDragCost();
       return;
     }
+    showPlacementBar(buildingType, () => {
+      this.setPlacementMode(null);
+      clearBuildSelection();
+    });
     const fw = buildingType.footprint_w || 1;
     const fh = buildingType.footprint_h || 1;
     const ghost = this.add.sprite(0, 0, 'square');
@@ -1490,6 +1497,7 @@ export class MainScene extends Phaser.Scene {
       if (this._dragPaintActive) {
         this._dragPaintActive = false;
         this._dragPaintPlaced.clear();
+        hideDragCost();
         return;
       }
 
@@ -1551,9 +1559,11 @@ export class MainScene extends Phaser.Scene {
     const key = tile.id;
     if (this._dragPaintPlaced.has(key)) return;
     this._dragPaintPlaced.add(key);
-    const btKey = this._placementMode.buildingType.key;
+    const bt = this._placementMode.buildingType;
+    const total = this._dragPaintPlaced.size;
+    showDragCost(total, total * (bt.build_cost || 0));
     try {
-      await placeBuilding(tile.id, btKey);
+      await placeBuilding(tile.id, bt.key);
     } catch (_err) {
       // Silent during drag-paint — alerting on every failed tile
       // (already-occupied / not adjacent / no road) would spam.

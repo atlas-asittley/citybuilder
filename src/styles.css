@@ -308,6 +308,65 @@ html, body {
 #toast.toast-error { border-color: #e94560; color: #ff9090; }
 #toast.toast-info { border-color: #0f3460; color: #e6e6e6; }
 
+/* Placement bar — shows while a building type is selected */
+#placement-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  background: rgba(22, 199, 154, 0.95);
+  color: #0a0e14;
+  border-radius: 999px;
+  padding: 8px 14px 8px 18px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 60;
+  pointer-events: auto;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  max-width: calc(100vw - 32px);
+}
+#placement-bar.visible { display: inline-flex; }
+.pb-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pb-cancel {
+  background: rgba(10, 14, 20, 0.25);
+  color: #0a0e14;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pb-cancel:hover { background: rgba(10, 14, 20, 0.45); }
+
+/* Drag-cost counter — runs alongside a road drag-paint */
+#drag-cost {
+  position: fixed;
+  left: 50%;
+  bottom: 68px;
+  transform: translateX(-50%);
+  background: rgba(15, 22, 32, 0.94);
+  color: #16c79a;
+  border: 1px solid #16c79a;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  display: none;
+  z-index: 60;
+  pointer-events: none;
+}
+#drag-cost.visible { display: block; }
+
 /* Version badge — bottom-right corner */
 #version-badge {
   position: fixed;
