@@ -290,12 +290,72 @@ function renderTxList(txs) {
   return txs.slice(0, 25).map((row) => {
     const t = new Date(row.created_at);
     const when = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const detail = describeTransaction(row);
     return `<div class="rp-tx">
       <span class="rp-tx-when">${when}</span>
-      <span class="rp-tx-src">${escapeHtml(friendlySource(row.source))}</span>
+      <span class="rp-tx-src">
+        ${escapeHtml(friendlySource(row.source))}
+        ${detail ? `<small class="rp-tx-detail">${escapeHtml(detail)}</small>` : ''}
+      </span>
       <span class="rp-tx-amt ${row.amount >= 0 ? 'rp-pos' : 'rp-neg'}">${row.amount >= 0 ? '+' : ''}$${row.amount.toLocaleString()}</span>
     </div>`;
   }).join('');
+}
+
+// Pull human-readable detail out of the cash_transactions.context
+// jsonb so the transaction list actually says what changed hands.
+// Each source kind has its own context shape — see the live data
+// pattern in /home/atlas/citybuilder-game (cash_transactions.context).
+function describeTransaction(row) {
+  const c = row.context || {};
+  switch (row.source) {
+    case 'black_market': {
+      const dir = c.direction === 'sell' ? 'Sold' : 'Bought';
+      const name = resourceName(c.resource);
+      const qty = c.quantity ?? '?';
+      const unit = c.unit_price ?? '?';
+      return `${dir} ${qty} ${name} @ $${unit}/u`;
+    }
+    case 'npc_trade': {
+      const dir = c.direction === 'sell' ? 'Sold to' : c.direction === 'buy' ? 'Bought from' : 'Trade with';
+      const traderName = state.traders?.[c.trader]?.name || c.trader || 'trader';
+      return `${dir} ${traderName}`;
+    }
+    case 'p2p_trade': {
+      const role = c.role === 'sender' ? 'Sent offer' : c.role === 'recipient' ? 'Received offer' : 'Player trade';
+      return role;
+    }
+    case 'trade_agreement': {
+      const role = c.role === 'sender' ? 'Recurring (your offer)' : 'Recurring (their offer)';
+      return role;
+    }
+    case 'build_cost':
+      return `Built ${buildingName(c.building_type_key)}`;
+    case 'demolish_refund':
+      return `Demolished ${buildingName(c.building_type_key)}`;
+    case 'expansion_cost':
+      return `Parcel at (${c.chunk_x}, ${c.chunk_y})`;
+    case 'upkeep':
+      return c.building_type_key ? buildingName(c.building_type_key) : 'Building upkeep';
+    case 'tax_revenue':
+      return '';
+    case 'starting_grant':
+      return c.industry ? `${capitalize(c.industry)} industry` : '';
+    case 'ledger_adjustment':
+      return c.reason || '';
+    default:
+      return '';
+  }
+}
+
+function resourceName(key) {
+  return state.resourceNodes?.[key]?.name || key || '';
+}
+function buildingName(key) {
+  return state.buildingTypes?.[key]?.name || key || '(building)';
+}
+function capitalize(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 }
 
 function friendlySource(src) {
