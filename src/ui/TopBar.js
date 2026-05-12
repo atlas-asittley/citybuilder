@@ -169,17 +169,20 @@ export function refreshTopBar() {
   const runwayStat = document.getElementById('tb-runway-stat');
   runwayEl.textContent = formatRunway(r.minutes);
   runwayStat.classList.remove('runway-stable', 'runway-warn', 'runway-bad');
+  const bottleneckName = r.bottleneck === 'money' ? 'money'
+    : r.bottleneck && state.resourceNodes[r.bottleneck] ? state.resourceNodes[r.bottleneck].name
+    : r.bottleneck || 'reserves';
   if (!isFinite(r.minutes)) {
     runwayStat.classList.add('runway-stable');
-    runwayStat.title = 'Reserves are sustainable — tax revenue covers upkeep.';
+    runwayStat.title = 'Reserves are sustainable — nothing is draining faster than it\'s being produced.';
   } else if (r.minutes < 60) {
     runwayStat.classList.add('runway-bad');
-    runwayStat.title = 'CRITICAL: money runway is ' + formatRunway(r.minutes) + ' at current upkeep.';
+    runwayStat.title = 'CRITICAL: ' + bottleneckName + ' depletes in ' + formatRunway(r.minutes) + '.';
   } else if (r.minutes < 4 * 60) {
     runwayStat.classList.add('runway-warn');
-    runwayStat.title = 'Money runs out in ' + formatRunway(r.minutes) + ' at current upkeep.';
+    runwayStat.title = bottleneckName + ' depletes in ' + formatRunway(r.minutes) + '.';
   } else {
-    runwayStat.title = 'Money runs out in ' + formatRunway(r.minutes) + ' at current upkeep (best case).';
+    runwayStat.title = 'Reserves last ' + formatRunway(r.minutes) + ' (bottleneck: ' + bottleneckName + ').';
   }
 
   // Workers: used/needed with shortage badge.

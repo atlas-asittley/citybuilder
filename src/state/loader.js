@@ -48,6 +48,22 @@ async function fetchBuildingTypes() {
   return map;
 }
 
+async function fetchHousingLifestyleDemands() {
+  // Each row: { tier, resource_key, qty_per_minute }. Lifestyle goods
+  // (pottery, bread, furniture, statuary) consumed by housing at the
+  // given tier and above. Per-house demand × house count × tier
+  // multiplier drives the city's drain rate, which is what makes the
+  // runway calc useful.
+  const { data, error } = await sb.from('housing_lifestyle_demands').select('*');
+  if (error || !data) return {};
+  const map = {};   // tier → [{ resource_key, qty_per_minute }]
+  for (const d of data) {
+    if (!map[d.tier]) map[d.tier] = [];
+    map[d.tier].push({ resource_key: d.resource_key, qty_per_minute: Number(d.qty_per_minute) });
+  }
+  return map;
+}
+
 async function fetchHousingTiers() {
   // Table is housing_tier_config (not housing_tiers, which would be
   // the natural pluralization). v1's in-state map was called
@@ -155,7 +171,7 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
@@ -163,7 +179,8 @@ export async function loadInitialWorld() {
     fetchResources(),
     fetchTraders(),
     fetchTraderPrices(),
-    fetchTradePolicies()
+    fetchTradePolicies(),
+    fetchHousingLifestyleDemands()
   ]);
 
   state.allBuildings = buildings;
@@ -174,6 +191,7 @@ export async function loadInitialWorld() {
   state.traders = traders;
   state.allTraderPrices = traderPrices;
   state.tradePolicies = tradePolicies;
+  state.housingLifestyleDemands = housingDemands;
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;

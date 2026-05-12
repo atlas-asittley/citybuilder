@@ -37,6 +37,7 @@ export const state = {
     housingCapacity: 0
   },
   resources: {},            // alias of resourceNodes — v1 used both names
+  housingLifestyleDemands: {},  // tier → [{ resource_key, qty_per_minute }]
 
   // Camera / UI hints — only what the renderer needs
   gridMinX: 0,

@@ -25,6 +25,10 @@ export function computeCityRunway() {
     b.player_id === state.currentUser.id && b.status === 'active'
   );
 
+  let bottleneck = null;
+  let bottleneckMin = Infinity;
+
+  // ── 1) Money runway ──
   let upkeep = 0;
   let taxRevenue = 0;
   const pop = Math.floor(state.profile.population || 0);
@@ -38,12 +42,52 @@ export function computeCityRunway() {
       taxRevenue += Number(bt.output_rate) * (pop / 100);
     }
   }
-  const net = taxRevenue - upkeep;
-  if (net >= 0 || upkeep <= 0) {
-    return { minutes: Infinity, bottleneck: null };
+  const moneyNet = taxRevenue - upkeep;
+  if (moneyNet < 0 && upkeep > 0) {
+    const moneyMin = (Number(state.profile.money || 0)) / -moneyNet;
+    if (moneyMin < bottleneckMin) {
+      bottleneckMin = moneyMin;
+      bottleneck = 'money';
+    }
   }
-  const money = Number(state.profile.money || 0);
-  return { minutes: money / -net, bottleneck: 'money' };
+
+  // ── 2) Lifestyle goods runway ──
+  // For each lifestyle resource consumed by housing at any tier the
+  // player has, compute total drain (sum over each house's per-min
+  // demand) and check against current inventory + any per-minute
+  // production from staffed processors. Pick the worst.
+  const houseTiers = {};
+  for (const b of myActive) {
+    if (!b.housing_tier || b.player_id !== state.currentUser.id) continue;
+    houseTiers[b.housing_tier] = (houseTiers[b.housing_tier] || 0) + 1;
+  }
+  const drainPer = {};       // resource → demand/min from houses
+  for (const tier in houseTiers) {
+    const demands = state.housingLifestyleDemands?.[tier] || [];
+    for (const d of demands) {
+      drainPer[d.resource_key] = (drainPer[d.resource_key] || 0) + d.qty_per_minute * houseTiers[tier];
+    }
+  }
+  // Subtract production from this player's active staffed processors.
+  for (const b of myActive) {
+    const bt = state.buildingTypes[b.building_type_key];
+    if (!bt || !b.is_staffed || b.paused) continue;
+    if (bt.output_resource_key && bt.output_rate > 0 && drainPer[bt.output_resource_key]) {
+      drainPer[bt.output_resource_key] -= Number(bt.output_rate);
+    }
+  }
+  for (const rk in drainPer) {
+    const net = drainPer[rk];   // positive = consuming faster than producing
+    if (net <= 0) continue;
+    const stock = Number(state.inventory[rk] || 0);
+    const min = stock / net;
+    if (min < bottleneckMin) {
+      bottleneckMin = min;
+      bottleneck = rk;
+    }
+  }
+
+  return { minutes: bottleneckMin, bottleneck };
 }
 
 // "12m", "3h 5m", "2d 4h" etc.
