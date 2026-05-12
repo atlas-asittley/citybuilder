@@ -53,7 +53,7 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 ## TIER 4 — Low (polish / nice-to-haves)
 
 - [x] **Walker visual jitter** (covered by `v1-parity audit, commit 57/N`) — `MainScene.js`. v1 per-walker scale (0.85-1.15) + hue (±18°) + bob period + waddle period. Shipped scale + tint + speed jitter in 57.
-- [ ] **Immigrant/emigrant overlays** — `MainScene.js spawnImmigrantWalker`. v1 rolls luggage/backpack/bindle/plain on each.
+- [x] **Immigrant/emigrant overlays** (`v1-parity audit, commit 66/N`) — `MainScene.js spawnImmigrantWalker`. v1 rolls luggage/backpack/bindle/plain on each.
 - [x] **Paused building badge** (`v1-parity audit, commit 59/N`) — `MainScene.js`. v1 shows ⏸ overlay; v2 has no badge (suppresses animation correctly but no visual cue).
 - [x] **Resources: search/filter** (`v1-parity audit, commit 60/N`) — `CityResourcesTab.js`. v1 has prefix-match filter with live DOM hide.
 - [x] **Resources: category collapse persistence** (`v1-parity audit, commit 60/N`) — `CityResourcesTab.js`. v1 localStorage `city_resources_collapsed`.

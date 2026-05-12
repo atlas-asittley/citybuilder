@@ -285,6 +285,7 @@ export class MainScene extends Phaser.Scene {
       w.life -= dt;
       if (w.life <= 0) {
         w.sprite.destroy();
+        if (w.accessory) w.accessory.destroy();
         this._walkers.splice(i, 1);
         continue;
       }
@@ -299,6 +300,15 @@ export class MainScene extends Phaser.Scene {
       if (w.pauseUntil && performance.now() < w.pauseUntil) continue;
       if (w.pauseUntil) w.pauseUntil = 0;
 
+      // Keep accessory locked to walker if one is attached.
+      if (w.accessory && !w.accessory.scene) {
+        w.accessory = null;   // stale ref from a prior scene
+      }
+      if (w.accessory) {
+        w.accessory.x = w.sprite.x + 6;
+        w.accessory.y = w.sprite.y + 1;
+      }
+
       if (dist < 2) {
         // Arrived at the current target. Behavior depends on walker
         // kind:
@@ -310,6 +320,7 @@ export class MainScene extends Phaser.Scene {
           this._advanceWalkerToNextRoad(w);
           if (!w.targetX && !w.targetY) {
             w.sprite.destroy();
+            if (w.accessory) w.accessory.destroy();
             this._walkers.splice(i, 1);
             continue;
           }
@@ -344,6 +355,7 @@ export class MainScene extends Phaser.Scene {
         } else {
           // immigrant or emigrant — destination reached
           w.sprite.destroy();
+          if (w.accessory) w.accessory.destroy();
           this._walkers.splice(i, 1);
           continue;
         }
@@ -592,8 +604,12 @@ export class MainScene extends Phaser.Scene {
     sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
     sprite.setDepth(10);
     sprite.setAlpha(0.85);    // slightly faded — they're leaving
+    // Bindle marker beside the emigrant — signals "carrying their
+    // belongings out". Brown circle with a stick poking up; small
+    // enough to read as a satchel at walker scale.
+    const accessory = this._makeWalkerAccessory(houseX, houseY, 'bindle');
     this._walkers.push({
-      kind: 'emigrant', sprite, speed: 32,
+      kind: 'emigrant', sprite, accessory, speed: 32,
       targetX: dest.x, targetY: dest.y,
       life: 60
     });
@@ -628,11 +644,49 @@ export class MainScene extends Phaser.Scene {
     const sprite = this.add.sprite(start.x, start.y, 'walker-citizen');
     sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
     sprite.setDepth(10);
+    // Luggage marker beside the immigrant — rolls one of three
+    // accessory variants for variety.
+    const variants = ['luggage', 'backpack', 'bindle'];
+    const accessory = this._makeWalkerAccessory(start.x, start.y,
+      variants[Math.floor(Math.random() * variants.length)]);
     this._walkers.push({
-      kind: 'immigrant', sprite, speed: 32,
+      kind: 'immigrant', sprite, accessory, speed: 32,
       targetX: houseX, targetY: houseY,
       life: 60
     });
+  }
+
+  // Build a small accessory shape (luggage / backpack / bindle) and
+  // return the sprite so the tick loop can keep it next to its
+  // walker. Drawn into a one-shot texture so subsequent walkers can
+  // reuse the same atlas entry — cheap.
+  _makeWalkerAccessory(x, y, variant) {
+    const texKey = 'wacc-' + variant;
+    if (!this.textures.exists(texKey)) {
+      const g = this.add.graphics();
+      if (variant === 'luggage') {
+        // brown rectangle with a small handle on top
+        g.fillStyle(0x6a4a2c, 1);
+        g.fillRoundedRect(0, 2, 6, 6, 1);
+        g.fillStyle(0x4a3018, 1);
+        g.fillRect(2, 0, 2, 2);
+      } else if (variant === 'backpack') {
+        g.fillStyle(0x586a3a, 1);
+        g.fillRoundedRect(0, 0, 5, 7, 1.5);
+        g.fillStyle(0x3e4828, 1);
+        g.fillRect(0, 3, 5, 1);
+      } else {   // bindle
+        g.lineStyle(1, 0x6a4a2c, 1);
+        g.beginPath(); g.moveTo(0, 0); g.lineTo(2, 5); g.strokePath();
+        g.fillStyle(0xb87848, 1);
+        g.fillCircle(3, 6, 2.5);
+      }
+      g.generateTexture(texKey, 8, 8);
+      g.destroy();
+    }
+    const acc = this.add.sprite(x + 6, y, texKey);
+    acc.setDepth(11);
+    return acc;
   }
 
   _makeWalkerSprite(b, bt, x, y) {
