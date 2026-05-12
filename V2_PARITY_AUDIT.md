@@ -36,8 +36,8 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 
 ## TIER 3 — Medium (visible parity / polish)
 
-- [ ] **Walker persona variety + overlays** — `MainScene.js` + `helpers.js pickWalkerVariant`. v1 has 11 personas + overlay accessories (cane, pet, pack, cape, umbrella, hat) + per-tier weighting. v2 picks from 5 hardcoded personas with no overlays.
-- [ ] **Walker count scales with population** — `MainScene.js MAX_WALKERS`. v1: `floor(pop / 10)` capped at 80. v2: hard 50. Big cities feel quieter than they should.
+- [x] **Walker persona variety + overlays** (`v1-parity audit, commit 57/N`) — `MainScene.js` + `helpers.js pickWalkerVariant`. v1 has 11 personas + overlay accessories (cane, pet, pack, cape, umbrella, hat) + per-tier weighting. v2 now uses 7+ weighted personas + per-tier expansion (civic/tavern at tier 4+, temple/school at tier 6+) + scale/tint jitter; overlays still v1-only (would need accessory sprites).
+- [x] **Walker count scales with population** (`v1-parity audit, commit 57/N`) — `MainScene.js MAX_WALKERS`. v1: `floor(pop / 10)` capped at 80. v2: hard 50. Big cities feel quieter than they should.
 - [ ] **Collector walker road pathing** — `MainScene.js _spawnCollectorWalker`. v1 uses weighted Dijkstra (road=1, off-road=3) so collectors visibly traverse the road network. v2 walks a straight line through grass.
 - [x] **Partners: daily quota usage** (`v1-parity audit, commit 55/N`) — `TradePartnersTab.js`. v1 shows `b 5/10`, `s 3/7` per resource per trader. v2 shows `/day N` (the cap) but not how much you've used.
 - [x] **Partners: meets/misses gate visual** (`v1-parity audit, commit 55/N`) — `TradePartnersTab.js`. v1 colors each trader row with `tg-meets` or `tg-misses` based on policy gates. v2 has the "Best deals" banner but no per-row indicators.

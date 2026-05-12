@@ -544,8 +544,17 @@ export function resourceKindFor(resourceKey, resource) {
 // their job-specific worker; services spawn their domain figure.
 export function pickWalkerVariant(b, bt) {
   if (bt.category === 'housing') {
-    const personas = ['citizen', 'child', 'elder', 'fat', 'couple'];
-    return personas[Math.floor(Math.random() * personas.length)];
+    // Weighted persona pool — citizens dominate, with rarer flavor
+    // variants. Higher tiers can roll fancier sprites; lower tiers
+    // skew to plain citizens + occasional kids/elders.
+    const tier = b.housing_tier ?? 0;
+    const pool = ['citizen', 'citizen', 'citizen', 'child', 'elder', 'fat', 'couple'];
+    // Civic + extractor walker variants double as "fancy" personas
+    // for higher-tier housing — adds visual signaling that a Villa
+    // produces different-looking foot traffic than a Shanty.
+    if (tier >= 4) pool.push('civic', 'tavern');
+    if (tier >= 6) pool.push('temple', 'school');
+    return pool[Math.floor(Math.random() * pool.length)];
   }
   const key = b.building_type_key || '';
   if (key === 'timber_camp')   return 'timber';

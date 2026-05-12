@@ -27,12 +27,20 @@ import {
 } from './helpers.js';
 
 const TILE_PX = 48;
-// Lower cap + slightly slower spawn cadence after Atlas reported
-// "started to lag a little bit with those walkers" — the detailed
-// SVG sprites cost more compositor work per frame than the dot
-// placeholders, so we run fewer of them simultaneously.
-const MAX_WALKERS = 50;
+// Walker cap scales with population to keep big cities feeling
+// populated without overwhelming small ones. v1 formula was
+// floor(pop / 10) capped at 80; v2 lowers the cap to 60 because
+// Phaser sprites are still a per-frame cost even when offscreen-
+// pause is on. Floor of 12 so a fresh city always has some life.
+const WALKER_CAP_MIN = 12;
+const WALKER_CAP_MAX = 60;
 const WALKER_SPAWN_MS = 800;
+
+function maxWalkers() {
+  // state import is local to file — function reads through it lazily.
+  const pop = Math.floor(state.profile?.population || 0);
+  return Math.max(WALKER_CAP_MIN, Math.min(WALKER_CAP_MAX, Math.floor(pop / 10)));
+}
 // v1 displayed walkers at 10×14 px on a 34px tile (~30% of tile).
 // v2's tile is TILE_PX=48 so the proportional size is ~14×20. Phaser
 // rasterizes the SVG at whatever the browser's default svg→image
@@ -369,7 +377,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   _spawnRandomWalker() {
-    if (this._walkers.length >= MAX_WALKERS) return;
+    if (this._walkers.length >= maxWalkers()) return;
     const myId = state.currentUser?.id;
     const candidates = state.allBuildings.filter((b) =>
       b.player_id === myId && b.is_staffed && b.status === 'active'
@@ -414,8 +422,9 @@ export class MainScene extends Phaser.Scene {
     const startY = (startTileY - state.gridMinY) * TILE_PX + TILE_PX / 2;
     const sprite = this._makeWalkerSprite(b, bt, startX, startY);
 
+    const speedJitter = 0.85 + Math.random() * 0.30;
     const w = {
-      kind: 'road', sprite, speed: 28,
+      kind: 'road', sprite, speed: 28 * speedJitter,
       curTileX: startTileX, curTileY: startTileY,
       prevTileX: b.x, prevTileY: b.y,
       targetX: startX, targetY: startY,
@@ -446,7 +455,7 @@ export class MainScene extends Phaser.Scene {
   // when population goes down. Walks straight through grass from
   // a random house OUT to a random parcel edge, then despawns.
   spawnEmigrantWalker() {
-    if (this._walkers.length >= MAX_WALKERS) return;
+    if (this._walkers.length >= maxWalkers()) return;
     const myId = state.currentUser?.id;
     const houses = state.allBuildings.filter((b) =>
       b.player_id === myId && state.buildingTypes[b.building_type_key]?.category === 'housing'
@@ -483,7 +492,7 @@ export class MainScene extends Phaser.Scene {
   // when population goes up. Walks straight through grass from the
   // edge of the player's parcel to a random house, then despawns.
   spawnImmigrantWalker() {
-    if (this._walkers.length >= MAX_WALKERS) return;
+    if (this._walkers.length >= maxWalkers()) return;
     const myId = state.currentUser?.id;
     const houses = state.allBuildings.filter((b) =>
       b.player_id === myId && state.buildingTypes[b.building_type_key]?.category === 'housing'
@@ -518,8 +527,18 @@ export class MainScene extends Phaser.Scene {
   _makeWalkerSprite(b, bt, x, y) {
     const variant = pickWalkerVariant(b, bt);
     const sprite = this.add.sprite(x, y, 'walker-' + variant);
-    sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
+    // Per-walker visual jitter — small scale variance + occasional
+    // tint shift so a stream of citizens reads as different people
+    // instead of an army of clones. Range matches v1's CSS jitter.
+    const scaleJitter = 0.92 + Math.random() * 0.16;
+    sprite.setDisplaySize(WALKER_PX_W * scaleJitter, WALKER_PX_H * scaleJitter);
     sprite.setDepth(10);
+    // 60% of walkers get a subtle tint roll — caps channel-shift
+    // small enough that the underlying sprite art still reads.
+    if (Math.random() < 0.6) {
+      const tints = [0xffd8c0, 0xc8e0ff, 0xe0ffe0, 0xfff0c8, 0xf0d0e0];
+      sprite.setTint(tints[Math.floor(Math.random() * tints.length)]);
+    }
     return sprite;
   }
 
