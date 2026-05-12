@@ -76,6 +76,11 @@ export function onTileMetricsChanged(cb) {
   onTileMetricsChangedCallback = cb;
 }
 
+let onPopIncreaseCallback = null;
+export function onPopIncrease(cb) {
+  onPopIncreaseCallback = cb;
+}
+
 function applyTickResponse(data) {
   if (!data || !state.profile) return;
 
@@ -84,6 +89,17 @@ function applyTickResponse(data) {
     for (const k in data.inventory) state.inventory[k] = Number(data.inventory[k]);
   }
   if (data.money !== undefined) state.profile.money = data.money;
+
+  // Spawn immigrant walkers when population rises. Cap so a big
+  // immigration spike (e.g., first load after a long absence)
+  // doesn't flood the map with sprites.
+  const prevPopFloor = Math.floor(state.profile.population || 0);
+  const newPopFloor = data.population !== undefined ? Math.floor(data.population) : prevPopFloor;
+  const popDelta = newPopFloor - prevPopFloor;
+  if (popDelta > 0 && onPopIncreaseCallback) {
+    onPopIncreaseCallback(Math.min(popDelta, 4));
+  }
+
   if (data.population !== undefined) state.profile.population = data.population;
   if (data.happiness !== undefined) state.profile.happiness = data.happiness;
   if (data.crime !== undefined) state.profile.crime = data.crime;

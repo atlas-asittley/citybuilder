@@ -29,7 +29,7 @@ import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
 import { checkAndShowChangelogIfUnseen } from './ui/ChangelogModal.js';
 import { mountTutorialBanner } from './ui/TutorialBanner.js';
-import { startTickLoop, onTileMetricsChanged } from './api/tick.js';
+import { startTickLoop, onTileMetricsChanged, onPopIncrease } from './api/tick.js';
 import { subscribeRealtime } from './state/realtime.js';
 
 // ── Boot Phaser ──
@@ -209,6 +209,9 @@ async function enterGame() {
     bindSceneToExpansion(mainScene);
 
     onTileMetricsChanged(() => mainScene.refreshHeatmap?.());
+    onPopIncrease((count) => {
+      for (let i = 0; i < count; i++) mainScene.spawnImmigrantWalker?.();
+    });
 
     mountTutorialBanner();
 

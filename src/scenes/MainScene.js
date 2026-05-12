@@ -381,7 +381,6 @@ export class MainScene extends Phaser.Scene {
       this._spawnRandomWalker();
     }
 
-    const speed = 28;  // px per second along roads
     for (let i = this._walkers.length - 1; i >= 0; i--) {
       const w = this._walkers[i];
       w.life -= dt;
@@ -390,15 +389,31 @@ export class MainScene extends Phaser.Scene {
         this._walkers.splice(i, 1);
         continue;
       }
-      // Lerp toward the current target tile center. When close
-      // enough, pick the next road tile to walk to (graph step).
       const dx = w.targetX - w.sprite.x;
       const dy = w.targetY - w.sprite.y;
       const dist = Math.hypot(dx, dy);
+      const speed = w.speed || 28;
+
       if (dist < 2) {
-        this._advanceWalkerToNextRoad(w);
-        if (!w.targetX && !w.targetY) {
-          // No connected next step — despawn cleanly.
+        // Arrived at the current target. Behavior depends on walker
+        // kind:
+        //   'road'      — pick the next connected road tile
+        //   'collector' — pause briefly, then flip direction
+        //   'immigrant' — despawn on arrival at the destination
+        if (w.kind === 'road') {
+          this._advanceWalkerToNextRoad(w);
+          if (!w.targetX && !w.targetY) {
+            w.sprite.destroy();
+            this._walkers.splice(i, 1);
+            continue;
+          }
+        } else if (w.kind === 'collector') {
+          // Flip: if we were heading to the resource, now head home.
+          const tmpX = w.homeX, tmpY = w.homeY;
+          w.homeX = w.targetX; w.homeY = w.targetY;
+          w.targetX = tmpX; w.targetY = tmpY;
+        } else {
+          // immigrant — destination reached
           w.sprite.destroy();
           this._walkers.splice(i, 1);
           continue;
@@ -464,11 +479,23 @@ export class MainScene extends Phaser.Scene {
     const b = candidates[Math.floor(Math.random() * candidates.length)];
     const bt = state.buildingTypes[b.building_type_key];
     if (!bt) return;
+
+    // Extractors with a claimed resource tile (target_x/y set) get
+    // collector walkers — they walk building↔resource on a straight
+    // line through grass, simulating the trip to harvest. Other
+    // staffed buildings emit road-walkers that traverse the
+    // network.
+    const isExtractor = bt.category === 'extractor' || bt.category === 'food_extractor';
+    if (isExtractor && Number.isFinite(b.target_x) && Number.isFinite(b.target_y)) {
+      this._spawnCollectorWalker(b, bt);
+    } else {
+      this._spawnRoadWalker(b, bt);
+    }
+  }
+
+  _spawnRoadWalker(b, bt) {
     const fw = bt.footprint_w || 1;
     const fh = bt.footprint_h || 1;
-
-    // Find a road tile adjacent to the building's footprint. If
-    // there isn't one, this worker can't go anywhere — skip.
     const roads = this._roadSet || new Set();
     const adjacent = [];
     for (let dx = 0; dx < fw; dx++) {
@@ -479,29 +506,85 @@ export class MainScene extends Phaser.Scene {
         }
       }
     }
+    // No adjacent road = no road-walker. This is fine: an isolated
+    // house just doesn't emit foot traffic until you connect a road.
     if (!adjacent.length) return;
     const [startTileX, startTileY] = adjacent[Math.floor(Math.random() * adjacent.length)];
 
     const startX = (startTileX - state.gridMinX) * TILE_PX + TILE_PX / 2;
     const startY = (startTileY - state.gridMinY) * TILE_PX + TILE_PX / 2;
+    const sprite = this._makeWalkerSprite(b, bt, startX, startY);
 
-    const variant = pickWalkerVariant(b, bt);
-    const sprite = this.add.sprite(startX, startY, 'walker-' + variant);
-    sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
-    sprite.setDepth(10);
-
-    // life ~ 14 steps × ~1.7s per step ≈ 24s of road walking.
     const w = {
-      sprite,
+      kind: 'road', sprite, speed: 28,
       curTileX: startTileX, curTileY: startTileY,
-      prevTileX: b.x, prevTileY: b.y,   // pretend we came from the building so first step heads OUT
+      prevTileX: b.x, prevTileY: b.y,
       targetX: startX, targetY: startY,
       life: 24
     };
-    // Kick off the first step immediately so they don't sit still
-    // at the doorway.
     this._advanceWalkerToNextRoad(w);
     this._walkers.push(w);
+  }
+
+  _spawnCollectorWalker(b, bt) {
+    const fw = bt.footprint_w || 1;
+    const fh = bt.footprint_h || 1;
+    const homeX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
+    const homeY = (b.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
+    const resourceX = (b.target_x - state.gridMinX) * TILE_PX + TILE_PX / 2;
+    const resourceY = (b.target_y - state.gridMinY) * TILE_PX + TILE_PX / 2;
+
+    const sprite = this._makeWalkerSprite(b, bt, homeX, homeY);
+    this._walkers.push({
+      kind: 'collector', sprite, speed: 24,
+      homeX, homeY,
+      targetX: resourceX, targetY: resourceY,
+      life: 20   // ~2 round trips before despawning
+    });
+  }
+
+  // Public: spawn an immigrant walker. Called from the tick loop
+  // when population goes up. Walks straight through grass from the
+  // edge of the player's parcel to a random house, then despawns.
+  spawnImmigrantWalker() {
+    if (this._walkers.length >= MAX_WALKERS) return;
+    const myId = state.currentUser?.id;
+    const houses = state.allBuildings.filter((b) =>
+      b.player_id === myId && state.buildingTypes[b.building_type_key]?.category === 'housing'
+    );
+    if (!houses.length) return;
+    const house = houses[Math.floor(Math.random() * houses.length)];
+    const bt = state.buildingTypes[house.building_type_key];
+    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+    const houseX = (house.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
+    const houseY = (house.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
+
+    // Pick a random edge of the camera's world bounds to come in from.
+    const cam = this.cameras.main;
+    const edges = [
+      { x: cam.worldView.x - 40,                              y: houseY },                  // from left
+      { x: cam.worldView.x + cam.worldView.width + 40,        y: houseY },                  // from right
+      { x: houseX, y: cam.worldView.y - 40 },                                                // from top
+      { x: houseX, y: cam.worldView.y + cam.worldView.height + 40 }                          // from bottom
+    ];
+    const start = edges[Math.floor(Math.random() * edges.length)];
+
+    const sprite = this.add.sprite(start.x, start.y, 'walker-citizen');
+    sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
+    sprite.setDepth(10);
+    this._walkers.push({
+      kind: 'immigrant', sprite, speed: 32,
+      targetX: houseX, targetY: houseY,
+      life: 60
+    });
+  }
+
+  _makeWalkerSprite(b, bt, x, y) {
+    const variant = pickWalkerVariant(b, bt);
+    const sprite = this.add.sprite(x, y, 'walker-' + variant);
+    sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
+    sprite.setDepth(10);
+    return sprite;
   }
 
   // Public: highlight tiles in a building's area-of-effect. Called by
