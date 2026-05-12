@@ -1,10 +1,12 @@
-// Zoom +/-/reset buttons as DOM elements. Originally I'd placed
-// these as Phaser objects with setScrollFactor(0), but that only
-// pins them against camera SCROLL — the camera's ZOOM still scales
-// them, so they'd grow huge at high zoom (Atlas 2026-05-11: "when
-// I press the zoom buttons, it actually zooms into the zoom button
-// itself as well"). DOM elements live outside Phaser's transform,
-// so they're truly fixed.
+// Zoom + / − buttons as DOM elements. Originally I'd placed these as
+// Phaser objects with setScrollFactor(0), but that only pins them
+// against camera SCROLL — the camera's ZOOM still scales them, so
+// they'd grow huge at high zoom. DOM elements live outside Phaser's
+// transform, so they're truly fixed.
+//
+// (Reset button was here too — dropped 2026-05-13 per Atlas's call:
+// the saved scroll/zoom restore + double-tap-to-reset gestures cover
+// the "go home" use case without spending a button slot.)
 import Phaser from 'phaser';
 
 let mounted = false;
@@ -22,7 +24,6 @@ export function mountZoomControls(scene) {
   ctrls.innerHTML = `
     <button class="zc-btn" data-act="in" aria-label="Zoom in">+</button>
     <button class="zc-btn" data-act="out" aria-label="Zoom out">−</button>
-    <button class="zc-btn" data-act="reset" aria-label="Reset zoom">⟳</button>
   `;
   root.appendChild(ctrls);
   mounted = true;
@@ -34,12 +35,6 @@ export function mountZoomControls(scene) {
       const act = btn.dataset.act;
       if (act === 'in') cam.setZoom(Phaser.Math.Clamp(cam.zoom * 1.2, Z_MIN, Z_MAX));
       else if (act === 'out') cam.setZoom(Phaser.Math.Clamp(cam.zoom * 0.83, Z_MIN, Z_MAX));
-      else if (act === 'reset') {
-        cam.setZoom(1);
-        const worldW = sceneRef._worldW || 0;
-        const worldH = sceneRef._worldH || 0;
-        if (worldW && worldH) cam.centerOn(worldW / 2, worldH / 2);
-      }
       sceneRef._saveMapViewSoon?.();
       e.stopPropagation();
     });
