@@ -109,7 +109,7 @@ const BUILDING_ANIM_PROFILES = {
   iron_mine:      { glow: 0xffa040 },
   mine_office:    { glow: 0xffa040 },
   foreman_office: { glow: 0xffd060 },
-  charcoal_kiln:  { smoke: true, glow: 0xff8030 },
+  charcoal_kiln:  { smoke: true },
   lime_kiln:      { smoke: true },
   pottery_kiln:   { smoke: true, glow: 0xff8848 },
   bakery:         { smoke: true },
