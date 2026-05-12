@@ -1446,12 +1446,32 @@ export class MainScene extends Phaser.Scene {
     this._renderBuildings();
     if (this._heatmapMode !== 'normal') this._renderHeatmap();
 
-    // Update camera bounds to the new world size.
-    const worldW = state.gridCols * TILE_PX;
-    const worldH = state.gridRows * TILE_PX;
-    this._worldW = worldW;
-    this._worldH = worldH;
-    this.cameras.main.setBounds(0, 0, worldW, worldH);
+    // Update camera bounds to the new world size, with the same
+    // slack as _setupCamera so the player can still pan past the
+    // bottom edge under the inspector + bottom panel.
+    this._worldW = state.gridCols * TILE_PX;
+    this._worldH = state.gridRows * TILE_PX;
+    this._applyCameraBounds();
+  }
+
+  // Sets camera.setBounds with the wilderness slack on all sides plus
+  // an extra-tall bottom slack to clear the bottom panel + inspector
+  // when the player is zoomed all the way out. Shared between scene
+  // boot (_setupCamera) and post-expansion rebuild (rerenderWorld).
+  _applyCameraBounds() {
+    const bounds = computeWorldBounds();
+    const camLeft = (bounds.minX - state.gridMinX) * TILE_PX;
+    const camTop  = (bounds.minY - state.gridMinY) * TILE_PX;
+    const camW = bounds.cols * TILE_PX;
+    const camH = bounds.rows * TILE_PX;
+    const SLACK = 10 * TILE_PX;
+    const BOTTOM_PANEL_SLACK = 24 * TILE_PX;
+    this.cameras.main.setBounds(
+      camLeft - SLACK,
+      camTop - SLACK,
+      camW + SLACK * 2,
+      camH + SLACK + BOTTOM_PANEL_SLACK
+    );
   }
 
   _renderTiles() {
@@ -1782,18 +1802,7 @@ export class MainScene extends Phaser.Scene {
     this._worldH = state.gridRows * TILE_PX;
 
     const cam = this.cameras.main;
-    const SLACK = 5 * TILE_PX;
-    // Extra bottom slack so a parcel at the southern edge of the
-    // world can still scroll its bottom buildings above the bottom
-    // panel (~260px tall when open). Otherwise the bottommost row
-    // is permanently hidden behind the panel.
-    const BOTTOM_PANEL_HEIGHT = 280;
-    cam.setBounds(
-      camLeft - SLACK,
-      camTop - SLACK,
-      camW + SLACK * 2,
-      camH + SLACK + BOTTOM_PANEL_HEIGHT
-    );
+    this._applyCameraBounds();
     // Restore saved scroll + zoom for this player if we have it.
     // localStorage key is scoped per user so different accounts on the
     // same browser don't clobber each other. If nothing saved, center
