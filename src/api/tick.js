@@ -12,6 +12,7 @@
 import { sb } from './supabase.js';
 import { state } from '../state/store.js';
 import { refreshTopBar } from '../ui/TopBar.js';
+import { refreshInfoBar } from '../ui/InfoBar.js';
 import { pollNotifications } from '../ui/BellLog.js';
 import { refreshTutorialBanner } from '../ui/TutorialBanner.js';
 
@@ -126,6 +127,7 @@ function applyTickResponse(data) {
   state.laborInfo.laborShortage = !!state.profile.labor_shortage;
 
   refreshTopBar();
+  refreshInfoBar();
   refreshTutorialBanner();
 
   // Evolution events (devolves, upgrade-ready, lost-eligibility)

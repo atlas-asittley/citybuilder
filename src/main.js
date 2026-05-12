@@ -23,7 +23,8 @@ import { bindSceneToInspector } from './ui/InspectorPanel.js';
 import { bindSceneToExpansion } from './ui/ExpansionPanel.js';
 import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/IndustrySelectScreen.js';
 import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js';
-import { mountTopBar } from './ui/TopBar.js';
+import { mountTopBar, refreshTopBar } from './ui/TopBar.js';
+import { mountInfoBar, refreshInfoBar } from './ui/InfoBar.js';
 import { mountBuildMenu } from './ui/BuildMenu.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
@@ -177,6 +178,7 @@ async function enterGame() {
     // kick off the production tick loop, and subscribe to realtime
     // building changes so other players' builds appear without a
     // refresh.
+    mountInfoBar();
     mountTopBar(() => {
       // After a successful expand, the grid bounds may have grown.
       // Re-derive them from the new tileMap and restart the scene.
