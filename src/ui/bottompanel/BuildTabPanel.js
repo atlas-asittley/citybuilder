@@ -8,7 +8,7 @@
 //   - locked (greyed + reason) — blocked by tier-unlock or tutorial step
 //   - unaffordable (red money) — not enough $ or resources
 import { state } from '../../state/store.js';
-import { tutorialAllowsBuilding } from '../../scenes/helpers.js';
+import { tutorialAllowsBuilding, recipeOf, periodSuffix } from '../../scenes/helpers.js';
 
 let selectedKey = null;
 
@@ -129,61 +129,90 @@ export function clearBuildTabSelection() {
   if (root) root.querySelectorAll('.btp-item.selected').forEach((b) => b.classList.remove('selected'));
 }
 
-// Short v1-style descriptions per category. Doesn't try to recreate
-// every nuance from v1 (recipe-period scaling, specific service
-// blurbs) — covers the main signal each row needs.
+// Per-category descriptions. Processor / extractor recipes use the
+// integer-ratio formatter so a sawmill reads as "2 timber → 1 lumber
+// per 2 min" instead of "1 timber → 0.5 lumber/min". Service blurbs
+// mention inputs explicitly ("consumes lumber + flour") so players
+// know what to stockpile. Housing builds in the tier chain so the
+// player sees the evolution arc at the card.
 function describeBuilding(bt) {
   const cat = bt.category;
-  if (cat === 'road') return 'Connects buildings to the city. Housing and processors need road access.';
-  if (cat === 'housing') return 'Citizens live here. Upgrades unlock as you provide services + food.';
+  if (cat === 'road') return 'Connects buildings to the city. Housing tier 3+ and most production need road access.';
+  if (cat === 'housing') {
+    return 'Citizens live here. Evolves: ' + housingTierChain() +
+      '. Each upgrade adds a new prereq (well, food, school, temple, luxury food, industrial luxuries). Workers 2 → 100 across the ladder.';
+  }
   if (cat === 'extractor') {
-    const tile = bt.placement_resource_node_key ? resName(bt.placement_resource_node_key) + ' tile' : 'open tile';
+    const tile = bt.placement_resource_node_key
+      ? resName(bt.placement_resource_node_key) + ' tile'
+      : 'open tile';
     return `Harvests ${out(bt)}. Place on a ${tile.toLowerCase()}.`;
   }
   if (cat === 'food_extractor') {
-    const tile = bt.placement_resource_node_key ? resName(bt.placement_resource_node_key) + ' tile' : 'open tile';
+    const tile = bt.placement_resource_node_key
+      ? resName(bt.placement_resource_node_key) + ' tile'
+      : 'open tile';
     return `Produces food: ${out(bt)}. Place on a ${tile.toLowerCase()}.`;
   }
   if (cat === 'processor') return `Recipe: ${ins(bt)} → ${out(bt)}.`;
   if (cat === 'service') {
-    if (bt.key === 'well') return 'Lets housing within 4 tiles upgrade past tier 0.';
-    if (bt.key === 'school') return 'Gates Townhouse (tier 3) within 5 tiles.';
-    if (bt.key === 'temple') return 'Gates Villa (tier 4) within 6 tiles.';
-    if (bt.key === 'bathhouse') return 'Stops nearby housing from devolving (4 tiles).';
-    if (bt.key === 'tavern') return '+5% productivity nearby (with a small crime hit).';
-    return 'Service building. Needs road access.';
+    if (bt.key === 'well') return 'Lets housing within 4 tiles upgrade past Shanty. No inputs.';
+    if (bt.key === 'school') return `Gates Townhouse (tier 3) within 5 tiles. Consumes ${ins(bt)} while staffed.`;
+    if (bt.key === 'temple') return `Gates Villa (tier 4) within 6 tiles. Consumes ${ins(bt)} while staffed.`;
+    if (bt.key === 'bathhouse') return `Stops nearby housing from devolving (4 tiles). Consumes ${ins(bt)} while staffed.`;
+    if (bt.key === 'tavern') return `+5% productivity nearby (with a small crime hit). Consumes ${ins(bt)} while staffed.`;
+    return `Service building. Needs road access. ${bt.input_resource_key ? 'Consumes ' + ins(bt) + ' while staffed.' : ''}`;
   }
   if (cat === 'police') {
-    return `Covers ${bt.coverage_radius || 0} tiles for crime. $${bt.upkeep_per_minute || 0}/min upkeep.`;
+    return `Covers ${bt.coverage_radius || 0} tiles for crime when staffed. $${bt.upkeep_per_minute || 0}/min upkeep while staffed.`;
   }
   if (cat === 'booster') {
     const pct = Math.round(((bt.boost_multiplier || 1) - 1) * 100);
     const tgt = bt.boost_target === 'food_extractor' ? 'food extractors' : 'extractors';
-    return `+${pct}% to ${tgt} within ${bt.boost_range || 2} tiles.`;
+    return `+${pct}% to ${tgt} within ${bt.boost_range || 2} tiles. Multiple boosters take MAX, not stack.`;
   }
   if (cat === 'park') {
-    return `Reduces pollution by ${Math.abs(bt.pollution_emit || 0)} within ${bt.pollution_radius || 0} tiles.`;
+    return `Reduces pollution by ${Math.abs(bt.pollution_emit || 0)} on every tile within ${bt.pollution_radius || 0}. No staffing needed.`;
   }
-  if (cat === 'tax') return `+$${bt.output_rate}/min per 100 citizens.`;
-  if (cat === 'transport_hub') return 'Unlocks a city-wide trade partner. Expandable.';
-  if (cat === 'transport_connector') return 'Routes city to other players\' transport hubs.';
+  if (cat === 'tax') return `+$${bt.output_rate}/min per 100 citizens. A 200-pop city earns $${(bt.output_rate || 0) * 2}/min per office.`;
+  if (cat === 'transport_hub') return 'Unlocks a city-wide procedural trade partner. Expand once to add another.';
+  if (cat === 'transport_connector') return 'Routes city to other players\' transport hubs over the road network.';
   return bt.description || '';
 }
 
+// Output formatted in integer-ratio with explicit period.
 function out(bt) {
   if (!bt.output_resource_key) return '—';
-  return `${bt.output_rate} ${resName(bt.output_resource_key).toLowerCase()}/min`;
+  const r = recipeOf(bt);
+  return `${r.output_q} ${resName(bt.output_resource_key).toLowerCase()}${periodSuffix(r.period_min)}`;
 }
+
+// Inputs share the recipe's period; "2 timber + 1 statuary per 2 min".
 function ins(bt) {
+  const r = recipeOf(bt);
   const parts = [];
   if (bt.input_resource_key && bt.input_rate > 0) {
-    parts.push(`${bt.input_rate} ${resName(bt.input_resource_key).toLowerCase()}`);
+    parts.push(`${r.input_q} ${resName(bt.input_resource_key).toLowerCase()}`);
   }
   if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
-    parts.push(`${bt.input_rate_2} ${resName(bt.input_resource_key_2).toLowerCase()}`);
+    parts.push(`${r.input_q_2} ${resName(bt.input_resource_key_2).toLowerCase()}`);
   }
-  return parts.join(' + ') || '—';
+  if (!parts.length) return '—';
+  return parts.join(' + ') + periodSuffix(r.period_min);
 }
+
 function resName(key) {
   return state.resourceNodes[key]?.name || key;
+}
+
+// "Shanty → Mud Hut → ... → Palace" from housingTierConfig. Bounded
+// to whatever tiers the catalog has, so balance migrations that add /
+// remove tiers don't strand stale copy here.
+function housingTierChain() {
+  const cfg = state.housingTierConfig || {};
+  const names = [];
+  for (let t = 0; t <= 8; t++) {
+    if (cfg[t]?.name) names.push(cfg[t].name);
+  }
+  return names.length ? names.join(' → ') : '(tier chain not loaded)';
 }
