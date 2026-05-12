@@ -42,38 +42,37 @@ export function openBugReport() {
 
   document.getElementById('bug-submit').addEventListener('click', async () => {
     const desc = document.getElementById('bug-desc').value.trim();
-    if (!desc) {
-      document.getElementById('bug-status').textContent = 'Add a description first.';
+    if (desc.length < 5) {
+      document.getElementById('bug-status').textContent = 'Please write at least a few words about what went wrong.';
       return;
     }
     const submitBtn = document.getElementById('bug-submit');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting…';
 
+    // Client snapshot — minimal UI context the server can't see. The
+    // RPC's server-side capture (full profile / inventory / buildings /
+    // 50 recent cash_transactions / recent trader_visits) is what
+    // Atlas actually queries via open_bug_reports + BUG_REPORTS.md, so
+    // we keep client_state tight and let the server pull the heavy
+    // forensic data.
     const clientState = {
-      profile: state.profile,
-      inventory: state.inventory,
-      laborInfo: state.laborInfo,
-      cityName: state.cityName,
-      url: window.location.href,
-      userAgent: navigator.userAgent,
-      capturedAt: new Date().toISOString(),
-      version: 'v2'
-    };
-    const serverState = {
-      currentUser: state.currentUser?.id,
-      buildingCount: state.allBuildings?.length || 0,
-      tileCount: Object.keys(state.tileMap || {}).length,
-      gridBounds: { minX: state.gridMinX, minY: state.gridMinY, cols: state.gridCols, rows: state.gridRows }
+      ts: new Date().toISOString(),
+      ua: (navigator.userAgent || '').slice(0, 200),
+      viewport: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio || 1 },
+      active_panel: document.querySelector('.bp-tab.active')?.dataset.tab || null,
+      active_subtab: document.querySelector('.bp-subtab.active')?.dataset.sub || null,
+      city_name: state.cityName,
+      version: 'v2',
+      recent_notifications: (state.notifications || []).slice(-10).map((n) => ({
+        kind: n.kind, msg: n.message || null, at: n.created_at
+      }))
     };
 
     try {
-      const { error } = await sb.from('bug_reports').insert({
-        player_id: state.currentUser.id,
-        display_name: state.profile.display_name,
-        description: desc,
-        client_state: clientState,
-        server_state: serverState
+      const { error } = await sb.rpc('submit_bug_report', {
+        p_description: desc,
+        p_client_state: clientState
       });
       if (error) throw error;
       document.getElementById('bug-status').textContent = '✓ Submitted. Thanks!';

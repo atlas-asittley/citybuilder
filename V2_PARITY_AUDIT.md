@@ -32,7 +32,7 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 - [x] **Players inbox: pre-accept blocker check** (`v1-parity audit, commit 45/N`) — `TradePlayersTab.js`. v1 disables Accept with "Can't accept: missing 5 lumber" when you can't pay. v2 lets you click Accept then alerts on failure.
 - [ ] **Help / Buildings Reference: housing tier breakdown** — `HelpModal.js`. v1's `renderHousingTierBreakdown` (help.js ~798 LOC total) shows the full 9-tier ladder (Shanty → Palace) + per-tier prereqs + lifestyle goods drain rates + desirability floors. v2 (149 LOC) skips this entirely.
 - [x] **Inspector: extractor path length + rate scaling** (`v1-parity audit, commit 46/N`) — `InspectorPanel.js`. v1 shows target coords, path_length, effective rate (scaled by canonical=4), and a hint about shorter paths.
-- [ ] **Bug-report workflow stays consistent** — verify v2's bug report writes the same `client_state` / `server_state` JSON shape v1 does. (Per audit, status is feature-complete — confirm in implementation.)
+- [x] **Bug-report workflow stays consistent** (`v1-parity audit, commit 47/N`) — verify v2's bug report writes the same `client_state` / `server_state` JSON shape v1 does. (Audit was wrong — v2 was doing direct INSERT with thin client_state, no server_state. Switched to `submit_bug_report` RPC so server pulls the rich forensic snapshot v1 captures.)
 
 ## TIER 3 — Medium (visible parity / polish)
 
