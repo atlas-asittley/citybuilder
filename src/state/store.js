@@ -20,6 +20,7 @@ export const state = {
   resourceNodes: {},
   inventory: {},            // keyed by resource_key → numeric quantity
   notifications: [],        // recent notifications, newest first
+  pendingIncomingOffers: 0,  // count of pending p2p trade offers TO me
 
   // Trade — populated by loader, driven by partner panel + auto-trader.
   traders: {},              // keyed by trader.key — { key, name, mode, ... }

@@ -53,10 +53,10 @@ export function mountTopBar(onExpanded) {
       <div class="topbar-actions">
         <button class="tb-btn tb-btn-icon" id="tb-trade" title="Trade">💱</button>
         <button class="tb-btn tb-btn-icon tb-btn-bell" id="tb-bell" title="Notifications">🔔<span id="tb-bell-badge" class="tb-badge"></span></button>
-        <button class="tb-btn tb-btn-icon" id="tb-more" title="More">⋯</button>
+        <button class="tb-btn tb-btn-icon tb-btn-more" id="tb-more" title="More">⋯<span id="tb-more-badge" class="tb-badge"></span></button>
         <div class="tb-more-menu" id="tb-more-menu" role="menu">
           <button class="tb-more-row" id="tb-expand">+ Expand parcel</button>
-          <button class="tb-more-row" id="tb-offers">🤝 Player offers</button>
+          <button class="tb-more-row" id="tb-offers">🤝 Player offers<span id="tb-offers-badge" class="tb-row-badge"></span></button>
           <button class="tb-more-row" id="tb-city-resources">📦 City resources</button>
           <button class="tb-more-row" id="tb-reports">📊 Treasury</button>
           <button class="tb-more-row" id="tb-players">👥 Players</button>
@@ -128,10 +128,26 @@ export function mountTopBar(onExpanded) {
   refreshTopBar();
 }
 
+// Update the More / Player-offers badges from state.pendingIncomingOffers.
+export function refreshOffersBadge() {
+  const n = state.pendingIncomingOffers || 0;
+  const moreBadge = document.getElementById('tb-more-badge');
+  const rowBadge = document.getElementById('tb-offers-badge');
+  if (moreBadge) {
+    if (n > 0) { moreBadge.textContent = n > 9 ? '9+' : String(n); moreBadge.classList.add('visible'); }
+    else { moreBadge.classList.remove('visible'); }
+  }
+  if (rowBadge) {
+    if (n > 0) { rowBadge.textContent = n > 9 ? '9+' : String(n); rowBadge.classList.add('visible'); }
+    else { rowBadge.classList.remove('visible'); }
+  }
+}
+
 export function refreshTopBar() {
   if (!mounted || !state.profile) return;
   const p = state.profile;
   const li = state.laborInfo;
+  refreshOffersBadge();
 
   document.getElementById('tb-city').textContent = state.cityName || '—';
   document.getElementById('tb-district').textContent =

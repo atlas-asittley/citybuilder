@@ -23,7 +23,7 @@ import { bindSceneToInspector } from './ui/InspectorPanel.js';
 import { bindSceneToExpansion } from './ui/ExpansionPanel.js';
 import { mountIndustrySelectScreen, unmountIndustrySelectScreen } from './ui/IndustrySelectScreen.js';
 import { mountLoadingScreen, unmountLoadingScreen } from './ui/LoadingScreen.js';
-import { mountTopBar, refreshTopBar } from './ui/TopBar.js';
+import { mountTopBar, refreshTopBar, refreshOffersBadge } from './ui/TopBar.js';
 import { mountInfoBar, refreshInfoBar } from './ui/InfoBar.js';
 import { mountVersionBadge } from './ui/VersionBadge.js';
 import { applyAnimationsPreference } from './ui/animations.js';
@@ -32,7 +32,7 @@ import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
 import { checkAndShowChangelogIfUnseen } from './ui/ChangelogModal.js';
 import { mountTutorialBanner } from './ui/TutorialBanner.js';
-import { startTickLoop, onTileMetricsChanged, onPopIncrease, onPopDecrease } from './api/tick.js';
+import { startTickLoop, onTileMetricsChanged, onPopIncrease, onPopDecrease, onOffersChanged } from './api/tick.js';
 import { subscribeRealtime } from './state/realtime.js';
 
 // ── Boot Phaser ──
@@ -224,6 +224,7 @@ async function enterGame() {
     onPopDecrease((count) => {
       for (let i = 0; i < count; i++) mainScene.spawnEmigrantWalker?.();
     });
+    onOffersChanged(() => refreshOffersBadge());
 
     mountTutorialBanner();
 

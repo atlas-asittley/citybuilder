@@ -925,6 +925,22 @@ body.anim-off *::after {
 }
 .tb-badge.visible { display: inline-block; }
 
+.tb-btn-more { position: relative; }
+.tb-row-badge {
+  display: none;
+  margin-left: auto;
+  background: #e94560;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 8px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 1.5;
+}
+.tb-row-badge.visible { display: inline-block; }
+
 /* Bell-log overlay */
 #bell-overlay {
   position: fixed; inset: 0;

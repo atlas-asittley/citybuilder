@@ -48,6 +48,9 @@ async function runTick() {
     // Drain any new notifications (housing-ready, trade-cancel)
     // and bubble them into the bell-log badge.
     pollNotifications();
+    // Refresh the pending-offer count so the ⋯ More button can
+    // wear a red badge when someone's sent you a trade offer.
+    refreshPendingOfferCount();
   } catch (e) {
     console.warn('tick request failed:', e.message || e);
   }
@@ -85,6 +88,25 @@ export function onPopIncrease(cb) {
 let onPopDecreaseCallback = null;
 export function onPopDecrease(cb) {
   onPopDecreaseCallback = cb;
+}
+
+let onOffersChangedCallback = null;
+export function onOffersChanged(cb) {
+  onOffersChangedCallback = cb;
+}
+
+async function refreshPendingOfferCount() {
+  const { count, error } = await sb
+    .from('player_trade_offers')
+    .select('*', { count: 'exact', head: true })
+    .eq('to_player_id', state.currentUser.id)
+    .eq('status', 'pending');
+  if (error) return;
+  const next = count || 0;
+  if (next !== state.pendingIncomingOffers) {
+    state.pendingIncomingOffers = next;
+    if (onOffersChangedCallback) onOffersChangedCallback(next);
+  }
 }
 
 function applyTickResponse(data) {
