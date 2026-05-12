@@ -89,9 +89,19 @@ if (sandboxMode) {
   bootApp().catch(showFatalError);
 }
 
+// Flips true once enterGame() completes and the in-game UI is
+// mounted. Stray unhandled rejections after this point shouldn't
+// clobber the running game with the boot-fatal screen — they go
+// to the console only.
+let bootCompleted = false;
+
 // Catch-all so anything throwing during boot becomes visible instead
 // of leaving a blank screen with errors only in the dev console.
 window.addEventListener('unhandledrejection', (e) => {
+  if (bootCompleted) {
+    console.error('Unhandled rejection (post-boot, ignored):', e.reason || e);
+    return;
+  }
   showFatalError(e.reason || e);
 });
 
@@ -268,6 +278,10 @@ async function enterGame() {
       // refetching the count without waiting for the 30s tick.
       refreshPendingOfferCount();
     });
+
+    // From here on, the in-game UI is fully mounted. Stray unhandled
+    // rejections shouldn't tear it down.
+    bootCompleted = true;
 
     // Show any unseen "what's new" entries. Fire-and-forget — never
     // gates the game UI.
