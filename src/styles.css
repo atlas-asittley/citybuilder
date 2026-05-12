@@ -219,7 +219,8 @@ html, body {
 /* ── Top bar (in-game) — two rows, mirrors v1 ── */
 #topbar {
   position: fixed;
-  top: 0; left: 0; right: 0;
+  top: env(safe-area-inset-top, 0);    /* clear iOS notch / status bar */
+  left: 0; right: 0;
   background: rgba(10, 14, 20, 0.92);
   border-bottom: 1px solid #0f3460;
   font-size: 12px;
@@ -349,10 +350,14 @@ body.app-hidden *::after {
   .topbar-city, .topbar-district { max-width: 90px; }
 }
 
-/* Info bar — thin strip below the topbar */
+/* Info bar — thin strip directly below the two-row topbar. The
+   topbar's actual rendered height is ~74px (2 rows × 36px content
+   each + a 1px border-bottom on row 1 + a 1px border-bottom on the
+   whole bar). Add safe-area-inset so iPhones-with-notch don't tuck
+   the infobar under the status bar. */
 #infobar {
   position: fixed;
-  top: 60px;   /* sits just below the two-row topbar */
+  top: calc(74px + env(safe-area-inset-top, 0));
   left: 0; right: 0;
   height: 26px;
   background: rgba(15, 22, 32, 0.92);
@@ -392,7 +397,7 @@ body.app-hidden *::after {
 /* Toast notification */
 #toast {
   position: fixed;
-  top: 96px;
+  top: calc(110px + env(safe-area-inset-top, 0));   /* sits below infobar (ends ~100) */
   left: 50%;
   transform: translate(-50%, -8px);
   background: rgba(15, 22, 32, 0.96);
