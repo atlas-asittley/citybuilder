@@ -17,12 +17,7 @@ import { state } from '../state/store.js';
 import { computeCityRunway, formatRunway } from '../state/runway.js';
 import { openExpansionPanel } from './ExpansionPanel.js';
 import { openSettings } from './SettingsPanel.js';
-import { openPlayers } from './PlayersPanel.js';
-import { openTrade } from './TradePanel.js';
 import { openBellLog, mountBellLog } from './BellLog.js';
-import { openReports } from './ReportsPanel.js';
-import { openTradeOffers } from './TradeOffersPanel.js';
-import { openCityResources } from './CityResourcesPanel.js';
 import { sb } from '../api/supabase.js';
 import { showToast } from './Toast.js';
 

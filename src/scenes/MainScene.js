@@ -7,7 +7,7 @@ import Phaser from 'phaser';
 import { state } from '../state/store.js';
 import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
 import { placeBuilding } from '../api/buildings.js';
-import { clearSelection as clearBuildSelection } from '../ui/BuildMenu.js';
+import { clearBuildTabSelection as clearBuildSelection } from '../ui/bottompanel/BuildTabPanel.js';
 import { spriteIcons } from '../sprites.js';
 import { WALKER_SPRITES } from '../walker_sprites.js';
 import { showToast } from '../ui/Toast.js';
@@ -1427,7 +1427,17 @@ export class MainScene extends Phaser.Scene {
 
     const cam = this.cameras.main;
     const SLACK = 5 * TILE_PX;
-    cam.setBounds(camLeft - SLACK, camTop - SLACK, camW + SLACK * 2, camH + SLACK * 2);
+    // Extra bottom slack so a parcel at the southern edge of the
+    // world can still scroll its bottom buildings above the bottom
+    // panel (~260px tall when open). Otherwise the bottommost row
+    // is permanently hidden behind the panel.
+    const BOTTOM_PANEL_HEIGHT = 280;
+    cam.setBounds(
+      camLeft - SLACK,
+      camTop - SLACK,
+      camW + SLACK * 2,
+      camH + SLACK + BOTTOM_PANEL_HEIGHT
+    );
     // Center on the player's OWN parcel — they expect to see their
     // city on load, not the world centroid.
     cam.centerOn(this._worldW / 2, this._worldH / 2);
