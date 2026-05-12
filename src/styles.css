@@ -1105,6 +1105,53 @@ body.app-hidden *::after {
 .tp-trader-meets .tp-trader-gate { color: #5ec49e; }
 .tp-trader-misses .tp-trader-gate { color: #e0707a; }
 
+/* Black Market stepper */
+.bm-row {
+  padding: 8px;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bm-row-head { display: flex; justify-content: space-between; align-items: baseline; }
+.bm-name { color: #e6e6e6; font-weight: 600; }
+.bm-have { color: #888; font-size: 11px; }
+.bm-stepper {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.bm-step {
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  color: #e6e6e6;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 28px;
+}
+.bm-step:hover { border-color: #16c79a; }
+.bm-step-max { font-size: 10px; color: #888; padding: 4px 6px; }
+.bm-qty {
+  width: 60px;
+  background: #0a0e14;
+  border: 1px solid #0f3460;
+  color: #e6e6e6;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 13px;
+  font-family: inherit;
+  text-align: center;
+}
+.bm-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.bm-actions .tp-btn { flex: 1; }
+
 /* Best deals banner */
 .tp-best-deals {
   background: rgba(22, 199, 154, 0.07);
