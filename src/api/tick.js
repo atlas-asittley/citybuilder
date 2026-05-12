@@ -46,6 +46,10 @@ async function runTick() {
     // server; refresh the local tileMap so heatmaps reflect current
     // values. Cheap — single SELECT bounded to this player's tiles.
     refreshTileMetrics();
+    // City-wide pollution + desirability for heatmaps that span
+    // parcel boundaries. Non-blocking; if it errors the heatmap just
+    // shows local data only.
+    refreshCityTileMetrics();
     // Trader daily-cap usage so the Partners tab's "5/10 today"
     // indicators stay live as auto-trade runs.
     refreshTraderQuotas();
@@ -91,6 +95,44 @@ async function refreshTileMetrics() {
     t.desirability = row.desirability;
   }
   if (onTileMetricsChangedCallback) onTileMetricsChangedCallback();
+}
+
+// City-wide pollution + desirability for every tile in the city,
+// paginated to clear the 1000-row server cap. Loaded into a separate
+// state slot so it stays decoupled from the player's own tile data —
+// if this fetch errors out, the heatmap silently falls back to local
+// tiles. Called from main.js after the game UI is up + on each tick.
+export async function refreshCityTileMetrics() {
+  try {
+    const out = {};
+    const PAGE = 1000;
+    let from = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { data, error } = await sb
+        .from('map_tiles')
+        .select('x, y, pollution, desirability, owner_player_id')
+        .order('id')
+        .range(from, from + PAGE - 1);
+      if (error) {
+        console.warn('refreshCityTileMetrics error:', error.message);
+        return;
+      }
+      if (!data || data.length === 0) break;
+      for (const row of data) {
+        // Only carry rows with a real owner — wilderness has nothing
+        // to color on the heatmap.
+        if (!row.owner_player_id) continue;
+        out[row.x + ',' + row.y] = row;
+      }
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    state.cityTileMetrics = out;
+    if (onTileMetricsChangedCallback) onTileMetricsChangedCallback();
+  } catch (e) {
+    console.warn('refreshCityTileMetrics threw:', e.message || e);
+  }
 }
 
 let onTileMetricsChangedCallback = null;

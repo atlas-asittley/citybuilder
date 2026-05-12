@@ -460,7 +460,11 @@ export class MainScene extends Phaser.Scene {
     }
 
     const candidates = state.allBuildings.filter((b) => {
-      if (b.player_id !== myId || !b.is_staffed || b.status !== 'active') return false;
+      // Walkers spawn from any player's staffed buildings — the
+      // shared map should show everyone's foot traffic, not just
+      // yours. Building sprite alpha (0.7 for neighbors) is what
+      // carries the ownership signal.
+      if (!b.is_staffed || b.status !== 'active') return false;
       const bt = state.buildingTypes[b.building_type_key];
       if (!bt) return false;
       const isExt = bt.category === 'extractor' || bt.category === 'food_extractor';
@@ -1420,8 +1424,18 @@ export class MainScene extends Phaser.Scene {
     if (this._heatmapMode === 'crime') policeCovered = this._computePoliceCoverage();
     if (this._heatmapMode === 'issues') problemTiles = this._computeProblemTiles();
 
-    for (const k in state.tileMap) {
-      const t = state.tileMap[k];
+    // Pollution + desirability paint the city-wide metric set
+    // (loaded separately by refreshCityTileMetrics so a fetch error
+    // doesn't break boot). Crime + building-issues stay scoped to
+    // YOUR tiles — your police only cover your land. If the city-wide
+    // fetch hasn't landed yet, fall back to local tiles.
+    const isCityWide = this._heatmapMode === 'pollution' || this._heatmapMode === 'desirability';
+    const cityMetrics = state.cityTileMetrics || {};
+    const cityWideHasData = Object.keys(cityMetrics).length > 0;
+    const source = (isCityWide && cityWideHasData) ? cityMetrics : state.tileMap;
+
+    for (const k in source) {
+      const t = source[k];
       let value;
       if (this._heatmapMode === 'pollution') value = Number(t.pollution || 0);
       else if (this._heatmapMode === 'desirability') value = Number(t.desirability || 0);
