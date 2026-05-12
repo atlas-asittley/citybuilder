@@ -171,41 +171,77 @@ html, body {
   line-height: 1.4;
 }
 
-/* ── Top bar (in-game) ── */
+/* ── Top bar (in-game) — two rows, mirrors v1 ── */
 #topbar {
   position: fixed;
   top: 0; left: 0; right: 0;
-  height: 40px;
   background: rgba(10, 14, 20, 0.92);
   border-bottom: 1px solid #0f3460;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 14px;
-  font-size: 13px;
+  font-size: 12px;
   z-index: 50;
-  pointer-events: none;  /* let the canvas receive drags */
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
 }
-.topbar-left, .topbar-right {
+.topbar-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  pointer-events: auto;
-}
-.tb-city { color: #16c79a; font-weight: 600; }
-.tb-name { color: #e6e6e6; }
-.tb-chip {
-  background: #16213e;
-  border: 1px solid #0f3460;
-  border-radius: 4px;
   padding: 4px 10px;
-  color: #e6e6e6;
-  white-space: nowrap;
+  gap: 6px;
+  min-height: 28px;
+  flex-wrap: wrap;
 }
-.topbar-left, .topbar-right { gap: 6px; }
+.topbar-row-1 { border-bottom: 1px solid rgba(15, 52, 96, 0.45); }
+.topbar-id {
+  display: flex; align-items: baseline; gap: 4px;
+  flex: 1; min-width: 0;
+  font-size: 12px;
+  overflow: hidden;
+}
+.topbar-city { color: #16c79a; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.topbar-divider { color: #4a6580; }
+.topbar-district { color: #e6e6e6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.topbar-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #cfd6df;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.topbar-stat .v { font-weight: 600; color: #e6e6e6; }
+.topbar-stat .v.gold { color: #f0c850; }
+.topbar-stat .v.workers { color: #9ed1ff; }
+.topbar-stat .v.shortage { color: #f08080; }
+.labor-badge { color: #ff7050; font-weight: 700; }
+.topbar-stat .v.crime-low { color: #80d090; }
+.topbar-stat .v.crime-mid { color: #f0c050; }
+.topbar-stat .v.crime-high { color: #f08080; }
+.topbar-stat .v.migration-up { color: #80d090; }
+.topbar-stat .v.migration-down { color: #f08080; }
+.topbar-stat .v.migration-steady { color: #cfd6df; }
+.topbar-stat .v.productivity-up { color: #80d090; }
+.topbar-stat .v.productivity-down { color: #f08080; }
+.topbar-stat .v.productivity-neutral { color: #cfd6df; }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+.topbar-row-2 {
+  font-size: 11px;
+  justify-content: flex-start;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.topbar-row-2::-webkit-scrollbar { display: none; }
 @media (max-width: 680px) {
-  .tb-chip-hide-sm { display: none; }
-  .tb-city, .tb-name { font-size: 12px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-row { padding: 3px 8px; gap: 4px; }
+  .topbar-city, .topbar-district { max-width: 90px; }
 }
 
 /* More menu (dropdown under the ⋯ button) */

@@ -26,6 +26,17 @@ export const state = {
   allTraderPrices: {},      // [trader_key][resource_key] → { buy_price, sell_price, daily_buy_cap, daily_sell_cap }
   tradePolicies: {},        // [resource_key] → { mode, reserve_target, min_sell_price, max_buy_price }
 
+  // Labor allocation — kept in sync with process_production response
+  // so the topbar workers stat can show used/needed + shortage badge.
+  laborInfo: {
+    workersUsed: 0,
+    workersNeeded: 0,
+    workerCapacity: 0,
+    laborShortage: false,
+    housingCapacity: 0
+  },
+  resources: {},            // alias of resourceNodes — v1 used both names
+
   // Camera / UI hints — only what the renderer needs
   gridMinX: 0,
   gridMinY: 0,

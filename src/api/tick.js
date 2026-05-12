@@ -112,8 +112,18 @@ function applyTickResponse(data) {
   if (data.crime !== undefined) state.profile.crime = data.crime;
   if (data.workers_used !== undefined) state.profile.workers_used = data.workers_used;
   if (data.worker_capacity !== undefined) state.profile.worker_capacity = data.worker_capacity;
+  if (data.workers_needed !== undefined) state.profile.workers_needed = data.workers_needed;
+  if (data.labor_shortage !== undefined) state.profile.labor_shortage = data.labor_shortage;
   if (data.productivity !== undefined) state.profile.productivity = data.productivity;
+  if (data.migration_rate !== undefined) state.profile.migration_rate = data.migration_rate;
   if (data.tutorial_step !== undefined) state.profile.tutorial_step = data.tutorial_step;
+
+  // Mirror into laborInfo so the topbar's workers stat reads from a
+  // stable shape regardless of which response field name landed.
+  state.laborInfo.workerCapacity = state.profile.worker_capacity || 0;
+  state.laborInfo.workersUsed = state.profile.workers_used || 0;
+  state.laborInfo.workersNeeded = state.profile.workers_needed || 0;
+  state.laborInfo.laborShortage = !!state.profile.labor_shortage;
 
   refreshTopBar();
   refreshTutorialBanner();
