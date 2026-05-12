@@ -381,21 +381,77 @@ export class MainScene extends Phaser.Scene {
       this._spawnRandomWalker();
     }
 
+    const speed = 28;  // px per second along roads
     for (let i = this._walkers.length - 1; i >= 0; i--) {
       const w = this._walkers[i];
       w.life -= dt;
-      const dx = w.targetX - w.sprite.x;
-      const dy = w.targetY - w.sprite.y;
-      const dist = Math.hypot(dx, dy);
-      if (w.life <= 0 || dist < 2) {
+      if (w.life <= 0) {
         w.sprite.destroy();
         this._walkers.splice(i, 1);
         continue;
       }
-      const speed = 24;  // px per second
-      w.sprite.x += (dx / dist) * speed * dt;
-      w.sprite.y += (dy / dist) * speed * dt;
+      // Lerp toward the current target tile center. When close
+      // enough, pick the next road tile to walk to (graph step).
+      const dx = w.targetX - w.sprite.x;
+      const dy = w.targetY - w.sprite.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 2) {
+        this._advanceWalkerToNextRoad(w);
+        if (!w.targetX && !w.targetY) {
+          // No connected next step — despawn cleanly.
+          w.sprite.destroy();
+          this._walkers.splice(i, 1);
+          continue;
+        }
+      } else {
+        w.sprite.x += (dx / dist) * speed * dt;
+        w.sprite.y += (dy / dist) * speed * dt;
+      }
     }
+  }
+
+  // Pick a neighboring road tile to walk to from the walker's current
+  // tile. Prefer NOT to backtrack to the tile we just came from so
+  // the walker actually traverses the network instead of pacing one
+  // segment.
+  _advanceWalkerToNextRoad(w) {
+    const roads = this._roadSet;
+    if (!roads || roads.size === 0) {
+      w.targetX = 0; w.targetY = 0;
+      return;
+    }
+    const candidates = [];
+    for (const [dx, dy] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) {
+      const nx = w.curTileX + dx;
+      const ny = w.curTileY + dy;
+      if (!roads.has(nx + ',' + ny)) continue;
+      if (nx === w.prevTileX && ny === w.prevTileY) continue;   // avoid backtrack
+      candidates.push([nx, ny]);
+    }
+    let next;
+    if (candidates.length) {
+      next = candidates[Math.floor(Math.random() * candidates.length)];
+    } else {
+      // Dead end — only neighbor is the one we came from. Allow
+      // backtrack so we don't just disappear at the stub.
+      const fallback = [];
+      for (const [dx, dy] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) {
+        if (roads.has((w.curTileX + dx) + ',' + (w.curTileY + dy))) {
+          fallback.push([w.curTileX + dx, w.curTileY + dy]);
+        }
+      }
+      if (!fallback.length) {
+        w.targetX = 0; w.targetY = 0;
+        return;
+      }
+      next = fallback[0];
+    }
+    w.prevTileX = w.curTileX;
+    w.prevTileY = w.curTileY;
+    w.curTileX = next[0];
+    w.curTileY = next[1];
+    w.targetX = (next[0] - state.gridMinX) * TILE_PX + TILE_PX / 2;
+    w.targetY = (next[1] - state.gridMinY) * TILE_PX + TILE_PX / 2;
   }
 
   _spawnRandomWalker() {
@@ -411,20 +467,41 @@ export class MainScene extends Phaser.Scene {
     const fw = bt.footprint_w || 1;
     const fh = bt.footprint_h || 1;
 
-    const startX = (b.x - state.gridMinX) * TILE_PX + (fw * TILE_PX) / 2;
-    const startY = (b.y - state.gridMinY) * TILE_PX + (fh * TILE_PX) / 2;
-    const angle = Math.random() * Math.PI * 2;
-    const dist = (1.5 + Math.random() * 2) * TILE_PX;
-    const targetX = startX + Math.cos(angle) * dist;
-    const targetY = startY + Math.sin(angle) * dist;
+    // Find a road tile adjacent to the building's footprint. If
+    // there isn't one, this worker can't go anywhere — skip.
+    const roads = this._roadSet || new Set();
+    const adjacent = [];
+    for (let dx = 0; dx < fw; dx++) {
+      for (let dy = 0; dy < fh; dy++) {
+        const fx = b.x + dx, fy = b.y + dy;
+        for (const [nx, ny] of [[fx, fy - 1], [fx, fy + 1], [fx + 1, fy], [fx - 1, fy]]) {
+          if (roads.has(nx + ',' + ny)) adjacent.push([nx, ny]);
+        }
+      }
+    }
+    if (!adjacent.length) return;
+    const [startTileX, startTileY] = adjacent[Math.floor(Math.random() * adjacent.length)];
+
+    const startX = (startTileX - state.gridMinX) * TILE_PX + TILE_PX / 2;
+    const startY = (startTileY - state.gridMinY) * TILE_PX + TILE_PX / 2;
 
     const variant = pickWalkerVariant(b, bt);
     const sprite = this.add.sprite(startX, startY, 'walker-' + variant);
     sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
     sprite.setDepth(10);
-    // No tint — the v1 SVG sprites already have per-variant colors
-    // baked in (timber=brown, stone=grey, grain=green, etc.).
-    this._walkers.push({ sprite, targetX, targetY, life: 8 });
+
+    // life ~ 14 steps × ~1.7s per step ≈ 24s of road walking.
+    const w = {
+      sprite,
+      curTileX: startTileX, curTileY: startTileY,
+      prevTileX: b.x, prevTileY: b.y,   // pretend we came from the building so first step heads OUT
+      targetX: startX, targetY: startY,
+      life: 24
+    };
+    // Kick off the first step immediately so they don't sit still
+    // at the doorway.
+    this._advanceWalkerToNextRoad(w);
+    this._walkers.push(w);
   }
 
   // Public: highlight tiles in a building's area-of-effect. Called by
@@ -882,12 +959,15 @@ export class MainScene extends Phaser.Scene {
 
     // Pass 1: collect road positions across ALL players, since
     // roads connect across parcel borders (they're part of the
-    // shared network the walker pathfinder uses).
+    // shared network the walker pathfinder uses). Cached on the
+    // scene so the walker tick can navigate without re-scanning
+    // state.allBuildings every frame.
     const roadSet = new Set();
     for (const b of state.allBuildings) {
       const bt = state.buildingTypes[b.building_type_key];
       if (bt && bt.category === 'road') roadSet.add(b.x + ',' + b.y);
     }
+    this._roadSet = roadSet;
 
     // Pass 2: render.
     for (const b of state.allBuildings) {
