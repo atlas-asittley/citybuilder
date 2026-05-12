@@ -21,6 +21,7 @@ import { openBellLog, mountBellLog } from './BellLog.js';
 import { sb } from '../api/supabase.js';
 import { showToast } from './Toast.js';
 import { openStatInfo } from './StatInfoModal.js';
+import { openHelp } from './HelpModal.js';
 
 let mounted = false;
 let onExpandedCallback = null;
@@ -53,6 +54,7 @@ export function mountTopBar(onExpanded) {
         <button class="tb-btn tb-btn-icon tb-btn-more" id="tb-more" title="More">⋯<span id="tb-more-badge" class="tb-badge"></span></button>
         <div class="tb-more-menu" id="tb-more-menu" role="menu">
           <button class="tb-more-row" id="tb-expand">+ Expand parcel</button>
+          <button class="tb-more-row" id="tb-help">📖 Buildings reference</button>
           <button class="tb-more-row" id="tb-settings">⚙ Settings</button>
         </div>
       </div>
@@ -103,6 +105,7 @@ export function mountTopBar(onExpanded) {
       if (onExpandedCallback) onExpandedCallback();
     });
   });
+  wireMore('tb-help', openHelp);
   wireMore('tb-settings', openSettings);
 
   mountBellLog();
