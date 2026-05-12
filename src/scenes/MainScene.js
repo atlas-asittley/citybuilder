@@ -914,7 +914,7 @@ export class MainScene extends Phaser.Scene {
     g.generateTexture('res-clay', SZ, SZ);
     g.destroy();
 
-    // food/grain — 5 vertical wheat strands of varying heights
+    // grain — 5 vertical wheat strands of varying heights, gold-yellow
     g = this.add.graphics();
     const strandColors = [0xd8b840, 0xc8a838, 0xe0c050];
     for (let i = 0; i < 5; i++) {
@@ -925,7 +925,64 @@ export class MainScene extends Phaser.Scene {
       // small grain head on top
       g.fillCircle(x + 1, SZ - h - 2, 2);
     }
+    g.generateTexture('res-grain', SZ, SZ);
+    g.destroy();
+    // Keep `res-food` as an alias for back-compat with any code that
+    // still references it during rollout — drops out once verified.
+    g = this.add.graphics();
+    for (let i = 0; i < 5; i++) {
+      const x = 4 + i * 5;
+      const h = 12 + (i % 3) * 3;
+      g.fillStyle(strandColors[i % strandColors.length], 1);
+      g.fillRect(x, SZ - h - 2, 2, h);
+      g.fillCircle(x + 1, SZ - h - 2, 2);
+    }
     g.generateTexture('res-food', SZ, SZ);
+    g.destroy();
+
+    // orchard — apple tree: brown trunk + green canopy + 3 red fruits
+    // dotted across the canopy. Visually distinct from plain timber
+    // (no fruits) so a player can tell food tiles from industry tiles.
+    g = this.add.graphics();
+    g.fillStyle(0x4a2f1a, 1);
+    g.fillRect(SZ/2 - 2, SZ - 8, 4, 8);
+    g.fillStyle(0x2a6a2a, 1);
+    g.fillCircle(SZ/2, SZ/2 + 2, 10);
+    g.fillStyle(0x3a8a3a, 1);
+    g.fillCircle(SZ/2 - 4, SZ/2, 6);
+    g.fillCircle(SZ/2 + 4, SZ/2 + 1, 6);
+    // Apples — red dots scattered through the canopy.
+    g.fillStyle(0xd03830, 1);
+    g.fillCircle(SZ/2 - 3, SZ/2 + 4, 2);
+    g.fillCircle(SZ/2 + 4, SZ/2 - 2, 2);
+    g.fillCircle(SZ/2 + 1, SZ/2 + 6, 1.8);
+    g.fillStyle(0xff6050, 1);
+    g.fillCircle(SZ/2 - 4, SZ/2 + 3, 0.8);
+    g.generateTexture('res-orchard', SZ, SZ);
+    g.destroy();
+
+    // vegetables (garden plot) — carrot + 2 leafy greens layout.
+    // Orange triangle (carrot pointing down) flanked by darker green
+    // bushes; reads clearly as "garden" vs the wheat strands.
+    g = this.add.graphics();
+    // carrot tops (green frilly leaves)
+    g.fillStyle(0x4a8838, 1);
+    g.fillTriangle(SZ/2 - 4, SZ/2 - 3, SZ/2 + 4, SZ/2 - 3, SZ/2, SZ/2 - 10);
+    g.fillStyle(0x6aa848, 1);
+    g.fillTriangle(SZ/2 - 2, SZ/2 - 4, SZ/2 + 2, SZ/2 - 4, SZ/2, SZ/2 - 8);
+    // carrot body (orange triangle pointing down)
+    g.fillStyle(0xe07028, 1);
+    g.fillTriangle(SZ/2 - 4, SZ/2 - 2, SZ/2 + 4, SZ/2 - 2, SZ/2, SZ/2 + 8);
+    g.fillStyle(0xf08840, 1);
+    g.fillTriangle(SZ/2 - 2, SZ/2 - 2, SZ/2 + 2, SZ/2 - 2, SZ/2, SZ/2 + 4);
+    // small leafy bushes left + right
+    g.fillStyle(0x3a7028, 1);
+    g.fillCircle(4, SZ - 5, 3);
+    g.fillCircle(SZ - 4, SZ - 5, 3);
+    g.fillStyle(0x4a8838, 1);
+    g.fillCircle(4, SZ - 6, 2);
+    g.fillCircle(SZ - 4, SZ - 6, 2);
+    g.generateTexture('res-vegetables', SZ, SZ);
     g.destroy();
 
     // fish/water — blue oval with a ripple line

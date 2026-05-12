@@ -85,10 +85,12 @@ describe('buildingSignature', () => {
 });
 
 describe('resourceKindFor', () => {
-  it('maps timber/forest/orchard/grove → wood', () => {
-    expect(resourceKindFor('timber_grove', null)).toBe('wood');
+  it('maps timber/forest → wood; orchard/grove → distinct orchard kind', () => {
+    expect(resourceKindFor('timber', null)).toBe('wood');
+    expect(resourceKindFor('timber_grove', null)).toBe('orchard');   // grove wins
     expect(resourceKindFor('forest', null)).toBe('wood');
-    expect(resourceKindFor('orchard_grove', null)).toBe('wood');
+    expect(resourceKindFor('orchard_grove', null)).toBe('orchard');
+    expect(resourceKindFor('orchard', null)).toBe('orchard');
   });
   it('maps stone keys → stone', () => {
     expect(resourceKindFor('stone_outcrop', null)).toBe('stone');
@@ -103,10 +105,11 @@ describe('resourceKindFor', () => {
     expect(resourceKindFor('river', null)).toBe('fish');
     expect(resourceKindFor('fish_school', null)).toBe('fish');
   });
-  it('maps grain/farmland/garden → food', () => {
-    expect(resourceKindFor('grain_field', null)).toBe('food');
-    expect(resourceKindFor('garden_plot', null)).toBe('food');
-    expect(resourceKindFor('farmland', null)).toBe('food');
+  it('splits food tiles by type: grain/farmland → grain, garden/plot → vegetables', () => {
+    expect(resourceKindFor('grain_field', null)).toBe('grain');
+    expect(resourceKindFor('farmland', null)).toBe('grain');
+    expect(resourceKindFor('garden_plot', null)).toBe('vegetables');
+    expect(resourceKindFor('garden', null)).toBe('vegetables');
   });
   it('falls back to industry_key when keys don\'t match', () => {
     expect(resourceKindFor('mystery', { industry_key: 'timber' })).toBe('wood');

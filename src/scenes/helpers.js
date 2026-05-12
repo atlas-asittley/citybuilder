@@ -535,13 +535,20 @@ function hasRoadOnPerimeter(b, bt, roadSet) {
 // texture (`res-wood`, `res-stone`, etc.).
 export function resourceKindFor(resourceKey, resource) {
   const k = (resourceKey || '').toLowerCase();
-  if (k.includes('timber') || k.includes('forest') || k.includes('orchard') || k.includes('grove')) return 'wood';
+  // Order matters — more specific keys first (orchard/grove must
+  // match BEFORE the generic timber/forest fallback, since they're
+  // different tile types).
+  if (k.includes('orchard') || k.includes('grove')) return 'orchard';
+  if (k.includes('timber')  || k.includes('forest')) return 'wood';
   if (k.includes('stone') || k.includes('quarry') || k.includes('rock')) return 'stone';
   if (k.includes('iron') || k.includes('ore') || k.includes('metal')) return 'metal';
   if (k.includes('clay'))   return 'clay';
-  if (k.includes('grain')  || k.includes('farmland') || k.includes('field')) return 'food';
-  if (k.includes('garden') || k.includes('plot'))     return 'food';
-  if (k.includes('pond')   || k.includes('water')    || k.includes('lake') || k.includes('river') || k.includes('fish')) return 'fish';
+  // Split food terrain types so a player can tell at a glance
+  // whether they're looking at a wheat field, a garden plot, or
+  // (future) other crop tiles.
+  if (k.includes('grain') || k.includes('farmland') || k.includes('field')) return 'grain';
+  if (k.includes('garden') || k.includes('plot'))    return 'vegetables';
+  if (k.includes('pond') || k.includes('water') || k.includes('lake') || k.includes('river') || k.includes('fish')) return 'fish';
   if (resource?.industry_key === 'timber') return 'wood';
   if (resource?.industry_key === 'stone')  return 'stone';
   if (resource?.industry_key === 'iron')   return 'metal';
