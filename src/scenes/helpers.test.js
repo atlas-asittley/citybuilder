@@ -299,11 +299,11 @@ describe('computePoliceCoverage', () => {
     expect(covered.has('7,7')).toBe(false);    // diagonal sum=4
     expect(covered.has('5,8')).toBe(false);    // r=3 south
   });
-  it('excludes unstaffed / idle / wrong-owner police', () => {
+  it('excludes unstaffed / paused / wrong-owner police', () => {
     const buildings = [
       { player_id: 'someone-else', status: 'active', is_staffed: true,
         building_type_key: 'watch_house', x: 5, y: 5 },
-      { player_id: 'me', status: 'idle', is_staffed: true,
+      { player_id: 'me', status: 'paused', is_staffed: true,
         building_type_key: 'watch_house', x: 10, y: 10 },
       { player_id: 'me', status: 'active', is_staffed: false,
         building_type_key: 'watch_house', x: 20, y: 20 }
@@ -319,14 +319,6 @@ describe('computeProblemTiles', () => {
     smelter: { category: 'processor', worker_cost: 10, footprint_w: 2, footprint_h: 1 }
   };
 
-  it('flags idle buildings', () => {
-    const buildings = [
-      { player_id: 'me', status: 'idle', is_staffed: true,
-        building_type_key: 'mill', x: 1, y: 1 }
-    ];
-    const tiles = computeProblemTiles(buildings, buildingTypes, 'me');
-    expect(tiles.has('1,1')).toBe(true);
-  });
   it('flags unstaffed worker buildings', () => {
     const buildings = [
       { player_id: 'me', status: 'active', is_staffed: false,
@@ -343,14 +335,14 @@ describe('computeProblemTiles', () => {
   });
   it('flags paused buildings', () => {
     const buildings = [
-      { player_id: 'me', status: 'active', is_staffed: true, paused: true,
+      { player_id: 'me', status: 'paused', is_staffed: true,
         building_type_key: 'mill', x: 4, y: 4 }
     ];
     expect(computeProblemTiles(buildings, buildingTypes, 'me').has('4,4')).toBe(true);
   });
   it('covers every footprint tile of a multi-tile building', () => {
     const buildings = [
-      { player_id: 'me', status: 'idle', is_staffed: true,
+      { player_id: 'me', status: 'paused', is_staffed: true,
         building_type_key: 'smelter', x: 5, y: 5 }
     ];
     const tiles = computeProblemTiles(buildings, buildingTypes, 'me');
@@ -360,7 +352,7 @@ describe('computeProblemTiles', () => {
   });
   it('ignores other players', () => {
     const buildings = [
-      { player_id: 'someone-else', status: 'idle', is_staffed: true,
+      { player_id: 'someone-else', status: 'paused', is_staffed: true,
         building_type_key: 'mill', x: 1, y: 1 }
     ];
     expect(computeProblemTiles(buildings, buildingTypes, 'me').size).toBe(0);
@@ -400,13 +392,11 @@ describe('computeResourceProdCons', () => {
     expect(prod.furniture).toBe(0.25);
   });
 
-  it('skips unstaffed / idle / paused / wrong-owner buildings', () => {
+  it('skips unstaffed / paused / wrong-owner buildings', () => {
     const buildings = [
       { player_id: 'me', status: 'active', is_staffed: false,
         building_type_key: 'timber_camp' },
-      { player_id: 'me', status: 'idle', is_staffed: true,
-        building_type_key: 'timber_camp' },
-      { player_id: 'me', status: 'active', is_staffed: true, paused: true,
+      { player_id: 'me', status: 'paused', is_staffed: true,
         building_type_key: 'timber_camp' },
       { player_id: 'someone-else', status: 'active', is_staffed: true,
         building_type_key: 'timber_camp' }
@@ -454,14 +444,10 @@ describe('computeBuildingIssue', () => {
   });
 
   it('reports paused before any other issue', () => {
-    const paused = { ...healthyMill, paused: true, is_staffed: false };
+    // Schema: status IN ('active','paused') — no separate boolean.
+    const paused = { ...healthyMill, status: 'paused', is_staffed: false };
     const issue = computeBuildingIssue(paused, millType, new Set(), inventory, myId);
     expect(issue?.kind).toBe('paused');
-  });
-
-  it('reports idle when status is idle', () => {
-    const idle = { ...healthyMill, status: 'idle' };
-    expect(computeBuildingIssue(idle, millType, new Set(['5,4']), inventory, myId)?.kind).toBe('idle');
   });
 
   it('reports unstaffed when worker_cost > 0 and not staffed', () => {
@@ -532,7 +518,7 @@ describe('listBuildingIssues', () => {
   };
   const baseMill = {
     building_type_key: 'sawmill', x: 5, y: 5, status: 'active',
-    is_staffed: true, paused: false, player_id: myId
+    is_staffed: true, player_id: myId
   };
 
   it('returns [] when healthy', () => {
@@ -545,18 +531,12 @@ describe('listBuildingIssues', () => {
   });
 
   it('paused short-circuits — only paused, no road / input piled on', () => {
-    const paused = { ...baseMill, paused: true, is_staffed: false };
+    // Schema: status IN ('active','paused'). No separate boolean.
+    const paused = { ...baseMill, status: 'paused', is_staffed: false };
     const issues = listBuildingIssues(paused, millBt, new Set(), { timber: 0 }, myId);
     expect(issues).toHaveLength(1);
     expect(issues[0].kind).toBe('paused');
     expect(issues[0].hint).toContain('Resume');
-  });
-
-  it('idle short-circuits — same exclusivity as paused', () => {
-    const idle = { ...baseMill, status: 'idle' };
-    const issues = listBuildingIssues(idle, millBt, new Set(), { timber: 0 }, myId);
-    expect(issues).toHaveLength(1);
-    expect(issues[0].kind).toBe('idle');
   });
 
   it('unstaffed short-circuits — no road / input reported alongside', () => {

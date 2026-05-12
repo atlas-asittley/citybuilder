@@ -17,7 +17,7 @@ export function buildingSignature(b, bt, roadSet, myId, issueKind) {
   sig += '|t' + (b.housing_tier || 0);
   sig += '|s' + (b.status || '-');
   sig += '|w' + (b.is_staffed ? 1 : 0);
-  sig += '|p' + (b.paused ? 1 : 0);
+  sig += '|p' + (b.status === 'paused' ? 1 : 0);
   sig += '|e' + (b.expansion_level || 0);
   sig += '|o' + (b.player_id === myId ? 'me' : 'them');
   if (bt.category === 'road') {
@@ -55,13 +55,12 @@ export function listBuildingIssues(b, bt, roadSet, inventory, myId) {
   if (!bt) return [];
   if (b.player_id !== myId) return [];
 
-  if (b.paused) {
+  // Pause is stored as status='paused' in the DB (no separate boolean
+  // column). v2 originally read b.paused which is always undefined, so
+  // the paused branch never fired. Now reads status directly.
+  if (b.status === 'paused') {
     return [{ kind: 'paused', label: 'Paused', symbol: '⏸',
       hint: 'Tap Resume to restart production.' }];
-  }
-  if (b.status === 'idle') {
-    return [{ kind: 'idle', label: 'Idle',
-      hint: 'Server has no work to give this building right now (no path, no eligible target, or no demand).' }];
   }
   if (bt.worker_cost > 0 && !b.is_staffed) {
     return [{ kind: 'unstaffed', label: 'No workers assigned',
@@ -84,7 +83,15 @@ export function listBuildingIssues(b, bt, roadSet, inventory, myId) {
       hint: 'Place a road on any tile adjacent to this building (perimeter — not diagonal).' });
   }
 
-  if (b.is_staffed && inventory) {
+  // Missing-input only fires when inventory has actually loaded. On
+  // initial scene render (before the first process_production tick
+  // lands), state.inventory is empty {} — which would fire no-input
+  // for every staffed processor/service in the city and badge them
+  // all red until the first tick arrives. Skip the check until we
+  // have at least one resource known to be present; the next render
+  // after the tick lands will fire it correctly.
+  const inventoryLoaded = inventory && Object.keys(inventory).length > 0;
+  if (b.is_staffed && inventoryLoaded) {
     if (bt.input_resource_key && Number(bt.input_rate) > 0) {
       const have = Number(inventory[bt.input_resource_key] || 0);
       if (have <= 0) {
@@ -715,9 +722,8 @@ export function computeProblemTiles(allBuildings, buildingTypes, myId) {
     const bt = buildingTypes[b.building_type_key];
     if (!bt) continue;
     const isProblem =
-      b.status === 'idle' ||
-      (bt.worker_cost > 0 && !b.is_staffed) ||
-      b.paused === true;
+      b.status === 'paused' ||
+      (bt.worker_cost > 0 && !b.is_staffed);
     if (!isProblem) continue;
     const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
     for (let dx = 0; dx < fw; dx++) {
@@ -741,7 +747,7 @@ export function computeResourceProdCons(allBuildings, buildingTypes, myId) {
   const cons = {};
   for (const b of allBuildings) {
     if (b.player_id !== myId) continue;
-    if (b.status !== 'active' || !b.is_staffed || b.paused) continue;
+    if (b.status !== 'active' || !b.is_staffed) continue;
     const bt = buildingTypes[b.building_type_key];
     if (!bt) continue;
     if (bt.output_resource_key && bt.output_rate > 0 && bt.category !== 'tax') {

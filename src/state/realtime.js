@@ -21,7 +21,6 @@ export function buildingVisuallyChanged(oldB, newB) {
     oldB.status !== newB.status ||
     oldB.expansion_level !== newB.expansion_level ||
     oldB.is_staffed !== newB.is_staffed ||
-    oldB.paused !== newB.paused ||
     oldB.auto_upgrade !== newB.auto_upgrade ||
     oldB.staffing_priority !== newB.staffing_priority ||
     oldB.last_devolve_reason !== newB.last_devolve_reason ||

@@ -323,8 +323,8 @@ function renderActions(b, bt, isMine) {
     </button>`);
   }
   if (isWorkerBuilding && !isHousing) {
-    parts.push(`<button class="ip-btn ip-toggle ${b.paused ? 'ip-toggle-off' : 'ip-toggle-on'}" id="ip-paused">
-      ${b.paused ? 'Resume' : 'Pause'}
+    parts.push(`<button class="ip-btn ip-toggle ${b.status === 'paused' ? 'ip-toggle-off' : 'ip-toggle-on'}" id="ip-paused">
+      ${b.status === 'paused' ? 'Resume' : 'Pause'}
     </button>`);
     parts.push(`<select class="ip-priority" id="ip-priority">
       <option value="0" ${b.staffing_priority === 0 ? 'selected' : ''}>Priority: Low</option>
@@ -377,10 +377,13 @@ function wireActionHandlers(b) {
 
   bind('ip-paused', async (btn) => {
     btn.disabled = true;
-    const next = !b.paused;
+    // Pause/Resume reads from status, not a paused boolean. Schema is
+    // status IN ('active', 'paused') — there's no separate column.
+    const wasPaused = b.status === 'paused';
+    const next = !wasPaused;   // true → pause, false → resume
     try {
       await setBuildingPaused(b.id, next);
-      b.paused = next;
+      b.status = next ? 'paused' : 'active';
       btn.classList.toggle('ip-toggle-on', !next);
       btn.classList.toggle('ip-toggle-off', next);
       btn.textContent = next ? 'Resume' : 'Pause';

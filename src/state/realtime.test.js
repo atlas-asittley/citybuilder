@@ -8,7 +8,7 @@ import { buildingVisuallyChanged } from './realtime.js';
 describe('buildingVisuallyChanged', () => {
   const base = {
     id: 'x', housing_tier: 1, status: 'active', is_staffed: true,
-    paused: false, auto_upgrade: true, staffing_priority: 1,
+    auto_upgrade: true, staffing_priority: 1,
     expansion_level: 0, x: 5, y: 5,
     last_devolve_reason: null, evolution_eligible_at: null,
     last_processed_at: '2026-05-11T22:00:00Z'
@@ -22,17 +22,14 @@ describe('buildingVisuallyChanged', () => {
   it('true when housing_tier flips', () => {
     expect(buildingVisuallyChanged(base, { ...base, housing_tier: 2 })).toBe(true);
   });
-  it('true when status flips', () => {
-    expect(buildingVisuallyChanged(base, { ...base, status: 'idle' })).toBe(true);
+  it('true when status flips (paused/active)', () => {
+    expect(buildingVisuallyChanged(base, { ...base, status: 'paused' })).toBe(true);
   });
   it('true when expansion_level changes', () => {
     expect(buildingVisuallyChanged(base, { ...base, expansion_level: 1 })).toBe(true);
   });
   it('true when is_staffed flips', () => {
     expect(buildingVisuallyChanged(base, { ...base, is_staffed: false })).toBe(true);
-  });
-  it('true when paused flips', () => {
-    expect(buildingVisuallyChanged(base, { ...base, paused: true })).toBe(true);
   });
   it('true when auto_upgrade flips', () => {
     expect(buildingVisuallyChanged(base, { ...base, auto_upgrade: false })).toBe(true);

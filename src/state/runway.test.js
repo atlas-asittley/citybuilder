@@ -148,7 +148,7 @@ describe('computeCityRunway', () => {
     };
     state.allBuildings = [
       { player_id: 'me', status: 'active', is_staffed: false, building_type_key: 'police' },
-      { player_id: 'me', status: 'active', is_staffed: true, paused: true, building_type_key: 'police' }
+      { player_id: 'me', status: 'paused', is_staffed: true, building_type_key: 'police' }
     ];
     const r = computeCityRunway();
     expect(r.minutes).toBe(Infinity);

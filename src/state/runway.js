@@ -35,10 +35,13 @@ export function computeCityRunway() {
   for (const b of myActive) {
     const bt = state.buildingTypes[b.building_type_key];
     if (!bt) continue;
-    if (bt.upkeep_per_minute && b.is_staffed && !b.paused) {
+    // Paused buildings (status='paused') are filtered out by the
+    // myActive guard above (status='active' only), so no separate
+    // !b.paused check needed here.
+    if (bt.upkeep_per_minute && b.is_staffed) {
       upkeep += Number(bt.upkeep_per_minute);
     }
-    if (bt.category === 'tax' && b.is_staffed && !b.paused && bt.output_rate > 0) {
+    if (bt.category === 'tax' && b.is_staffed && bt.output_rate > 0) {
       taxRevenue += Number(bt.output_rate) * (pop / 100);
     }
   }
@@ -73,7 +76,9 @@ export function computeCityRunway() {
   }
   for (const b of myActive) {
     const bt = state.buildingTypes[b.building_type_key];
-    if (!bt || !b.is_staffed || b.paused) continue;
+    // myActive (above) restricts to status='active' so paused is
+    // already excluded; only need to filter unstaffed here.
+    if (!bt || !b.is_staffed) continue;
     if (bt.output_resource_key && bt.output_rate > 0 && drainPer[bt.output_resource_key]) {
       drainPer[bt.output_resource_key] -= Number(bt.output_rate);
     }
