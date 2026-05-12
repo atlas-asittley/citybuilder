@@ -70,6 +70,16 @@ export function mountBottomPanel(opts = {}) {
 
 export function refreshBottomPanel() {
   if (!mounted) return;
+  // Skip the refresh if the user is mid-interaction with the panel
+  // (typing in a policy input, focused on a select). Mirrors v1's
+  // refreshActiveDataPanelIfIdle so tick-time re-renders don't blow
+  // away unsaved input. The panel still re-renders the next time
+  // they tap somewhere else.
+  const focused = document.activeElement;
+  if (focused && focused.closest && focused.closest('#bottom-panel')) {
+    const tag = focused.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+  }
   renderActiveTab();
 }
 

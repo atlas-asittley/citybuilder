@@ -15,6 +15,7 @@ import { refreshTopBar } from '../ui/TopBar.js';
 import { refreshInfoBar } from '../ui/InfoBar.js';
 import { pollNotifications } from '../ui/BellLog.js';
 import { refreshTutorialBanner } from '../ui/TutorialBanner.js';
+import { refreshBottomPanel } from '../ui/BottomPanel.js';
 
 const TICK_INTERVAL_MS = 30000;
 let tickTimer = null;
@@ -151,6 +152,7 @@ function applyTickResponse(data) {
   refreshTopBar();
   refreshInfoBar();
   refreshTutorialBanner();
+  refreshBottomPanel();
 
   // Evolution events (devolves, upgrade-ready, lost-eligibility)
   // require a buildings refetch — those events imply housing_tier

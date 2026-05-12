@@ -27,7 +27,7 @@ import { mountTopBar, refreshTopBar, refreshOffersBadge } from './ui/TopBar.js';
 import { mountInfoBar, refreshInfoBar } from './ui/InfoBar.js';
 import { mountVersionBadge } from './ui/VersionBadge.js';
 import { applyAnimationsPreference } from './ui/animations.js';
-import { mountBottomPanel } from './ui/BottomPanel.js';
+import { mountBottomPanel, refreshBottomPanel } from './ui/BottomPanel.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
 import { checkAndShowChangelogIfUnseen } from './ui/ChangelogModal.js';
@@ -246,6 +246,11 @@ async function enterGame() {
     const rerender = () => {
       const s = game.scene.getScene('MainScene');
       if (s?.rerenderBuildings) s.rerenderBuildings();
+      // Bottom panel content (Build affordability, City > Resources
+      // rates, etc.) also depends on the same state — refresh
+      // alongside, with the idle-input check inside BottomPanel
+      // protecting in-progress typing.
+      refreshBottomPanel();
     };
     startTickLoop(rerender);
     subscribeRealtime(rerender);
