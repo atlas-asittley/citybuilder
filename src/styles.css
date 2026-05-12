@@ -1450,6 +1450,68 @@ body.app-hidden *::after {
   border-top: 1px dotted rgba(15, 52, 96, 0.6);
 }
 .hl-empty { color: #888; text-align: center; padding: 20px; }
+.hl-benefit {
+  color: #d0d0d0;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  font-style: italic;
+}
+.hl-unlock {
+  font-size: 11px;
+  color: #f0a838;
+  background: rgba(240, 168, 56, 0.08);
+  border-left: 2px solid #f0a838;
+  padding: 4px 8px;
+  margin: 6px 0;
+  border-radius: 3px;
+}
+
+/* Housing tier breakdown — full 9-tier ladder on the housing card */
+.hl-tier-banner {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(15, 52, 96, 0.3);
+  border-radius: 6px;
+}
+.hl-tier-chain {
+  color: #16c79a;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.hl-tier-explainer {
+  color: #a0a0a0;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0;
+}
+.hl-tier-block {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(154, 122, 82, 0.06);
+  border-left: 3px solid #9a7a52;
+  border-radius: 4px;
+}
+.hl-tier-head {
+  color: #e6e6e6;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.hl-tier-head small {
+  color: #888;
+  font-weight: normal;
+  font-size: 11px;
+  margin-left: 6px;
+}
+.hl-tier-line {
+  color: #c8c8c8;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 2px 0;
+}
+.hl-tier-line i { color: #888; font-style: normal; margin-right: 4px; }
 
 /* Changelog modal */
 #changelog-overlay {

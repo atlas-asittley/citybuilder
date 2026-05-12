@@ -126,14 +126,175 @@ function renderCard(bt) {
     rows.push(`<span class="hl-label">Footprint</span><span class="hl-value">${bt.footprint_w}×${bt.footprint_h}</span>`);
   }
 
+  // Plain-language "what this does" line — fills the gap between raw
+  // mechanic rows above and the catalog description below. Surfaces
+  // non-output effects (service gating, booster %, police coverage,
+  // tax scaling) in player-readable form.
+  const benefit = benefitText(bt);
+  // Unlock blurb for buildings whose only purpose is gating a higher
+  // housing tier (school / temple / industrial luxuries).
+  const unlock = unlockBlurb(bt);
+  // Housing gets the full 9-tier breakdown appended below the rows so
+  // the player sees the whole evolution ladder + every prereq at each
+  // step + the per-house drain rates.
+  const housingDetail = bt.category === 'housing' ? renderHousingTierBreakdown() : '';
+
   return `
     <div class="hl-bldg">
       <div class="hl-bldg-head">
-        <span class="hl-bldg-name">${bt.name || bt.key}</span>
-        <span class="hl-bldg-cat">${bt.category}</span>
+        <span class="hl-bldg-name">${escapeHtml(bt.name || bt.key)}</span>
+        <span class="hl-bldg-cat">${escapeHtml(bt.category)}</span>
       </div>
+      ${benefit ? `<div class="hl-benefit">${escapeHtml(benefit)}</div>` : ''}
+      ${unlock  ? `<div class="hl-unlock">🔒 ${escapeHtml(unlock)}</div>` : ''}
       <div class="hl-rows">${rows.join('')}</div>
       ${bt.description ? `<div class="hl-desc">${escapeHtml(bt.description)}</div>` : ''}
+      ${housingDetail}
+    </div>
+  `;
+}
+
+// Plain-language gameplay summary per building. Where the effect IS
+// "produces X", we lean on the Output row above and skip the line.
+function benefitText(bt) {
+  if (bt.category === 'road') {
+    return 'Connects buildings to the city. Required for housing tier 3+ and most production.';
+  }
+  if (bt.category === 'housing') {
+    return 'Houses citizens, contributing workers to your city. Evolves through nine tiers as services + food + luxuries become available.';
+  }
+  if (bt.category === 'extractor') {
+    return `Your district's source of ${resName(bt.output_resource_key)}. Place near a matching resource patch.`;
+  }
+  if (bt.category === 'food_extractor') {
+    return `Produces ${resName(bt.output_resource_key)} to feed your population. Higher-tier housing requires food in stock.`;
+  }
+  if (bt.category === 'processor') {
+    const inText = [resName(bt.input_resource_key)];
+    if (bt.input_resource_key_2) inText.push(resName(bt.input_resource_key_2));
+    return `Refines ${inText.join(' + ')} into ${resName(bt.output_resource_key)}.`;
+  }
+  if (bt.category === 'booster') {
+    const pct = Math.round(((bt.boost_multiplier || 1) - 1) * 100);
+    const target = bt.boost_target === 'food_extractor' ? 'food extractors' : 'extractors';
+    return `Boosts every ${target} within ${bt.boost_range || 2} tiles by +${pct}%. Stack one near each cluster.`;
+  }
+  if (bt.category === 'service') {
+    if (bt.key === 'well')      return 'Lets housing within 4 tiles upgrade past Shanty.';
+    if (bt.key === 'tavern')    return 'Boosts city productivity by +5% while staffed and fed. Consumes bread + pottery, with a small crime cost.';
+    if (bt.key === 'bathhouse') return 'Stops nearby housing from devolving when conditions slip.';
+    if (bt.key === 'school')    return 'Gates Townhouse (tier 3) evolution for any housing within 5 tiles.';
+    if (bt.key === 'temple')    return 'Gates Villa (tier 4) evolution for any housing within 6 tiles.';
+    return 'Service building.';
+  }
+  if (bt.category === 'tax') {
+    return `Tax revenue scales with population: $${bt.output_rate || 0}/min per 100 citizens. A city of 200 generates $${(bt.output_rate || 0) * 2}/min per office.`;
+  }
+  if (bt.category === 'police') {
+    return `Reduces crime in housing within ${bt.coverage_radius || 0} tiles. Crime over 50 pushes citizens out of the city.`;
+  }
+  if (bt.category === 'park') {
+    return `Dampens pollution by ${Math.abs(bt.pollution_emit || 0)} on every tile within ${bt.pollution_radius || 0}. No staffing needed.`;
+  }
+  if (bt.category === 'transport_hub') {
+    return 'Unlocks a city-wide procedural trade partner. Expand once to add another partner from the pool.';
+  }
+  if (bt.category === 'transport_connector') {
+    return 'Routes your city to other players\' transport hubs over the road network.';
+  }
+  return null;
+}
+
+// Buildings whose only purpose is to gate a higher housing tier
+// surface that prereq prominently. The build menu also shows this as
+// a 🔒 row when the player hasn't unlocked the tier yet.
+function unlockBlurb(bt) {
+  if (bt.unlocks_at_housing_tier == null) return null;
+  const tierName = state.housingTierConfig?.[bt.unlocks_at_housing_tier]?.name
+    || ('Tier ' + bt.unlocks_at_housing_tier);
+  return `Locked until you reach ${tierName} housing.`;
+}
+
+// 9-tier evolution ladder rendered into the housing card. Reads from
+// state.housingTierConfig + state.housingLifestyleDemands so the
+// numbers stay current as balance migrations move them — never
+// hardcoded.
+function renderHousingTierBreakdown() {
+  const tiers = state.housingTierConfig || {};
+  const demands = state.housingLifestyleDemands || {};
+
+  const chain = [];
+  for (let t = 0; t <= 8; t++) {
+    if (tiers[t]) chain.push(tiers[t].name);
+  }
+  let html = `
+    <div class="hl-tier-banner">
+      <div class="hl-tier-chain">${escapeHtml(chain.join(' → '))}</div>
+      <p class="hl-tier-explainer">
+        Houses evolve through these tiers automatically as their needs
+        are met, and devolve a tier when a need fails (after a grace
+        window). Lifestyle goods stack — once a tier earns a good,
+        every higher tier keeps needing it. Tap any house in the city
+        to see its exact next-upgrade blockers.
+      </p>
+    </div>
+  `;
+  for (let t = 0; t <= 8; t++) {
+    const cfg = tiers[t];
+    if (!cfg) continue;
+    html += renderTierBlock(t, cfg, demands);
+  }
+  return html;
+}
+
+function renderTierBlock(tier, cfg, demands) {
+  const workers = cfg.workers || 0;
+  const foodPerMin = Number(cfg.food_per_minute || 0);
+  const foodPerHour = Math.round(foodPerMin * 60);
+
+  const prereqs = [];
+  if (tier === 1) {
+    prereqs.push('any well in your district');
+  } else if (tier > 0) {
+    if (cfg.needs_well)   prereqs.push('well within 4 tiles');
+    if (cfg.needs_road)   prereqs.push('road-connected');
+    if (cfg.needs_food)   prereqs.push('food in stock (any food type)');
+    if (cfg.needs_school) prereqs.push('operating school within 5 tiles');
+    if (cfg.needs_temple) prereqs.push('operating temple within 6 tiles');
+    if (cfg.needs_luxury_food) prereqs.push('a luxury food in stock');
+    if (cfg.needs_all_industrial_luxuries) {
+      prereqs.push('ALL FOUR industrial luxuries (cabinets + monuments + mosaics + machinery)');
+    } else if (cfg.needs_industrial_luxury) {
+      prereqs.push('an industrial luxury in stock');
+    }
+    if (cfg.min_desirability > 0) prereqs.push(`desirability ≥ ${cfg.min_desirability}/100`);
+  }
+
+  const lifestyleRows = (demands[tier] || []).slice().sort((a, b) =>
+    a.resource_key.localeCompare(b.resource_key));
+  const drainParts = [];
+  if (foodPerHour > 0) drainParts.push(`${foodPerHour} food/hr`);
+  for (const d of lifestyleRows) {
+    const perHour = Math.round(Number(d.qty_per_minute) * 60 * 10) / 10;
+    drainParts.push(`${perHour} ${resName(d.resource_key)}/hr`);
+  }
+
+  const lifestyleGoodsLine = lifestyleRows.length > 0
+    ? `<div class="hl-tier-line"><i>Lifestyle goods (must stay stocked):</i> ${escapeHtml(lifestyleRows.map((d) => resName(d.resource_key)).join(' + '))}</div>`
+    : '';
+
+  return `
+    <div class="hl-tier-block hl-tier-t${tier}">
+      <div class="hl-tier-head">${escapeHtml(cfg.name)} <small>tier ${tier} · houses ${workers}</small></div>
+      ${prereqs.length > 0
+        ? `<div class="hl-tier-line"><i>Needs:</i> ${escapeHtml(prereqs.join(' · '))}</div>`
+        : tier === 0
+          ? `<div class="hl-tier-line"><i>No prereqs</i> — placed as Shanty, then evolves automatically.</div>`
+          : ''}
+      ${lifestyleGoodsLine}
+      ${drainParts.length > 0
+        ? `<div class="hl-tier-line"><i>Per-house drain:</i> ${escapeHtml(drainParts.join(' · '))}</div>`
+        : ''}
     </div>
   `;
 }
