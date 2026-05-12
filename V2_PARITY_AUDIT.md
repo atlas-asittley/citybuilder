@@ -66,7 +66,7 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 - [x] **Inspector: pollution + desirability tier qualification** (`v1-parity audit, commit 59/N`) — v1 shows "qualifies for Villa (needs ≥60, you're 72)".
 - [x] **Build menu: no-workers warning** (`v1-parity audit, commit 59/N`) — `BuildTabPanel.js`. v1 warns if placing this would exceed worker capacity.
 - [x] **Build menu: transport hub expansion context on first build** (`v1-parity audit, commit 63/N`) — v1 first-build copy.
-- [ ] **Help: click-to-expand rows + recipe period labels** — `HelpModal.js`. Benefit one-liner shipped in commit 48. Click-to-expand and integer-ratio recipe period labels (per-card) still pending.
+- [x] **Help: click-to-expand rows + recipe period labels** (`v1-parity audit, commit 65/N`) — `HelpModal.js`. Benefit one-liner shipped in 48; click-to-expand cards + integer-ratio recipe periods shipped in 65.
 - [x] **Zoom-at-point preservation** (`v1-parity audit, commit 62/N`) — `MainScene.js _setupCamera`. v1 keeps world point under cursor stable during zoom. v2's `cam.setZoom` drifts.
 - [x] **Pinch-zoom prevention on iOS Safari** (`v1-parity audit, commit 62/N`) — `main.js`. v1 has explicit multi-touch handlers. v2 has gesturestart/change/end preventDefault but may need verification on Safari.
 

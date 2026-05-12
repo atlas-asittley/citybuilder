@@ -1829,6 +1829,30 @@ body.app-hidden *::after {
   border-top: 1px dotted rgba(15, 52, 96, 0.6);
 }
 .hl-empty { color: #888; text-align: center; padding: 20px; }
+
+/* Click-to-expand cards in Help. Collapsed = just the header chip;
+   expanded = full rows + description + housing tier breakdown. */
+.hl-bldg-toggle {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.hl-bldg-toggle:hover { color: #16c79a; }
+.hl-chev {
+  color: #888;
+  font-size: 10px;
+  display: inline-block;
+  width: 10px;
+  text-align: center;
+}
+.hl-bldg-cost {
+  margin-left: auto;
+  color: #e0c065;
+  font-weight: 600;
+  font-size: 12px;
+}
 .hl-benefit {
   color: #d0d0d0;
   font-size: 12px;

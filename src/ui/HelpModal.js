@@ -7,6 +7,12 @@
 // recipe scaling; this is the v2 first cut that hits the same
 // information needs.
 import { state } from '../state/store.js';
+import { recipeOf, periodSuffix } from '../scenes/helpers.js';
+
+// Module-scope expanded card set — persists across re-renders so
+// clicking a card and waiting for an inadvertent re-render (none
+// today, but future tick-driven refreshes) keeps the card open.
+const expanded = new Set();
 
 let mounted = false;
 
@@ -78,6 +84,18 @@ function render() {
     html += list.map(renderCard).join('');
   }
   body.innerHTML = html || '<p class="hl-empty">No buildings loaded yet.</p>';
+
+  // Wire click-to-expand on each card header.
+  body.querySelectorAll('.hl-bldg-toggle').forEach((header) => {
+    header.addEventListener('click', () => {
+      const card = header.parentElement;
+      const key = card.dataset.key;
+      if (!key) return;
+      if (expanded.has(key)) expanded.delete(key);
+      else expanded.add(key);
+      render();
+    });
+  });
 }
 
 function sectionFor(bt) {
@@ -95,18 +113,22 @@ function renderCard(bt) {
   if (bt.build_cost) rows.push(`<span class="hl-label">Cost</span><span class="hl-value">$${bt.build_cost}</span>`);
   if (bt.worker_cost) rows.push(`<span class="hl-label">Workers</span><span class="hl-value">${bt.worker_cost}</span>`);
   if (bt.workers_provided) rows.push(`<span class="hl-label">Houses</span><span class="hl-value">${bt.workers_provided} citizens</span>`);
+  // Integer-ratio recipe rows: "2 timber per 2 min" reads cleaner
+  // than "1 timber/min" or "0.5 timber/min" depending on rate.
   if (bt.input_resource_key && bt.input_rate > 0) {
-    const ins = [`${bt.input_rate} ${resName(bt.input_resource_key)}`];
+    const r = recipeOf(bt);
+    const ins = [`${r.input_q} ${resName(bt.input_resource_key)}`];
     if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
-      ins.push(`${bt.input_rate_2} ${resName(bt.input_resource_key_2)}`);
+      ins.push(`${r.input_q_2} ${resName(bt.input_resource_key_2)}`);
     }
-    rows.push(`<span class="hl-label">Input</span><span class="hl-value">${ins.join(' + ')}/min</span>`);
+    rows.push(`<span class="hl-label">Input</span><span class="hl-value">${ins.join(' + ')}${periodSuffix(r.period_min)}</span>`);
   }
   if (bt.output_resource_key && bt.output_rate > 0) {
     if (bt.category === 'tax') {
       rows.push(`<span class="hl-label">Revenue</span><span class="hl-value">$${bt.output_rate}/min per 100 pop</span>`);
     } else {
-      rows.push(`<span class="hl-label">Output</span><span class="hl-value">${bt.output_rate} ${resName(bt.output_resource_key)}/min</span>`);
+      const r = recipeOf(bt);
+      rows.push(`<span class="hl-label">Output</span><span class="hl-value">${r.output_q} ${resName(bt.output_resource_key)}${periodSuffix(r.period_min)}</span>`);
     }
   }
   if (bt.coverage_radius > 0) rows.push(`<span class="hl-label">Coverage</span><span class="hl-value">${bt.coverage_radius} tiles</span>`);
@@ -134,22 +156,27 @@ function renderCard(bt) {
   // Unlock blurb for buildings whose only purpose is gating a higher
   // housing tier (school / temple / industrial luxuries).
   const unlock = unlockBlurb(bt);
+  const isOpen = expanded.has(bt.key);
   // Housing gets the full 9-tier breakdown appended below the rows so
   // the player sees the whole evolution ladder + every prereq at each
-  // step + the per-house drain rates.
-  const housingDetail = bt.category === 'housing' ? renderHousingTierBreakdown() : '';
+  // step + the per-house drain rates. Only renders when expanded.
+  const housingDetail = (bt.category === 'housing' && isOpen) ? renderHousingTierBreakdown() : '';
 
   return `
-    <div class="hl-bldg">
-      <div class="hl-bldg-head">
+    <div class="hl-bldg ${isOpen ? 'hl-bldg-open' : ''}" data-key="${escapeHtml(bt.key)}">
+      <div class="hl-bldg-head hl-bldg-toggle">
+        <span class="hl-chev">${isOpen ? '▾' : '▸'}</span>
         <span class="hl-bldg-name">${escapeHtml(bt.name || bt.key)}</span>
         <span class="hl-bldg-cat">${escapeHtml(bt.category)}</span>
+        ${bt.build_cost ? `<span class="hl-bldg-cost">$${bt.build_cost}</span>` : ''}
       </div>
       ${benefit ? `<div class="hl-benefit">${escapeHtml(benefit)}</div>` : ''}
-      ${unlock  ? `<div class="hl-unlock">🔒 ${escapeHtml(unlock)}</div>` : ''}
-      <div class="hl-rows">${rows.join('')}</div>
-      ${bt.description ? `<div class="hl-desc">${escapeHtml(bt.description)}</div>` : ''}
-      ${housingDetail}
+      ${isOpen ? `
+        ${unlock  ? `<div class="hl-unlock">🔒 ${escapeHtml(unlock)}</div>` : ''}
+        <div class="hl-rows">${rows.join('')}</div>
+        ${bt.description ? `<div class="hl-desc">${escapeHtml(bt.description)}</div>` : ''}
+        ${housingDetail}
+      ` : ''}
     </div>
   `;
 }
