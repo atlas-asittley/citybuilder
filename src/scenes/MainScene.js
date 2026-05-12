@@ -290,8 +290,14 @@ export class MainScene extends Phaser.Scene {
         this._walkers.splice(i, 1);
         continue;
       }
-      const dx = w.targetX - w.sprite.x;
-      const dy = w.targetY - w.sprite.y;
+      // trueX/trueY follow the straight-line path. sprite.x/y get
+      // trueX/Y plus a small perpendicular sine offset so the walker
+      // visibly sways as it moves instead of gliding in a stiff line.
+      // Older walkers (spawned before this commit) without trueX/Y
+      // fall back to sprite position so they don't snap.
+      if (w.trueX === undefined) { w.trueX = w.sprite.x; w.trueY = w.sprite.y; }
+      const dx = w.targetX - w.trueX;
+      const dy = w.targetY - w.trueY;
       const dist = Math.hypot(dx, dy);
       const speed = w.speed || 28;
 
@@ -300,15 +306,6 @@ export class MainScene extends Phaser.Scene {
       // the resource" or "dropping it off".
       if (w.pauseUntil && performance.now() < w.pauseUntil) continue;
       if (w.pauseUntil) w.pauseUntil = 0;
-
-      // Keep accessory locked to walker if one is attached.
-      if (w.accessory && !w.accessory.scene) {
-        w.accessory = null;   // stale ref from a prior scene
-      }
-      if (w.accessory) {
-        w.accessory.x = w.sprite.x + 6;
-        w.accessory.y = w.sprite.y + 1;
-      }
 
       if (dist < 2) {
         // Arrived at the current target. Behavior depends on walker
@@ -361,8 +358,28 @@ export class MainScene extends Phaser.Scene {
           continue;
         }
       } else {
-        w.sprite.x += (dx / dist) * speed * dt;
-        w.sprite.y += (dy / dist) * speed * dt;
+        // Advance true (path) position linearly toward target.
+        w.trueX += (dx / dist) * speed * dt;
+        w.trueY += (dy / dist) * speed * dt;
+      }
+
+      // Compute final rendered position: trueX/Y + a perpendicular
+      // sine offset (~1.6px amplitude) so the walker sways across
+      // its path. Per-walker phase keeps the flock desynced.
+      const ux = dist > 0.01 ? dx / dist : 0;
+      const uy = dist > 0.01 ? dy / dist : 0;
+      const t = performance.now() / 1000;
+      const wob = Math.sin(t * 4 + (w.phase || 0)) * 1.6;
+      w.sprite.x = w.trueX + (-uy) * wob;
+      w.sprite.y = w.trueY + (ux)  * wob;
+
+      // Keep accessory locked to walker if one is attached.
+      if (w.accessory && !w.accessory.scene) {
+        w.accessory = null;   // stale ref from a prior scene
+      }
+      if (w.accessory) {
+        w.accessory.x = w.sprite.x + 6;
+        w.accessory.y = w.sprite.y + 1;
       }
     }
   }
@@ -414,19 +431,33 @@ export class MainScene extends Phaser.Scene {
   _spawnRandomWalker() {
     if (this._walkers.length >= maxWalkers()) return;
     const myId = state.currentUser?.id;
-    const candidates = state.allBuildings.filter((b) =>
-      b.player_id === myId && b.is_staffed && b.status === 'active'
-    );
+
+    // Build the set of extractor ids that already have a live
+    // collector walker — exactly one collector per extractor at a
+    // time, matching v1's "each active extractor owns one collector
+    // walker" rule. Without this, multiple walkers from the same
+    // extractor pile up visually, looking like several walkers are
+    // headed to the same resource tile.
+    const busyExtractors = new Set();
+    for (const w of this._walkers) {
+      if ((w.kind === 'collector' || w.kind === 'collector-path') && w.extractorId) {
+        busyExtractors.add(w.extractorId);
+      }
+    }
+
+    const candidates = state.allBuildings.filter((b) => {
+      if (b.player_id !== myId || !b.is_staffed || b.status !== 'active') return false;
+      const bt = state.buildingTypes[b.building_type_key];
+      if (!bt) return false;
+      const isExt = bt.category === 'extractor' || bt.category === 'food_extractor';
+      if (isExt && busyExtractors.has(b.id)) return false;   // already has a walker
+      return true;
+    });
     if (!candidates.length) return;
     const b = candidates[Math.floor(Math.random() * candidates.length)];
     const bt = state.buildingTypes[b.building_type_key];
     if (!bt) return;
 
-    // Extractors with a claimed resource tile (target_x/y set) get
-    // collector walkers — they walk building↔resource on a straight
-    // line through grass, simulating the trip to harvest. Other
-    // staffed buildings emit road-walkers that traverse the
-    // network.
     const isExtractor = bt.category === 'extractor' || bt.category === 'food_extractor';
     if (isExtractor && Number.isFinite(b.target_x) && Number.isFinite(b.target_y)) {
       this._spawnCollectorWalker(b, bt);
@@ -464,6 +495,7 @@ export class MainScene extends Phaser.Scene {
       curTileX: startTileX, curTileY: startTileY,
       prevTileX: b.x, prevTileY: b.y,
       targetX: startX, targetY: startY,
+      trueX: startX, trueY: startY, phase: Math.random() * Math.PI * 2,
       life: 24
     };
     this._advanceWalkerToNextRoad(w);
@@ -484,9 +516,8 @@ export class MainScene extends Phaser.Scene {
     // cities with no road network yet).
     const tilePath = this._findRoadPath(b, bt, b.target_x, b.target_y);
     tagWalkerSpriteKind(sprite, tilePath ? 'collector-path' : 'collector');
+    const phase = Math.random() * Math.PI * 2;
     if (tilePath && tilePath.length > 0) {
-      // Append: building anchor (start), then road waypoints, then the
-      // resource tile (final step off-road).
       const worldPath = [];
       worldPath.push([homeX, homeY]);
       for (const [x, y] of tilePath) {
@@ -501,21 +532,23 @@ export class MainScene extends Phaser.Scene {
       ]);
       this._walkers.push({
         kind: 'collector-path', sprite, speed,
-        path: worldPath,
-        wpIdx: 1, goingForward: true,
+        path: worldPath, wpIdx: 1, goingForward: true,
         targetX: worldPath[1][0], targetY: worldPath[1][1],
+        trueX: homeX, trueY: homeY, phase,
+        extractorId: b.id,
         life: 30
       });
       return;
     }
 
-    // Fallback — straight line through grass.
     const resourceX = (b.target_x - state.gridMinX) * TILE_PX + TILE_PX / 2;
     const resourceY = (b.target_y - state.gridMinY) * TILE_PX + TILE_PX / 2;
     this._walkers.push({
       kind: 'collector', sprite, speed,
       homeX, homeY,
       targetX: resourceX, targetY: resourceY,
+      trueX: homeX, trueY: homeY, phase,
+      extractorId: b.id,
       life: 20
     });
   }
@@ -616,6 +649,7 @@ export class MainScene extends Phaser.Scene {
     this._walkers.push({
       kind: 'emigrant', sprite, accessory, speed: 32,
       targetX: dest.x, targetY: dest.y,
+      trueX: houseX, trueY: houseY, phase: Math.random() * Math.PI * 2,
       life: 60
     });
   }
@@ -659,6 +693,7 @@ export class MainScene extends Phaser.Scene {
     this._walkers.push({
       kind: 'immigrant', sprite, accessory, speed: 32,
       targetX: houseX, targetY: houseY,
+      trueX: start.x, trueY: start.y, phase: Math.random() * Math.PI * 2,
       life: 60
     });
   }
@@ -757,6 +792,60 @@ export class MainScene extends Phaser.Scene {
       overlay.setAlpha(0.32);
       overlay.setDepth(3);   // below res-dot (5), above tiles (default 0)
       this._aoeOverlays.push(overlay);
+    }
+  }
+
+  // Public: draw a gold outline around the inspected building's
+  // footprint + (for extractors) mark the resource tile they're
+  // harvesting from. Called from the inspector on open; cleared on
+  // close. Separate from showAoe — showAoe paints the AFFECTED tiles
+  // for service/police/park/booster; this marks the SELECTED building
+  // itself + its resource target.
+  showSelection(building) {
+    this.clearSelection();
+    if (!building) return;
+    const bt = state.buildingTypes[building.building_type_key];
+    if (!bt) return;
+    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+    const x = (building.x - state.gridMinX) * TILE_PX;
+    const y = (building.y - state.gridMinY) * TILE_PX;
+    const w = fw * TILE_PX, h = fh * TILE_PX;
+    // Gold rectangle outline. Drawn with a Graphics object so the
+    // stroke is crisp and doesn't tint underlying sprites.
+    const g = this.add.graphics();
+    g.lineStyle(3, 0xffd060, 1);
+    g.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    g.setDepth(15);   // above building sprites (depth 0-12)
+    this._selectionOverlay = g;
+    // Extractor: also mark the resource tile being harvested. Different
+    // tint (amber-orange) + small inset so it reads as "this is the
+    // target of the selected building" rather than the selection itself.
+    if ((bt.category === 'extractor' || bt.category === 'food_extractor')
+        && Number.isFinite(building.target_x) && Number.isFinite(building.target_y)) {
+      const tx = (building.target_x - state.gridMinX) * TILE_PX;
+      const ty = (building.target_y - state.gridMinY) * TILE_PX;
+      const g2 = this.add.graphics();
+      g2.lineStyle(3, 0xff9028, 1);
+      g2.strokeRect(tx + 2, ty + 2, TILE_PX - 4, TILE_PX - 4);
+      // Pulsing alpha so it draws the eye to the resource tile.
+      g2.setDepth(15);
+      this.tweens.add({
+        targets: g2,
+        alpha: { from: 1, to: 0.4 },
+        duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+      });
+      this._selectionTargetOverlay = g2;
+    }
+  }
+
+  clearSelection() {
+    if (this._selectionOverlay) {
+      this._selectionOverlay.destroy();
+      this._selectionOverlay = null;
+    }
+    if (this._selectionTargetOverlay) {
+      this._selectionTargetOverlay.destroy();
+      this._selectionTargetOverlay = null;
     }
   }
 

@@ -40,6 +40,7 @@ export function openInspector(building, onClose) {
   if (!mounted) mountInspector();
   renderInspector();
   if (sceneRef?.showAoe) sceneRef.showAoe(building);
+  if (sceneRef?.showSelection) sceneRef.showSelection(building);
 }
 
 export function closeInspector() {
@@ -48,6 +49,7 @@ export function closeInspector() {
   if (panel) panel.classList.remove('open');
   activeBuilding = null;
   if (sceneRef?.clearAoe) sceneRef.clearAoe();
+  if (sceneRef?.clearSelection) sceneRef.clearSelection();
   if (onCloseCallback) {
     onCloseCallback();
     onCloseCallback = null;
