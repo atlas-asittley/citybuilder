@@ -1,8 +1,32 @@
-// City > Treasury subtab. Renders the 24h summary + 7d chart +
-// recent transactions list into a passed-in container. Same data
-// path as the standalone ReportsPanel modal.
+// City > Treasury subtab.
+//
+// Four-component dashboard at the top:
+//   1. Burn rate + runway projection ("-$340/day · cash runs out in ~12 days")
+//   2. Top income source + top expense sink chips
+//   3. Daily-net 7-bar inline SVG chart (green up / red down)
+//   4. Cumulative-balance sparkline (color picks up trend direction)
+//
+// Followed by 24h income / expense summary, proportional-bar breakdown
+// by source, and a recent-transactions list. Mirrors v1's reports.js
+// Treasury panel.
 import { sb } from '../../api/supabase.js';
 import { state } from '../../state/store.js';
+
+const SOURCE_LABELS = {
+  tax_revenue:      'Taxes',
+  trade_sale:       'Trade (sell)',
+  trade_purchase:   'Trade (buy)',
+  black_market:     'Black market',
+  build_cost:       'Building cost',
+  demolish_refund:  'Demolish refund',
+  expansion_cost:   'District expansion',
+  starting_grant:   'Starting grant',
+  upkeep:           'Upkeep',
+  river_traders:    'River Traders',
+  ledger_adjustment: 'Ledger adjustment',
+  trade_offer:      'Player trade offer',
+  trade_agreement:  'Player trade agreement'
+};
 
 export async function renderCityTreasury(parent) {
   parent.innerHTML = '<p class="rp-loading">Loading…</p>';
@@ -15,125 +39,233 @@ export async function renderCityTreasury(parent) {
       .order('created_at', { ascending: false })
       .limit(100)
   ]);
-
-  const data = txRes.data;
   if (txRes.error) {
     parent.innerHTML = `<p class="rp-error">Couldn't load transactions: ${txRes.error.message}</p>`;
     return;
   }
-  const series = seriesRes.error ? [] : (seriesRes.data || []);
 
+  const txs = txRes.data || [];
+  const series = (seriesRes.error ? [] : seriesRes.data || []).map((row) => ({
+    date: row.day || row.date,
+    earned: Number(row.earned ?? row.income ?? 0),
+    spent:  Number(row.spent  ?? row.expense ?? 0),
+    net:    Number(row.net ?? ((row.earned || 0) - (row.spent || 0))),
+    sources: row.sources || {},
+    sinks:   row.sinks || {}
+  }));
+
+  // 24h totals + per-source proportional breakdown.
   let income = 0, expense = 0;
-  for (const row of data) {
-    if (row.amount > 0) income += row.amount;
-    else expense += -row.amount;
+  const sources24h = {};   // positive amounts
+  const sinks24h = {};     // negative amounts (stored as positive magnitudes)
+  for (const t of txs) {
+    if (t.amount > 0) {
+      income += t.amount;
+      sources24h[t.source] = (sources24h[t.source] || 0) + t.amount;
+    } else if (t.amount < 0) {
+      expense += -t.amount;
+      sinks24h[t.source] = (sinks24h[t.source] || 0) + -t.amount;
+    }
   }
-  const bySource = {};
-  for (const row of data) bySource[row.source] = (bySource[row.source] || 0) + row.amount;
-  const sourceRows = Object.entries(bySource)
-    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-    .map(([src, total]) =>
-      `<div class="rp-source">
-        <span class="rp-src-name">${friendlySource(src)}</span>
-        <span class="rp-src-amt ${total >= 0 ? 'rp-pos' : 'rp-neg'}">${total >= 0 ? '+' : ''}$${total}</span>
-      </div>`).join('');
-  const txRows = data.slice(0, 25).map((row) => {
+
+  parent.innerHTML = `
+    ${renderTreasuryAdvisor(series)}
+    <div class="rp-summary">
+      <div class="rp-stat"><span class="rp-stat-label">Cash</span><span class="rp-stat-value">$${Math.floor(state.profile.money || 0).toLocaleString()}</span></div>
+      <div class="rp-stat"><span class="rp-stat-label">Income (24h)</span><span class="rp-stat-value rp-pos">+$${income.toLocaleString()}</span></div>
+      <div class="rp-stat"><span class="rp-stat-label">Expense (24h)</span><span class="rp-stat-value rp-neg">-$${expense.toLocaleString()}</span></div>
+    </div>
+    <h3 class="rp-section-title">Income sources (24h)</h3>
+    ${renderFlowBars(sources24h, 'pos') || '<p class="rp-empty">No income yet.</p>'}
+    <h3 class="rp-section-title">Spending (24h)</h3>
+    ${renderFlowBars(sinks24h, 'neg') || '<p class="rp-empty">No spending yet.</p>'}
+    <h3 class="rp-section-title">Recent transactions</h3>
+    <div class="rp-txs">${renderTxList(txs)}</div>
+  `;
+}
+
+// ── Treasury Advisor — 4-component dashboard ──
+//
+// Skipped entirely when the 7-day window has no activity (no chart =
+// no insight). Otherwise: burn rate text + projection, top source +
+// sink chips, daily-net bars, cumulative-balance sparkline.
+function renderTreasuryAdvisor(days) {
+  const hasActivity = days.some((d) => d.earned > 0 || d.spent > 0);
+  if (!hasActivity) return '';
+
+  const money = Number(state.profile?.money || 0);
+  const weekNet = days.reduce((s, d) => s + d.net, 0);
+  const avgDailyNet = weekNet / Math.max(1, days.length);
+
+  let rateText, projText, rateClass;
+  if (avgDailyNet > 0.5) {
+    rateText = `+$${Math.round(avgDailyNet)}/day`;
+    projText = '';
+    rateClass = 'good';
+  } else if (avgDailyNet < -0.5) {
+    const burn = -avgDailyNet;
+    rateText = `-$${Math.round(burn)}/day`;
+    rateClass = 'bad';
+    if (money > 0) {
+      const runway = Math.floor(money / burn);
+      projText = `cash runs out in ~${runway} day${runway === 1 ? '' : 's'} at this rate`;
+    } else {
+      projText = 'currently in deficit';
+    }
+  } else {
+    rateText = 'break-even';
+    projText = '';
+    rateClass = 'neutral';
+  }
+
+  // Aggregate sources + sinks across the week for the chip selection.
+  const sources = {}, sinks = {};
+  for (const d of days) {
+    for (const k in (d.sources || {})) sources[k] = (sources[k] || 0) + d.sources[k];
+    for (const k in (d.sinks   || {})) sinks[k]   = (sinks[k]   || 0) + d.sinks[k];
+  }
+  const topSource = Object.keys(sources).sort((a, b) => sources[b] - sources[a])[0];
+  const topSink   = Object.keys(sinks).sort((a, b) => sinks[b] - sinks[a])[0];
+
+  return `
+    <div class="rp-advisor">
+      <div class="rp-advisor-title">Treasury Advisor — last 7 days</div>
+      <div class="rp-burn-row">
+        <span class="rp-burn-value rp-${rateClass}">${rateText}</span>
+        ${projText ? `<span class="rp-burn-proj">· ${escapeHtml(projText)}</span>` : ''}
+      </div>
+      ${topSource || topSink ? `
+        <div class="rp-chips">
+          ${topSource ? `<span class="rp-chip rp-chip-good">↑ ${escapeHtml(friendlySource(topSource))} $${Math.round(sources[topSource]).toLocaleString()}</span>` : ''}
+          ${topSink   ? `<span class="rp-chip rp-chip-bad">↓ ${escapeHtml(friendlySource(topSink))} $${Math.round(sinks[topSink]).toLocaleString()}</span>` : ''}
+        </div>
+      ` : ''}
+      <div class="rp-chart-label">Daily net</div>
+      ${renderDailyBars(days)}
+      <div class="rp-chart-label">Cash balance</div>
+      ${renderBalanceLine(days, money)}
+    </div>
+  `;
+}
+
+// Inline SVG: 7 bars, centered on a zero line. Green up for profit,
+// red down for loss. Bar height proportional to |net|. Underneath,
+// a date-axis row of small labels (with month-name on day 1).
+function renderDailyBars(days) {
+  if (!days.length) return '';
+  const maxAbs = days.reduce((m, d) => Math.max(m, Math.abs(d.net)), 1);
+  const n = days.length;
+  const pad = 0.6;
+  const slot = 100 / n;
+  const midY = 28;
+  const maxBar = 22;
+  const bars = days.map((d, i) => {
+    const h = Math.abs(d.net) / maxAbs * maxBar;
+    const y = d.net >= 0 ? midY - h : midY;
+    const color = d.net >= 0 ? '#5ec49e' : '#e0707a';
+    return `<rect x="${(i * slot + pad).toFixed(2)}" y="${y.toFixed(2)}" width="${(slot - 2 * pad).toFixed(2)}" height="${Math.max(0.4, h).toFixed(2)}" fill="${color}" rx="0.5"/>`;
+  }).join('');
+  return `
+    <svg class="rp-svg-chart" viewBox="0 0 100 56" preserveAspectRatio="none">
+      <line x1="0" y1="${midY}" x2="100" y2="${midY}" stroke="#3a4a5e" stroke-width="0.3"/>
+      ${bars}
+    </svg>
+    ${renderDateAxis(days)}
+  `;
+}
+
+// Cumulative-balance sparkline. Reconstructs the start-of-window
+// balance by walking nets backwards from current money, then plots
+// forward. Color reflects direction (green if ending higher than
+// starting, red if lower). Filled area underneath for emphasis.
+function renderBalanceLine(days, currentMoney) {
+  if (!days.length) return '';
+  let startBalance = currentMoney;
+  for (const d of days) startBalance -= d.net;
+  const balances = [];
+  let b = startBalance;
+  for (const d of days) { b += d.net; balances.push(b); }
+
+  const minB = Math.min(...balances);
+  let maxB = Math.max(...balances);
+  if (maxB === minB) maxB = minB + 1;
+  const range = maxB - minB;
+  const pts = balances.map((v, i) => {
+    const x = i / Math.max(1, balances.length - 1) * 100;
+    const y = 50 - ((v - minB) / range * 40 + 4);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  const stroke = balances[balances.length - 1] >= balances[0] ? '#5ec49e' : '#e0707a';
+  const areaPts = pts.slice();
+  areaPts.push('100,56');
+  areaPts.push('0,56');
+  return `
+    <svg class="rp-svg-chart" viewBox="0 0 100 56" preserveAspectRatio="none">
+      <polygon points="${areaPts.join(' ')}" fill="${stroke}" fill-opacity="0.12"/>
+      <polyline points="${pts.join(' ')}" stroke="${stroke}" stroke-width="0.7" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    ${renderDateAxis(days)}
+  `;
+}
+
+// Date labels under each bar / line tick. Shows month-name only on
+// the first label and on month-boundary days, otherwise just the
+// day-of-month, to keep the row compact.
+function renderDateAxis(days) {
+  const ticks = days.map((d, i) => {
+    const parts = String(d.date || '').split('-');
+    if (parts.length !== 3) return '<span></span>';
+    const dt = new Date(Date.UTC(+parts[0], +parts[1] - 1, +parts[2]));
+    const dom = dt.getUTCDate();
+    const showMonth = (i === 0) || dom === 1;
+    const label = showMonth
+      ? dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
+      : String(dom);
+    return `<span class="rp-axis-tick">${escapeHtml(label)}</span>`;
+  }).join('');
+  return `<div class="rp-axis">${ticks}</div>`;
+}
+
+// Horizontal proportional bars. Each row's width = value / max_value
+// in the set. Sorted descending. `kind` controls bar color (pos=green
+// for income, neg=red for spending).
+function renderFlowBars(byKey, kind) {
+  const keys = Object.keys(byKey).sort((a, b) => byKey[b] - byKey[a]);
+  if (keys.length === 0) return '';
+  const max = byKey[keys[0]] || 1;
+  const color = kind === 'neg' ? '#e94560' : '#16c79a';
+  return `<div class="rp-flow">
+    ${keys.map((k) => {
+      const v = byKey[k];
+      const pct = (v / max) * 100;
+      return `<div class="rp-flow-row">
+        <div class="rp-flow-name">${escapeHtml(friendlySource(k))}</div>
+        <div class="rp-flow-bar"><div class="rp-flow-fill" style="width:${pct.toFixed(1)}%;background:${color};"></div></div>
+        <div class="rp-flow-amt">$${Math.round(v).toLocaleString()}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderTxList(txs) {
+  if (txs.length === 0) return '<p class="rp-empty">No transactions in the last 24h.</p>';
+  return txs.slice(0, 25).map((row) => {
     const t = new Date(row.created_at);
     const when = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     return `<div class="rp-tx">
       <span class="rp-tx-when">${when}</span>
-      <span class="rp-tx-src">${friendlySource(row.source)}</span>
-      <span class="rp-tx-amt ${row.amount >= 0 ? 'rp-pos' : 'rp-neg'}">${row.amount >= 0 ? '+' : ''}$${row.amount}</span>
+      <span class="rp-tx-src">${escapeHtml(friendlySource(row.source))}</span>
+      <span class="rp-tx-amt ${row.amount >= 0 ? 'rp-pos' : 'rp-neg'}">${row.amount >= 0 ? '+' : ''}$${row.amount.toLocaleString()}</span>
     </div>`;
   }).join('');
-
-  parent.innerHTML = `
-    <div class="rp-summary">
-      <div class="rp-stat"><span class="rp-stat-label">Cash</span><span class="rp-stat-value">$${Math.floor(state.profile.money || 0)}</span></div>
-      <div class="rp-stat"><span class="rp-stat-label">Income (24h)</span><span class="rp-stat-value rp-pos">+$${income}</span></div>
-      <div class="rp-stat"><span class="rp-stat-label">Expense (24h)</span><span class="rp-stat-value rp-neg">-$${expense}</span></div>
-    </div>
-    ${series.length > 0 ? `
-      <h3 class="rp-section-title">7-day income vs expense</h3>
-      <canvas id="bp-rp-chart" width="420" height="140" class="rp-chart"></canvas>
-      <div class="rp-chart-legend">
-        <span class="rp-legend-dot" style="background:#16c79a;"></span> income
-        <span class="rp-legend-dot" style="background:#e94560;"></span> expense
-      </div>
-    ` : ''}
-    <h3 class="rp-section-title">By source (24h)</h3>
-    <div class="rp-sources">${sourceRows || '<p class="rp-empty">No activity in the last day.</p>'}</div>
-    <h3 class="rp-section-title">Recent transactions</h3>
-    <div class="rp-txs">${txRows || '<p class="rp-empty">No transactions.</p>'}</div>
-  `;
-  if (series.length > 0) drawChart(document.getElementById('bp-rp-chart'), series);
 }
 
 function friendlySource(src) {
-  return ({
-    tax_revenue: 'Taxes', build_cost: 'Building cost',
-    expansion_cost: 'District expansion', starting_grant: 'Starting grant',
-    demolish_refund: 'Demolish refund', upkeep: 'Upkeep',
-    trade_sale: 'Trade (sell)', trade_purchase: 'Trade (buy)', black_market: 'Black market'
-  })[src] || src;
+  return SOURCE_LABELS[src] || src;
 }
 
-function drawChart(canvas, series) {
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const pad = { top: 8, right: 10, bottom: 18, left: 36 };
-  const plotW = W - pad.left - pad.right;
-  const plotH = H - pad.top - pad.bottom;
-  const points = series.slice().reverse().map((row) => ({
-    day: row.day || row.date,
-    earned: Number(row.earned ?? row.income ?? 0),
-    spent:  Number(row.spent  ?? row.expense ?? 0)
-  }));
-  const maxY = Math.max(1, ...points.map((p) => Math.max(p.earned, p.spent)));
-  const stepY = niceStep(maxY, 4);
-  const top = Math.ceil(maxY / stepY) * stepY;
-  ctx.clearRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(15, 52, 96, 0.5)';
-  ctx.fillStyle = '#888';
-  ctx.font = '10px system-ui, sans-serif';
-  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  for (let v = 0; v <= top; v += stepY) {
-    const y = pad.top + plotH - (v / top) * plotH;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
-    ctx.fillText('$' + v, pad.left - 4, y);
-  }
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  points.forEach((p, i) => {
-    const x = pad.left + (plotW * i) / Math.max(1, points.length - 1);
-    const d = new Date(p.day);
-    const label = Number.isFinite(d.getDate()) ? `${d.getMonth() + 1}/${d.getDate()}` : '';
-    ctx.fillText(label, x, pad.top + plotH + 4);
-  });
-  drawSeries(ctx, points.map((p) => p.earned), top, pad, plotW, plotH, '#16c79a');
-  drawSeries(ctx, points.map((p) => p.spent),  top, pad, plotW, plotH, '#e94560');
-}
-function drawSeries(ctx, values, top, pad, plotW, plotH, color) {
-  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
-  values.forEach((v, i) => {
-    const x = pad.left + (plotW * i) / Math.max(1, values.length - 1);
-    const y = pad.top + plotH - (v / top) * plotH;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-  ctx.fillStyle = color;
-  values.forEach((v, i) => {
-    const x = pad.left + (plotW * i) / Math.max(1, values.length - 1);
-    const y = pad.top + plotH - (v / top) * plotH;
-    ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
-  });
-}
-function niceStep(maxY, targetTicks) {
-  const rough = maxY / targetTicks;
-  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
-  const norm = rough / mag;
-  if (norm < 1.5) return mag;
-  if (norm < 3)   return 2 * mag;
-  if (norm < 7)   return 5 * mag;
-  return 10 * mag;
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"]/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
+  }[c]));
 }

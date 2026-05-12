@@ -24,7 +24,7 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 
 ## TIER 2 — High (significant information density loss)
 
-- [ ] **Treasury Advisor (4-component dashboard)** — `CityTreasuryTab.js`. Missing burn rate + runway projection, top-source/top-sink chips, daily-net 7-bar SVG, cumulative-balance sparkline. v1's `renderTreasuryAdvisor` (reports.js ~571-707).
+- [x] **Treasury Advisor (4-component dashboard)** (`v1-parity audit, commit 49/N`) — `CityTreasuryTab.js`. Missing burn rate + runway projection, top-source/top-sink chips, daily-net 7-bar SVG, cumulative-balance sparkline. v1's `renderTreasuryAdvisor` (reports.js ~571-707).
 - [x] **Per-house pantry buffer display in inspector** (`v1-parity audit, commit 44/N`) — `InspectorPanel.js`. v1 shows per-resource fill % (food, pottery, bread, etc.) so player knows actual time-to-devolve. v2 missing.
 - [x] **Per-house pantries in runway calc** (`v1-parity audit, commit 44/N`) — `state/runway.js`. v2 only models city-wide drain. v1 models per-house buffers (30-min capacity). Top-bar runway is optimistic.
 - [ ] **Resources drilldown** — `CityResourcesTab.js`. v1: click a row to expand "where it's going" (production sources, processor sinks, citizen drain, exports + per-partner flow). v2: flat table.
