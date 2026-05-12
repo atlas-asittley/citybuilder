@@ -8,7 +8,13 @@ import {
   demolishBuilding, upgradeHouse,
   setHouseAutoUpgrade, setBuildingPaused, setBuildingPriority, expandTransportHub
 } from '../api/buildings.js';
-import { listBuildingIssues } from '../scenes/helpers.js';
+import {
+  listBuildingIssues,
+  getHousingUpgradeBlockers,
+  getHousingDevolveRisks,
+  describeHousingBlocker,
+  describeHousingDevolveReason
+} from '../scenes/helpers.js';
 
 // Set by main.js after MainScene starts. Lets the inspector ask the
 // scene to draw / clear the AoE highlight without an awkward import
@@ -134,22 +140,47 @@ function renderInspector() {
     rows.push(issueListHtml(issues));
   }
   if (bt.worker_cost > 0) rows.push(row('Workers', b.is_staffed ? `${bt.worker_cost} (staffed)` : `${bt.worker_cost} (unstaffed)`));
-  if (b.housing_tier) {
+  if (b.housing_tier !== undefined && b.housing_tier !== null) {
     const tier = state.housingTierConfig[b.housing_tier];
     rows.push(row('Housing tier', tier ? `${tier.name} (tier ${b.housing_tier})` : `tier ${b.housing_tier}`));
     if (b.population) rows.push(row('Residents', b.population));
+
     const nextTier = state.housingTierConfig[b.housing_tier + 1];
-    if (nextTier) {
+    if (nextTier && isMine) {
+      const ctx = buildHousingCtx();
+      const blockers = getHousingUpgradeBlockers(b, nextTier, ctx);
       const workerDelta = (nextTier.workers || nextTier.workers_provided || 0)
                        - (tier?.workers || tier?.workers_provided || 0);
       const deltaStr = workerDelta > 0 ? ` (+${workerDelta} workers)` : '';
-      const readyHint = b.evolution_eligible_at
-        ? ' — ready to upgrade'
-        : ' — needs more services / lifestyle goods';
-      rows.push(row('Next tier', `${nextTier.name}${deltaStr}${readyHint}`));
+      if (b.evolution_eligible_at) {
+        rows.push(row('Next tier', `${nextTier.name}${deltaStr} — ready to upgrade`));
+      } else if (blockers.length === 0) {
+        rows.push(row('Next tier', `${nextTier.name}${deltaStr} — waiting on server confirmation`));
+      } else {
+        rows.push(row('Next tier', `${nextTier.name}${deltaStr}`));
+        rows.push(housingBlockersHtml('Needed to upgrade', blockers));
+      }
+    } else if (nextTier) {
+      rows.push(row('Next tier', nextTier.name));
     }
+
+    // Active devolve-risk section for own buildings — surfaces the
+    // failing prereqs at the CURRENT tier before they actually fire,
+    // plus whether a bathhouse is shielding the house in the meantime.
+    if (isMine && tier) {
+      const ctx = buildHousingCtx();
+      const risk = getHousingDevolveRisks(b, tier, ctx);
+      if (risk.blockers.length > 0) {
+        const header = risk.hasBathhouseCover
+          ? 'Devolve risk — bathhouse is holding for now'
+          : 'Devolve risk — will drop next tick';
+        rows.push(housingBlockersHtml(header, risk.blockers, /*severity*/ risk.hasBathhouseCover ? 'warn' : 'bad'));
+      }
+    }
+
     if (b.last_devolve_reason) {
-      rows.push(row('Last devolved', friendlyDevolveReason(b.last_devolve_reason), true));
+      const text = describeHousingDevolveReason(b.last_devolve_reason, state.resourceNodes);
+      rows.push(row('Last devolved', text, true));
     }
   }
   if (b.expansion_level > 0) {
@@ -307,20 +338,34 @@ function priorityLabel(p) {
   return p === 0 ? 'Low' : p === 2 ? 'High' : 'Normal';
 }
 
-function friendlyDevolveReason(reason) {
-  return ({
-    no_food: 'No food available — residents went hungry.',
-    no_water: 'Out of well coverage — needed water nearby.',
-    no_pottery: 'Out of pottery — tier requires it.',
-    no_bread: 'Out of bread — tier requires it.',
-    no_furniture: 'Out of furniture — tier requires it.',
-    no_statuary: 'Out of statuary — tier requires it.',
-    desirability_too_low: 'Surroundings became unappealing.',
-    no_school: 'No school in range — tier requires it.',
-    no_temple: 'No temple in range — tier requires it.',
-    no_bathhouse: 'No bathhouse in range — tier requires it.',
-    no_tavern: 'No tavern available — tier requires it.'
-  })[reason] || reason;
+// Build the ctx object the helpers need from current state. Cheap
+// to recompute per render — bounded by player interaction frequency,
+// not tick frequency.
+function buildHousingCtx() {
+  return {
+    roadSet: buildRoadSet(),
+    allBuildings: state.allBuildings,
+    buildingTypes: state.buildingTypes,
+    tileMap: state.tileMap,
+    inventory: state.inventory || {},
+    resources: state.resourceNodes,
+    housingLifestyleDemands: state.housingLifestyleDemands
+  };
+}
+
+// Render a labeled list of housing blockers, each line as
+// "Needs <description>". Severity tints the left border red ('bad')
+// or amber ('warn').
+function housingBlockersHtml(header, blockers, severity) {
+  const sev = severity === 'warn' ? 'warn' : 'bad';
+  const items = blockers.map((key) => {
+    const desc = describeHousingBlocker(key, state.resourceNodes);
+    return `<li class="ip-blocker">${escapeHtml(desc)}</li>`;
+  }).join('');
+  return `<div class="ip-blockers ip-blockers-${sev}">
+    <div class="ip-blockers-header">${escapeHtml(header)}</div>
+    <ul class="ip-blocker-list">${items}</ul>
+  </div>`;
 }
 
 function row(label, value, wide) {

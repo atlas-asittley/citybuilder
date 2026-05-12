@@ -17,8 +17,8 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 
 - [x] **Building issue visuals** (`v1-parity audit, commit 40/N`) — `MainScene.js` _renderOneBuilding. v1 fades the sprite + draws `!` overlay on idle / unstaffed / no-road / paused / missing-inputs. v2 only animates "good" buildings; broken ones look identical to working ones. Player can't scan for problems on a busy map.
 - [x] **Inspector "Issues" section** (`v1-parity audit, commit 41/N`) — `InspectorPanel.js`. v1 renders a consolidated bulleted list of every reason a building isn't operational ("no road — place a road adjacent", "missing 5 lumber", "no workers"). v2 has just a single `Status` row.
-- [ ] **Housing upgrade blocker detail** — `InspectorPanel.js`. v1 lists EVERY blocker joined ("needs school + temple + statuary"). v2 says only "needs more services / lifestyle goods". Player can't tell what to fix.
-- [ ] **Devolve risk during grace window** — `InspectorPanel.js`. v1 distinguishes "will devolve in ~60s" vs "bathhouse is holding it but X is slipping". v2 only shows past `last_devolve_reason`. Active risk is invisible.
+- [x] **Housing upgrade blocker detail** (`v1-parity audit, commit 42/N`) — `InspectorPanel.js`. v1 lists EVERY blocker joined ("needs school + temple + statuary"). v2 says only "needs more services / lifestyle goods". Player can't tell what to fix.
+- [x] **Devolve risk during grace window** (`v1-parity audit, commit 42/N`) — `InspectorPanel.js`. v1 distinguishes "will devolve in ~60s" vs "bathhouse is holding it but X is slipping". v2 only shows past `last_devolve_reason`. Active risk is invisible.
 - [ ] **Map view persistence** — `MainScene.js _setupCamera`. v1 saves scroll + zoom to localStorage per player; v2 resets to parcel center on every load. Hot reloads / refreshes / device switches lose your place.
 - [x] **Building animation gating: missing inputs / no road** (`v1-parity audit, commit 40/N`) — `MainScene.js _spawnBuildingAnimations`. v2 animates anything `active && is_staffed`; v1 additionally gates on `road-connected && hasInputs`. A staffed processor with no inputs currently fakes production in v2.
 

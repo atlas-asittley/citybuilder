@@ -12,7 +12,11 @@ import {
   computeProblemTiles,
   computeResourceProdCons,
   computeBuildingIssue,
-  listBuildingIssues
+  listBuildingIssues,
+  getHousingUpgradeBlockers,
+  getHousingDevolveRisks,
+  describeHousingBlocker,
+  describeHousingDevolveReason
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -583,6 +587,164 @@ describe('listBuildingIssues', () => {
     const inputs = issues.filter((i) => i.kind === 'no-input');
     expect(inputs).toHaveLength(2);
     expect(inputs.map((i) => i.resource_key).sort()).toEqual(['lumber', 'timber']);
+  });
+});
+
+describe('getHousingUpgradeBlockers', () => {
+  const myId = 'me';
+  const house = { id: 1, x: 5, y: 5, player_id: myId, housing_tier: 2 };
+  const baseCtx = {
+    roadSet: new Set(),
+    allBuildings: [],
+    buildingTypes: {
+      well:      { worker_cost: 3 },
+      school:    { worker_cost: 10, input_resource_key: 'lumber', input_rate: 1, input_resource_key_2: 'flour', input_rate_2: 1 },
+      temple:    { worker_cost: 10, input_resource_key: 'statuary', input_rate: 1, input_resource_key_2: 'brick', input_rate_2: 1 },
+      bathhouse: { worker_cost: 5, input_resource_key: 'brick', input_rate: 1, input_resource_key_2: 'clay', input_rate_2: 1 }
+    },
+    tileMap: { '5,5': { x: 5, y: 5, desirability: 70 } },
+    inventory: { grain: 10, lumber: 10, flour: 10, statuary: 1, brick: 1, clay: 1, pottery: 1, spirits: 1, cabinets: 1, monuments: 1, mosaics: 1, machinery: 1 },
+    resources: {
+      grain: { is_food: true, name: 'Grain' },
+      pottery: { name: 'Pottery' },
+      spirits: { is_luxury_food: true, name: 'Spirits' },
+      cabinets: { is_industrial_luxury: true, name: 'Cabinets' },
+      monuments: { is_industrial_luxury: true, name: 'Monuments' },
+      mosaics:   { is_industrial_luxury: true, name: 'Mosaics' },
+      machinery: { is_industrial_luxury: true, name: 'Machinery' }
+    },
+    housingLifestyleDemands: { 3: [{ resource_key: 'pottery', qty_per_minute: 0.1 }] }
+  };
+
+  it('returns [] when every prereq is met', () => {
+    const tier3 = {
+      tier: 3, needs_road: true, needs_well: true, needs_food: true,
+      needs_school: true, min_desirability: 60
+    };
+    const ctx = {
+      ...baseCtx,
+      roadSet: new Set(['5,4']),
+      allBuildings: [
+        { player_id: myId, building_type_key: 'well', x: 4, y: 4, status: 'active', is_staffed: true },
+        { player_id: myId, building_type_key: 'school', x: 6, y: 5, status: 'active', is_staffed: true }
+      ]
+    };
+    expect(getHousingUpgradeBlockers(house, tier3, ctx)).toEqual([]);
+  });
+
+  it('reports road missing', () => {
+    const tier = { tier: 3, needs_road: true };
+    expect(getHousingUpgradeBlockers(house, tier, baseCtx)).toContain('road');
+  });
+
+  it('reports food missing when no is_food resource > 0', () => {
+    const tier = { tier: 1, needs_food: true };
+    const ctx = { ...baseCtx, inventory: { grain: 0 } };
+    expect(getHousingUpgradeBlockers(house, tier, ctx)).toContain('food');
+  });
+
+  it('reports school missing when school is present but not staffed', () => {
+    const tier = { tier: 3, needs_school: true };
+    const ctx = {
+      ...baseCtx,
+      allBuildings: [{ player_id: myId, building_type_key: 'school', x: 5, y: 6, status: 'active', is_staffed: false }]
+    };
+    expect(getHousingUpgradeBlockers(house, tier, ctx)).toContain('school');
+  });
+
+  it('reports school missing when school is staffed but unfed', () => {
+    const tier = { tier: 3, needs_school: true };
+    const ctx = {
+      ...baseCtx,
+      inventory: { lumber: 0, flour: 10 },   // school needs lumber + flour; lumber is empty
+      allBuildings: [{ player_id: myId, building_type_key: 'school', x: 5, y: 6, status: 'active', is_staffed: true }]
+    };
+    expect(getHousingUpgradeBlockers(house, tier, ctx)).toContain('school');
+  });
+
+  it('reports a separate lifestyle:<resource> blocker per missing tier demand', () => {
+    const tier = { tier: 3 };   // demands carries pottery
+    const ctx = { ...baseCtx, inventory: { pottery: 0 } };
+    expect(getHousingUpgradeBlockers(house, tier, ctx)).toContain('lifestyle:pottery');
+  });
+
+  it('reports desirability when tile metric < min', () => {
+    const tier = { tier: 4, min_desirability: 80 };
+    expect(getHousingUpgradeBlockers(house, tier, baseCtx)).toContain('desirability');
+  });
+
+  it('treats missing tile desirability as 50 (server default)', () => {
+    const tier = { tier: 4, min_desirability: 60 };
+    const ctx = { ...baseCtx, tileMap: { '5,5': { x: 5, y: 5 } } };
+    expect(getHousingUpgradeBlockers(house, tier, ctx)).toContain('desirability');
+  });
+
+  it('all_industrial_luxuries requires every is_industrial_luxury > 0', () => {
+    const tier = { tier: 8, needs_all_industrial_luxuries: true };
+    const ctx = { ...baseCtx, inventory: { cabinets: 1, monuments: 1, mosaics: 1, machinery: 0 } };
+    expect(getHousingUpgradeBlockers(house, tier, ctx)).toContain('all_industrial_luxuries');
+  });
+});
+
+describe('getHousingDevolveRisks', () => {
+  const myId = 'me';
+  const house = { id: 1, x: 5, y: 5, player_id: myId, housing_tier: 3 };
+  const baseCtx = {
+    roadSet: new Set(['5,4']),
+    allBuildings: [],
+    buildingTypes: {
+      bathhouse: { worker_cost: 5, input_resource_key: 'brick', input_rate: 1, input_resource_key_2: 'clay', input_rate_2: 1 }
+    },
+    tileMap: { '5,5': { x: 5, y: 5, desirability: 70 } },
+    inventory: { brick: 1, clay: 1 },
+    resources: {}
+  };
+
+  it('returns no risk when nothing is failing', () => {
+    const tier = { tier: 3, needs_road: true };
+    const r = getHousingDevolveRisks(house, tier, baseCtx);
+    expect(r.willDevolve).toBe(false);
+    expect(r.blockers).toEqual([]);
+  });
+
+  it('willDevolve=true when blockers exist and no bathhouse', () => {
+    const tier = { tier: 3, needs_road: true };
+    const ctx = { ...baseCtx, roadSet: new Set() };
+    const r = getHousingDevolveRisks(house, tier, ctx);
+    expect(r.willDevolve).toBe(true);
+    expect(r.blockers).toContain('road');
+    expect(r.hasBathhouseCover).toBe(false);
+  });
+
+  it('hasBathhouseCover=true suppresses devolve even with blockers', () => {
+    const tier = { tier: 3, needs_road: true };
+    const ctx = {
+      ...baseCtx,
+      roadSet: new Set(),
+      allBuildings: [{ player_id: myId, building_type_key: 'bathhouse', x: 6, y: 5, status: 'active', is_staffed: true }]
+    };
+    const r = getHousingDevolveRisks(house, tier, ctx);
+    expect(r.blockers).toContain('road');
+    expect(r.hasBathhouseCover).toBe(true);
+    expect(r.willDevolve).toBe(false);
+  });
+});
+
+describe('describeHousingBlocker / describeHousingDevolveReason', () => {
+  const resources = { pottery: { name: 'Pottery' } };
+
+  it('returns forward-tense for upgrade blockers', () => {
+    expect(describeHousingBlocker('road', resources)).toContain('road');
+    expect(describeHousingBlocker('lifestyle:pottery', resources)).toContain('Pottery');
+  });
+
+  it('returns past-tense for devolve reasons', () => {
+    expect(describeHousingDevolveReason('food', resources)).toContain('ran out');
+    expect(describeHousingDevolveReason('lifestyle:pottery', resources)).toContain('Pottery');
+  });
+
+  it('falls back to the raw key if unknown', () => {
+    expect(describeHousingBlocker('mystery', resources)).toBe('mystery');
   });
 });
 
