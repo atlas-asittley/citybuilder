@@ -126,10 +126,31 @@ function renderInspector() {
   if (b.staffing_priority !== null && b.staffing_priority !== undefined && bt.worker_cost > 0) {
     rows.push(row('Staffing priority', priorityLabel(b.staffing_priority)));
   }
+  // Production / consumption details for processors + extractors.
+  if (bt.output_resource_key && bt.output_rate > 0) {
+    if (bt.category === 'tax') {
+      rows.push(row('Revenue', `$${bt.output_rate}/min per 100 citizens`));
+    } else {
+      rows.push(row('Output', `${bt.output_rate} ${resName(bt.output_resource_key)}/min`));
+    }
+  }
+  if (bt.input_resource_key && bt.input_rate > 0) {
+    const inputs = [`${bt.input_rate} ${resName(bt.input_resource_key)}`];
+    if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
+      inputs.push(`${bt.input_rate_2} ${resName(bt.input_resource_key_2)}`);
+    }
+    rows.push(row('Input', inputs.join(' + ') + '/min'));
+  }
+  if (bt.upkeep_per_minute > 0) rows.push(row('Upkeep', `$${bt.upkeep_per_minute}/min`));
+  if (bt.coverage_radius > 0) rows.push(row('Coverage', `${bt.coverage_radius} tiles`));
+  if (bt.boost_multiplier && bt.boost_multiplier > 1) {
+    const pct = Math.round((bt.boost_multiplier - 1) * 100);
+    const tgt = bt.boost_target === 'food_extractor' ? 'food extractors' : 'extractors';
+    rows.push(row('Effect', `+${pct}% to ${tgt} within ${bt.boost_range || 2} tiles`));
+  }
   rows.push(row('Location', `(${b.x}, ${b.y})`));
   rows.push(row('Footprint', `${bt.footprint_w || 1} × ${bt.footprint_h || 1}`));
   if (bt.pollution_emit > 0) rows.push(row('Pollution', `${bt.pollution_emit} emit, radius ${bt.pollution_radius}`));
-  if (bt.description) rows.push(row('About', bt.description, true));
 
   document.getElementById('ip-body').innerHTML = rows.join('');
   document.getElementById('ip-actions').innerHTML = renderActions(b, bt, isMine);
@@ -287,6 +308,10 @@ function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
   }[c]));
+}
+
+function resName(key) {
+  return (state.resourceNodes[key]?.name || key).toLowerCase();
 }
 
 export function isInspectorOpen() {
