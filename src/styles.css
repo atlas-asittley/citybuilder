@@ -1542,6 +1542,51 @@ body.app-hidden *::after {
 }
 .cr-flow-empty { color: #888; font-style: italic; }
 
+.cr-partners {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 52, 96, 0.5);
+}
+.cr-partners-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #888;
+  margin-bottom: 6px;
+}
+.cr-partner-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 12px;
+  color: #c8c8c8;
+  border-bottom: 1px solid rgba(15, 52, 96, 0.3);
+}
+.cr-partner-row:last-child { border-bottom: none; }
+.cr-partner-head {
+  color: #888;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cr-partner-name { color: #e6e6e6; }
+.cr-partner-kind {
+  color: #888;
+  margin-left: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cr-partner-empty {
+  color: #888;
+  font-style: italic;
+  font-size: 11px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 52, 96, 0.4);
+}
+
 /* Help modal */
 #help-overlay {
   position: fixed; inset: 0;

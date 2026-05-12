@@ -7,6 +7,7 @@
 // Per-partner trade activity table is a follow-up (commit 51) so this
 // commit stays focused on the flow breakdown.
 import { state } from '../../state/store.js';
+import { sb, fetchAllPaged } from '../../api/supabase.js';
 import { computeResourceProdCons, computeResourceFlow } from '../../scenes/helpers.js';
 
 const GROUPS = [
@@ -22,7 +23,111 @@ const GROUPS = [
 // the drilldown stays open while the tick loop re-renders.
 const expanded = new Set();
 
+// Cached per-partner trade flows for the trailing 7 days. Async-loaded
+// on first render; re-fetched after CACHE_MS. The drilldown renders
+// the per-partner table from `cachedFlows.byPartner` when available,
+// silently skipping it otherwise (so the flow-breakdown stays useful
+// even before trade data arrives).
+let cachedFlows = null;
+let cacheFetchedAt = 0;
+let pendingFlowsFetch = null;
+const CACHE_MS = 60 * 1000;
+
+function loadTradeFlows(parent) {
+  const now = Date.now();
+  if (cachedFlows && now - cacheFetchedAt < CACHE_MS) return;
+  if (pendingFlowsFetch) return;
+  const uid = state.currentUser?.id;
+  if (!uid) return;
+  const since = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  pendingFlowsFetch = (async () => {
+    try {
+      const [tx, offers] = await Promise.all([
+        fetchAllPaged(() => sb.from('trade_transactions')
+          .select('*').eq('player_id', uid).gte('created_at', since)
+          .order('created_at', { ascending: false })),
+        fetchAllPaged(() => sb.from('player_trade_offers')
+          .select('*').eq('status', 'accepted').gte('resolved_at', since)
+          .or(`from_player_id.eq.${uid},to_player_id.eq.${uid}`)
+          .order('resolved_at', { ascending: false }))
+      ]);
+      const ids = new Set();
+      for (const o of offers) {
+        if (o.from_player_id && o.from_player_id !== uid) ids.add(o.from_player_id);
+        if (o.to_player_id && o.to_player_id !== uid) ids.add(o.to_player_id);
+      }
+      let nameMap = {};
+      if (ids.size > 0) {
+        const { data } = await sb.from('player_profiles')
+          .select('id, display_name').in('id', Array.from(ids));
+        for (const p of (data || [])) nameMap[p.id] = p.display_name;
+      }
+      cachedFlows = aggregateTradeFlows(uid, tx, offers, nameMap);
+      cacheFetchedAt = Date.now();
+      // Re-render so the drilldown picks up the new data.
+      if (parent && parent.isConnected) renderCityResources(parent);
+    } catch (_e) {
+      // Trade flow fetch failed — leave cachedFlows alone so the
+      // drilldown stays usable; just no per-partner table.
+    } finally {
+      pendingFlowsFetch = null;
+    }
+  })();
+}
+
+// Roll up trade_transactions (NPC) + accepted player_trade_offers
+// (P2P) into per-resource per-partner buckets. Each partner entry
+// carries export_qty/export_money + import_qty/import_money so the
+// table can show "you sent N (+$M)" / "you got N (-$M)" side by side.
+function aggregateTradeFlows(uid, transactions, offers, nameMap) {
+  const byPartner = {};
+
+  const bump = (rk, partnerKey, name, kind, playerId, dir, qty, money) => {
+    if (!byPartner[rk]) byPartner[rk] = [];
+    let entry = byPartner[rk].find((p) => p.partnerKey === partnerKey);
+    if (!entry) {
+      entry = { partnerKey, name, kind, player_id: playerId,
+        export_qty: 0, export_money: 0, import_qty: 0, import_money: 0 };
+      byPartner[rk].push(entry);
+    }
+    if (dir === 'export') { entry.export_qty += qty; entry.export_money += money; }
+    else                  { entry.import_qty += qty; entry.import_money += money; }
+  };
+
+  for (const t of transactions) {
+    const dir = t.transaction_type === 'sell' ? 'export' : 'import';
+    const traderName = state.traders?.[t.trader_key]?.name || t.trader_key;
+    bump(t.resource_key, t.trader_key, traderName, 'npc', null, dir,
+      Number(t.quantity || 0), Number(t.total_price || 0));
+  }
+
+  for (const o of offers) {
+    const iAmSender = o.from_player_id === uid;
+    const otherId = iAmSender ? o.to_player_id : o.from_player_id;
+    const partnerKey = 'player:' + otherId;
+    const partnerName = nameMap[otherId] || 'Player';
+    const giveRes = o.give_resources || {};
+    const recvRes = o.receive_resources || {};
+    const myExports = iAmSender ? giveRes : recvRes;
+    const myImports = iAmSender ? recvRes : giveRes;
+    for (const rk in myExports) {
+      const qty = parseInt(myExports[rk], 10) || 0;
+      if (qty > 0) bump(rk, partnerKey, partnerName, 'player', otherId, 'export', qty, 0);
+    }
+    for (const rk in myImports) {
+      const qty = parseInt(myImports[rk], 10) || 0;
+      if (qty > 0) bump(rk, partnerKey, partnerName, 'player', otherId, 'import', qty, 0);
+    }
+  }
+
+  return { byPartner };
+}
+
 export function renderCityResources(parent) {
+  // Kick off the trade-flow fetch in the background — first render
+  // misses it, second render after fetch lands picks it up.
+  loadTradeFlows(parent);
+
   const { prod, cons } = computeResourceProdCons(
     state.allBuildings, state.buildingTypes, state.currentUser?.id
   );
@@ -156,7 +261,40 @@ function renderFlowHtml(resourceKey) {
   const net = totalIn - totalOut;
   const netClass = net > 0.05 ? 'cr-pos' : net < -0.05 ? 'cr-neg' : '';
   html += `<div class="cr-flow-net">Net: <span class="${netClass}">${fmtRate(net)}</span></div>`;
+
+  // Per-partner trade activity (last 7 days). Renders only when the
+  // flow data has been fetched; silently skipped pre-load.
+  html += renderPartnerTable(resourceKey);
   return html;
+}
+
+function renderPartnerTable(resourceKey) {
+  if (!cachedFlows) return '';
+  const partners = (cachedFlows.byPartner[resourceKey] || []).slice();
+  partners.sort((a, b) => (b.export_qty + b.import_qty) - (a.export_qty + a.import_qty));
+  if (partners.length === 0) {
+    return `<div class="cr-partner-empty">No trade activity for this resource in the last 7 days.</div>`;
+  }
+  const rows = partners.map((p) => {
+    const sent = p.export_qty > 0
+      ? `${p.export_qty}${p.export_money ? ' (+$' + Math.round(p.export_money) + ')' : ''}`
+      : '—';
+    const got = p.import_qty > 0
+      ? `${p.import_qty}${p.import_money ? ' (−$' + Math.round(p.import_money) + ')' : ''}`
+      : '—';
+    return `<div class="cr-partner-row">
+      <span class="cr-partner-name">${escapeHtml(p.name)}<small class="cr-partner-kind">${p.kind}</small></span>
+      <span class="cr-pos">${escapeHtml(sent)}</span>
+      <span class="cr-neg">${escapeHtml(got)}</span>
+    </div>`;
+  }).join('');
+  return `<div class="cr-partners">
+    <div class="cr-partners-title">Recent trade activity (7d)</div>
+    <div class="cr-partner-row cr-partner-head">
+      <span>Partner</span><span>You sent</span><span>You got</span>
+    </div>
+    ${rows}
+  </div>`;
 }
 
 function fmtRate(rate) {
