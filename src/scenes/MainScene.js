@@ -24,7 +24,8 @@ import {
   sizeWalkerSvg,
   computePoliceCoverage as _computePoliceCoverage,
   computeProblemTiles as _computeProblemTiles,
-  computeBuildingIssue
+  computeBuildingIssue,
+  tileHash
 } from './helpers.js';
 
 const TILE_PX = 48;
@@ -77,16 +78,6 @@ const CATEGORY_TINTS = {
   transport_hub: 0x8a4a8a,
   transport_connector: 0x6a4a6a
 };
-
-// Cheap deterministic hash from (x, y) tile coords to a positive
-// integer. Used to pick grass variant + decoration so each tile's
-// appearance is stable across re-renders and consistent across
-// players (everyone sees the same flowers on the same tile).
-function tileHash(x, y) {
-  let h = (x | 0) * 2654435761 + (y | 0) * 1597334677;
-  // Force-unsigned 32-bit via | 0 then >>> 0
-  return (h ^ (h >>> 15)) >>> 0;
-}
 
 // World bounds (state-bound wrapper around the pure helper).
 function computeWorldBounds() {

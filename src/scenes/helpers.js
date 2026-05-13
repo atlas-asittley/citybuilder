@@ -125,6 +125,21 @@ export function computeBuildingIssue(b, bt, roadSet, inventory, myId) {
   return listBuildingIssues(b, bt, roadSet, inventory, myId)[0] || null;
 }
 
+// Cheap deterministic hash from (x, y) tile coords to a positive
+// integer. Used by the grass-tile picker to choose a variant + a
+// decoration overlay deterministically — same coords always pick
+// the same flower / pattern across re-renders, and every player
+// sharing the city sees the same decoration on the same tile.
+//
+// Mix uses Knuth multiplicative constants (2654435761 = ⌊2³² × φ⌋,
+// 1597334677 = a co-prime). Final xor-shift smears low bits so
+// (x, y+1) and (x, y) end up in distant slots of the hash space.
+export function tileHash(x, y) {
+  let h = (x | 0) * 2654435761 + (y | 0) * 1597334677;
+  // Force-unsigned 32-bit; xor-shift to mix the high bits down.
+  return (h ^ (h >>> 15)) >>> 0;
+}
+
 // ── Housing tier gating ────────────────────────────────────────
 // Extracted to scenes/housing.js. Re-exported here for back-compat
 // with existing imports across the inspector + tests; new callsites

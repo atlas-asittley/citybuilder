@@ -13,6 +13,7 @@ import {
   computeResourceProdCons,
   computeBuildingIssue,
   listBuildingIssues,
+  tileHash,
   getHousingUpgradeBlockers,
   getHousingDevolveRisks,
   describeHousingBlocker,
@@ -834,6 +835,41 @@ describe('computeResourceFlow', () => {
     expect(flow.production).toEqual([]);
     expect(flow.processing).toEqual([]);
     expect(flow.citizens).toBe(0);
+  });
+});
+
+describe('tileHash', () => {
+  it('returns a non-negative 32-bit integer', () => {
+    const h = tileHash(5, 10);
+    expect(Number.isInteger(h)).toBe(true);
+    expect(h).toBeGreaterThanOrEqual(0);
+    expect(h).toBeLessThan(2 ** 32);
+  });
+
+  it('is deterministic — same coords always return the same value', () => {
+    expect(tileHash(7, 11)).toBe(tileHash(7, 11));
+    expect(tileHash(-3, 4)).toBe(tileHash(-3, 4));
+  });
+
+  it('different coords return different values (with overwhelming probability)', () => {
+    expect(tileHash(0, 0)).not.toBe(tileHash(1, 0));
+    expect(tileHash(0, 0)).not.toBe(tileHash(0, 1));
+    expect(tileHash(5, 5)).not.toBe(tileHash(5, 6));
+  });
+
+  it('handles negative coordinates', () => {
+    expect(tileHash(-1, -1)).toBeGreaterThanOrEqual(0);
+    expect(tileHash(-100, 50)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('hashes uniformly enough for a small grid sample', () => {
+    // 10×10 grid → 100 hashes. With a decent hash these should all
+    // be distinct (no collisions in a sparse space).
+    const seen = new Set();
+    for (let x = 0; x < 10; x++) {
+      for (let y = 0; y < 10; y++) seen.add(tileHash(x, y));
+    }
+    expect(seen.size).toBe(100);
   });
 });
 

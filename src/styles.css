@@ -236,8 +236,9 @@ html, body {
   gap: 6px;
   min-height: 28px;
   /* Don't wrap content — on narrow phones it would push the topbar
-     past 60px and clobber the #infobar (which sits at top: 60px).
-     Scroll horizontally instead, same as row 2 already did. */
+     past 74px and clobber the #infobar (which sits at top: 74px +
+     safe-area-inset-top). Scroll horizontally instead, same as row
+     2 already did. */
   flex-wrap: nowrap;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
