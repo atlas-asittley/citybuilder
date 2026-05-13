@@ -72,13 +72,40 @@ gameplay state isn't being shown. Hidden state on a city-builder is a bug.
 
 ---
 
-## Post-audit discoveries (commit 68 and beyond)
+## Post-audit discoveries (commits 68-92)
 
-Items found by a fresh "unknown unknowns" scan after the original 47 closed.
+The original 47 items were closed by commit 67. Subsequent work has been
+driven by Atlas's live playtest reports + a couple of unknown-unknowns
+sweeps. All listed in chronological order; each links to the commit
+that shipped it.
 
-- [x] **Trader unlock state + UI lock badges** (`v1-parity audit, commit 68/N`) — Partners trader directory was listing locked traders as if they were available. Ported v1's computeTraderUnlocks (per-mode road-connectivity + truck-depot bridge) so locked traders show with a 🔒 + hint ("Build a Truck Depot to plug into the city's airport network").
-- [x] **Escape cancels placement + expansion preview** (`v1-parity audit, commit 68/N`) — keydown listener on document, ignored when a panel input has focus.
-- [x] **BugReportModal nullguard on state.notifications** (`v1-parity audit, commit 68/N`) — defensive `?.` in case notifications hasn't loaded yet at bug-report time.
+**Unknown-unknowns sweep:**
+- [x] **Trader unlock state + UI lock badges** (`commit 68`) — Partners directory shows 🔒 with hint for locked transport-mode traders. Mirrors v1's computeTraderUnlocks.
+- [x] **Escape cancels placement + expansion** (`commit 68`)
+- [x] **BugReportModal nullguard on state.notifications** (`commit 68`)
+
+**Playtest-driven fixes (gameplay correctness):**
+- [x] **Inspector housing block was firing on all buildings** (`commit 69`) — gate was `b.housing_tier !== null` but the column defaults to 0; switched to `bt.category === 'housing'`.
+- [x] **Paused/idle bugs + first-render badges** (`commit 70`) — schema is `status IN ('active', 'paused')`, no `paused` boolean and no `'idle'` status; 9 sites were reading `b.paused` (always undefined). Also fixed: state.inventory empty on first render fired no-input on every staffed processor → now gates on inventory-loaded.
+- [x] **Transport hubs are not "unstaffed"** (`commit 71`) — server's `_pp_staff_buildings` skips transport categories entirely; their worker_cost is a balance knob, not a runtime allocation. Fixed in 4 surfaces.
+- [x] **Walker wiggle + selection outline + extractor target + one-walker-per-extractor** (`commit 72`) — 4 visual / correctness improvements.
+- [x] **Topbar rows no-wrap so infobar stays below** (`commit 73`)
+- [x] **Distinct icons for orchard / grain / vegetables tiles** (`commit 74`) — timber + orchard_grove shared an icon; farmland + garden_plot shared an icon. Split into 6 distinct kinds.
+- [x] **Infobar position math + iOS safe-area** (`commit 75`)
+- [x] **Expansion is visual map selection** (`commit 76`) — dropped the modal list; tap-on-map flow with auto-frame + bottom bar.
+- [x] **Expansion candidate position** (`commit 77`) — chunks are **15×15**, not 10×10; rectangles were painting at 2/3 of real position.
+- [x] **Prettier roads** (`commit 78`) — 9 layers (wheel ruts, gravel, pebbles, grass tufts, edge softening, inner highlight) vs the original 4.
+- [x] **Buildings rendered wrong after expansion** (`commit 79`) — diff-render signature didn't include gridMinX/Y; after expansion shifts origin, cached sprites stayed at stale screen positions. rerenderWorld now nukes the building cache.
+- [x] **Camera-bounds slack** (`commit 80`) — bumped from 5 tiles + 280px bottom → 10 tiles + 1152px bottom so at lowest zoom you can pan past the parcel's bottom edge with the inspector + bottom panel open.
+- [x] **Grass-tile variety** (`commits 81 + 85`) — 4 noise variants + 8 decorations (dandelion, daisies, clover, poppies, dirt patch, pebbles, mossy log, tall grass), with the variation confined to a 5px-margin inner box so adjacent tiles blend at the edges.
+- [x] **Treasury transactions show what changed hands** (`commit 82`) — context jsonb wasn't being rendered. Each row now shows the per-source detail (e.g., "Sold 5 Clay @ $10/u").
+- [x] **Full-size bottom panel respects iOS safe-area** (`commits 83 + 88`) — used `100dvh` so the Hide/Compact buttons stay clear of the topbar on phones.
+- [x] **Drop the reset button from zoom controls** (`commit 84`)
+- [x] **Drop / tone-down building glow** (`commits 86 + 87`) — charcoal_kiln dropped entirely; mine_office / foreman_office / brewery / toolmaker also dropped. Remaining glows: 70% sprite size + alpha 0.04→0.14 instead of 0.05→0.32.
+- [x] **Heatmap reposition next to zoom buttons** (`commit 88`)
+- [x] **Building images in Help + Build menu + accordion sections** (`commit 89`) — sprite icons embedded in both surfaces; Build menu sections collapse with localStorage persistence.
+- [x] **City-wide heatmaps + walkers** (`commit 91`, after `commit 90` was reverted) — pollution + desirability paint across parcel boundaries via a separate non-blocking `refreshCityTileMetrics()` fetch; walker spawn drops the player_id filter.
+- [x] **WalkerInfoModal mount-wedge + escape leak** (`commit 92`) — module-scope `mounted` flag could permanently lock the modal; escape listener leaked across non-Escape closures.
 
 ## Out of scope (or already-decided design changes)
 

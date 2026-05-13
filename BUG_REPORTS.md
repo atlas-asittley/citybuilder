@@ -60,3 +60,28 @@ some townhouses 6+ tiles from the school (tier 4 needs ≤ 5).
 
 **Tests:** `test_housing_lost_eligibility.py` (3 tests pinning the new
 event behavior).
+
+---
+
+## 2026-05-12 — Drew — "Test bug report"
+
+**Reported:** 2026-05-12 18:09 UTC, in-game bug-report modal.
+
+**Description (verbatim):**
+> Test bug report
+
+**Diagnosis:**
+Intentional test ping. Submitted to verify commit 47's RPC switch
+(`submit_bug_report` instead of direct INSERT) is actually capturing
+the rich server-side forensic snapshot end-to-end.
+
+End-to-end check: snapshot included profile, 261 buildings, 50
+recent cash transactions, full inventory, trader_visits, trade_
+policies, agreements, snapshot_at. Client_state had viewport
+(432×820 dpr 2.5 → Android phone), active panel = "build", v2
+version tag, recent_notifications array. Everything wired up.
+
+**Fix:** None — not a real bug. Marked resolved with the commit
+that originally landed the RPC switch.
+
+**Resolution commit:** `d38f32b` (already in main).
