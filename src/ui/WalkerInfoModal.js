@@ -4,8 +4,6 @@
 // outside click dismisses.
 import { state } from '../state/store.js';
 
-let mounted = false;
-
 const KIND_LABELS = {
   immigrant:        'Immigrant — moving in',
   emigrant:         'Emigrant — moving out',
@@ -47,8 +45,11 @@ function findWalkerEntry(sprite, walkers) {
 }
 
 export function openWalkerInfo(sprite, walkers) {
-  if (mounted) return;
-  mounted = true;
+  // Source of truth is whether the overlay element exists, not a
+  // module-scope boolean. A stale `mounted = true` (e.g., DOM was
+  // removed externally) used to permanently wedge the modal — code
+  // would early-return forever even though nothing was visible.
+  if (document.getElementById('walker-info-overlay')) return;
 
   const info = sprite.walkerInfo || {};
   const entry = findWalkerEntry(sprite, walkers);
@@ -76,12 +77,21 @@ export function openWalkerInfo(sprite, walkers) {
     </div>
   `;
   root.appendChild(overlay);
-  const close = () => { overlay.remove(); mounted = false; };
+
+  // Named handler so we can always remove it regardless of how the
+  // modal closes (×, outside-click, or Escape). Earlier version only
+  // removed the listener on Escape — the other two close paths
+  // leaked a listener per modal open.
+  const onEsc = (e) => {
+    if (e.key === 'Escape') close();
+  };
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onEsc);
+  };
   overlay.querySelector('.wi-close').addEventListener('click', close);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  document.addEventListener('keydown', function onEsc(e) {
-    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
-  });
+  document.addEventListener('keydown', onEsc);
 }
 
 function flavorText(kind, persona) {
