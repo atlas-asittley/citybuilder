@@ -688,6 +688,10 @@ export function computeResourceProdCons(allBuildings, buildingTypes, myId, profi
 export function sizeWalkerSvg(dataUri) {
   // Accept either single or double quotes around viewBox so the
   // helper isn't brittle to upstream string-formatting changes.
+  // Mobile texture cost: without explicit width/height the browser
+  // rasterizes SVGs at its default surface size (~300px square),
+  // which blows GPU memory across ~80 walkers on a busy city. We
+  // inject width/height = 4× viewBox so each upload is small.
   const m = dataUri.match(/viewBox=['"]([\d.\s]+)['"]/);
   if (!m) return dataUri;
   const parts = m[1].split(/\s+/);
@@ -697,5 +701,11 @@ export function sizeWalkerSvg(dataUri) {
   if (!Number.isFinite(vbW) || !Number.isFinite(vbH)) return dataUri;
   const w = Math.round(vbW * 4);
   const h = Math.round(vbH * 4);
+  // walker_sprites.js mixes two encodings: 9 entries use literal
+  // `<svg ...>` and 10 use URL-encoded `%3Csvg ...%3E`. Handle both
+  // so the size-injection isn't a silent no-op for half the catalog.
+  if (dataUri.includes('%3Csvg')) {
+    return dataUri.replace(/%3Csvg\s+/, `%3Csvg width='${w}' height='${h}' `);
+  }
   return dataUri.replace(/<svg\s+/, `<svg width='${w}' height='${h}' `);
 }

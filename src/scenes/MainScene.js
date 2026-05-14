@@ -155,6 +155,15 @@ export class MainScene extends Phaser.Scene {
   }
 
   preload() {
+    // Record every texture key we queue + every one that fails so we
+    // can surface a "N textures missing" banner on mobile, where the
+    // dev tools console isn't reachable. Lives on the scene so it
+    // persists across the preload → create transition.
+    this._textureLoadStatus = { queued: 0, failed: [] };
+    this.load.on('loaderror', (file) => {
+      if (file?.key) this._textureLoadStatus.failed.push(file.key);
+    });
+
     // Queue every building sprite. Each value in `spriteIcons` is a
     // data:image/svg+xml URI which Phaser's loader handles natively.
     // We use the building_type_key as the texture key so render code
@@ -163,6 +172,7 @@ export class MainScene extends Phaser.Scene {
       // Skip if already loaded (scene.restart() re-runs preload).
       if (this.textures.exists(key)) continue;
       this.load.image(key, spriteIcons[key]);
+      this._textureLoadStatus.queued++;
     }
     // Walker variants — 19 detailed humanoid sprites lifted from v1.
     // Keyed 'walker-citizen', 'walker-timber', etc.
@@ -178,6 +188,7 @@ export class MainScene extends Phaser.Scene {
       const texKey = 'walker-' + key;
       if (this.textures.exists(texKey)) continue;
       this.load.image(texKey, sizeWalkerSvg(WALKER_SPRITES[key]));
+      this._textureLoadStatus.queued++;
     }
   }
 
@@ -254,6 +265,7 @@ export class MainScene extends Phaser.Scene {
     this._setupCamera();
     this._setupTapToInspect();
     this._setupWalkers();
+    this._reportTextureLoadStatus();
   }
 
   // Cosmetic walker simulation. Every WALKER_SPAWN_MS, pick a random
@@ -267,6 +279,43 @@ export class MainScene extends Phaser.Scene {
     this._walkers = [];
     this._walkerSpawnTimer = 0;
     this.events.on('update', this._tickWalkers, this);
+  }
+
+  // Mobile diagnostic: counts queued textures + textures we know
+  // actually exist in the manager after preload. If there's a delta,
+  // pop a banner naming the first few missing keys + total count.
+  // Black squares without console access become legible state.
+  _reportTextureLoadStatus() {
+    const status = this._textureLoadStatus;
+    if (!status) return;
+    const failedExplicit = status.failed.slice();
+    // Cross-check the manager — `loaderror` doesn't always fire when
+    // a data URI decodes to zero-size; the texture just isn't created.
+    const missingSilent = [];
+    for (const key in spriteIcons) {
+      if (!this.textures.exists(key)) missingSilent.push(key);
+    }
+    for (const key in WALKER_SPRITES) {
+      const texKey = 'walker-' + key;
+      if (!this.textures.exists(texKey)) missingSilent.push(texKey);
+    }
+    const total = new Set([...failedExplicit, ...missingSilent]);
+    if (total.size === 0) return;
+    const first = Array.from(total).slice(0, 4).join(', ');
+    const more = total.size > 4 ? ` +${total.size - 4} more` : '';
+    const banner = this.add.text(this.scale.width / 2, 60,
+      `⚠ ${total.size} sprite textures missing\n${first}${more}`,
+      {
+        fontFamily: 'system-ui, sans-serif', fontSize: '11px',
+        color: '#ffffff', backgroundColor: '#a02828',
+        align: 'center', padding: { left: 8, right: 8, top: 4, bottom: 4 },
+        wordWrap: { width: 280 }
+      }
+    ).setOrigin(0.5, 0).setScrollFactor(0).setDepth(10000);
+    banner.setInteractive({ useHandCursor: true });
+    banner.on('pointerup', () => banner.destroy());
+    // Auto-dismiss after 30s so it doesn't block the UI forever.
+    this.time.delayedCall(30000, () => banner.destroy());
   }
 
   _tickWalkers(_time, delta) {
@@ -645,7 +694,9 @@ export class MainScene extends Phaser.Scene {
     ];
     const dest = edges[Math.floor(Math.random() * edges.length)];
 
-    const sprite = this.add.sprite(houseX, houseY, 'walker-citizen');
+    const citizenKey = this.textures.exists('walker-citizen') ? 'walker-citizen' : 'square';
+    const sprite = this.add.sprite(houseX, houseY, citizenKey);
+    if (citizenKey === 'square') sprite.setTint(0xc8b89a);
     sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
     sprite.setDepth(10);
     sprite.setAlpha(0.85);    // slightly faded — they're leaving
@@ -689,7 +740,9 @@ export class MainScene extends Phaser.Scene {
     ];
     const start = edges[Math.floor(Math.random() * edges.length)];
 
-    const sprite = this.add.sprite(start.x, start.y, 'walker-citizen');
+    const citizenKey = this.textures.exists('walker-citizen') ? 'walker-citizen' : 'square';
+    const sprite = this.add.sprite(start.x, start.y, citizenKey);
+    if (citizenKey === 'square') sprite.setTint(0xc8b89a);
     sprite.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
     sprite.setDepth(10);
     sprite.setInteractive({ useHandCursor: true });
@@ -742,7 +795,16 @@ export class MainScene extends Phaser.Scene {
 
   _makeWalkerSprite(b, bt, x, y) {
     const variant = pickWalkerVariant(b, bt);
-    const sprite = this.add.sprite(x, y, 'walker-' + variant);
+    // Fall back to walker-citizen if the chosen variant failed to load,
+    // then to 'square' if even citizen is missing. Without this, Phaser
+    // draws the __MISSING texture, which on WebGL frequently shows as
+    // a black rectangle — exactly the symptom Atlas reported.
+    let texKey = 'walker-' + variant;
+    if (!this.textures.exists(texKey)) {
+      texKey = this.textures.exists('walker-citizen') ? 'walker-citizen' : 'square';
+    }
+    const sprite = this.add.sprite(x, y, texKey);
+    if (texKey === 'square') sprite.setTint(0xc8b89a);
     // Per-walker visual jitter — small scale variance + occasional
     // tint shift so a stream of citizens reads as different people
     // instead of an army of clones. Range matches v1's CSS jitter.
@@ -1948,7 +2010,12 @@ export class MainScene extends Phaser.Scene {
       const figX = worldX + (Math.random() - 0.5) * fw * TILE_PX * 0.4;
       const figY = worldY + fh * TILE_PX * 0.2;
       const variant = pickWalkerVariant(b, bt);
-      const fig = this.add.sprite(figX, figY, 'walker-' + variant);
+      let figKey = 'walker-' + variant;
+      if (!this.textures.exists(figKey)) {
+        figKey = this.textures.exists('walker-citizen') ? 'walker-citizen' : 'square';
+      }
+      const fig = this.add.sprite(figX, figY, figKey);
+      if (figKey === 'square') fig.setTint(0xc8b89a);
       fig.setDisplaySize(WALKER_PX_W, WALKER_PX_H);
       fig.setDepth(11);
       this.tweens.add({

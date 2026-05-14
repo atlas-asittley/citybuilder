@@ -236,6 +236,18 @@ describe('sizeWalkerSvg', () => {
     expect(out).toContain("width='48'");
     expect(out).toContain("height='48'");
   });
+  it('injects size into URL-encoded SVGs (%3Csvg form)', () => {
+    // walker_sprites.js has 9 entries using percent-encoded <svg>;
+    // before the fix, the size regex silently no-op'd on them and
+    // the browser rasterized them at the default ~300px surface.
+    const input = "data:image/svg+xml,%3Csvg xmlns='http://w3.org' viewBox='0 0 10 14'%3E%3Ccircle/%3E%3C/svg%3E";
+    const out = sizeWalkerSvg(input);
+    expect(out).toContain("width='40'");
+    expect(out).toContain("height='56'");
+    // The opening tag stays percent-encoded — we only insert the
+    // attribute, we don't decode the whole URI.
+    expect(out).toContain('%3Csvg');
+  });
 });
 
 describe('tutorialAllowsBuilding', () => {
