@@ -699,22 +699,34 @@ export function sizeSvgDataUri(dataUri, scale) {
   //
   // Returns the input unchanged if viewBox can't be parsed (defensive
   // — better to ship a possibly-large sprite than crash the loader).
-  const m = dataUri.match(/viewBox=['"]([\d.\s]+)['"]/);
+  //
+  // sprites.js mixes THREE encodings inside the data URI:
+  //   1. `viewBox='0 0 64 64'`           literal quotes, literal spaces
+  //   2. `viewBox="0 0 64 64"`           literal quotes, literal spaces
+  //   3. `viewBox=%220%200%2064%2064%22` %22 quotes, %20 spaces (45/57)
+  // Plus the `<svg>` open tag is sometimes literal, sometimes %3Csvg,
+  // and (`mill` / `grain_farm`) sometimes `%3Csvg%20`. Handle all of
+  // them — a silent no-op on any of these forms shows up to the player
+  // as a black square for that building type.
+  const m = dataUri.match(/viewBox=(?:%22|['"])([^'"]*?)(?:%22|['"])/);
   if (!m) return dataUri;
-  const parts = m[1].split(/\s+/);
+  const parts = m[1].split(/\s+|%20/);
   if (parts.length !== 4) return dataUri;
   const vbW = parseFloat(parts[2]);
   const vbH = parseFloat(parts[3]);
   if (!Number.isFinite(vbW) || !Number.isFinite(vbH)) return dataUri;
   const w = Math.round(vbW * scale);
   const h = Math.round(vbH * scale);
-  // Sprite catalogs mix two encodings: some entries use literal
-  // `<svg ...>`, others use URL-encoded `%3Csvg ...%3E`. Handle both
-  // so size-injection isn't a silent no-op for half the catalog.
+  // Match the <svg open tag in whichever form the URI uses. The
+  // separator after `svg` is either a literal space or %20. Transport
+  // hub sprites use `<svg%20...` (literal angle bracket, encoded
+  // space) — the regex has to cover both separators in both branches.
   if (dataUri.includes('%3Csvg')) {
-    return dataUri.replace(/%3Csvg\s+/, `%3Csvg width='${w}' height='${h}' `);
+    return dataUri.replace(/%3Csvg(?:%20|\s)+/,
+      `%3Csvg width='${w}' height='${h}' `);
   }
-  return dataUri.replace(/<svg\s+/, `<svg width='${w}' height='${h}' `);
+  return dataUri.replace(/<svg(?:%20|\s)+/,
+    `<svg width='${w}' height='${h}' `);
 }
 
 // Backwards-compatible alias for the original walker-specific entry

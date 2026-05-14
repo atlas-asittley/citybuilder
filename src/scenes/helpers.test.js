@@ -265,6 +265,32 @@ describe('sizeSvgDataUri', () => {
     const input = 'data:image/svg+xml,<svg>...</svg>';
     expect(sizeSvgDataUri(input, 2)).toBe(input);
   });
+  // Three encoding variants of the same viewBox string. Real
+  // sprites.js mixes all of them — earlier shipped code only
+  // matched form (a), so 47 of 57 buildings silently failed
+  // size-injection and rendered as black squares on mobile.
+  it('handles viewBox with URL-encoded spaces (%20)', () => {
+    // (b) literal single-quote, encoded space — common in spriteIcons
+    const input = "data:image/svg+xml,%3Csvg viewBox='0%200%2064%2064'%3E%3C/svg%3E";
+    const out = sizeSvgDataUri(input, 2);
+    expect(out).toContain("width='128'");
+    expect(out).toContain("height='128'");
+  });
+  it('handles viewBox with %22 quotes + %20 spaces (grain_farm/mill form)', () => {
+    // (c) fully URL-encoded — quotes and spaces both encoded
+    const input = 'data:image/svg+xml,%3Csvg%20xmlns=%22http://x%22%20viewBox=%220%200%2064%2064%22%3E%3C/svg%3E';
+    const out = sizeSvgDataUri(input, 2);
+    expect(out).toContain("width='128'");
+    expect(out).toContain("height='128'");
+  });
+  it('handles literal <svg followed by %20 (transport hub form)', () => {
+    // airport/seaport/train_depot/truck_depot all use this:
+    // literal angle bracket, encoded space separator.
+    const input = "data:image/svg+xml,<svg%20xmlns='http://x'%20viewBox='0 0 64 64'><c/></svg>";
+    const out = sizeSvgDataUri(input, 2);
+    expect(out).toContain("width='128'");
+    expect(out).toContain("height='128'");
+  });
 });
 
 describe('tutorialAllowsBuilding', () => {
