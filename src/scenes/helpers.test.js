@@ -370,15 +370,21 @@ describe('computeResourceProdCons', () => {
     cabinetmaker:{ category: 'processor', input_resource_key: 'lumber', input_rate: 1,
                    input_resource_key_2: 'lime', input_rate_2: 0.5,
                    output_resource_key: 'furniture', output_rate: 0.25 },
+    grain_farm:  { category: 'food_extractor', output_resource_key: 'grain', output_rate: 0.5 },
+    forester:    { category: 'booster', boost_target: 'extractor', boost_multiplier: 1.25, boost_range: 2 },
+    apiary:      { category: 'booster', boost_target: 'food_extractor', boost_multiplier: 1.25, boost_range: 2 },
     tax_office:  { category: 'tax', output_resource_key: 'money', output_rate: 50 }
   };
 
-  it('sums output across staffed-active producers', () => {
+  // Extractors need a claimed target (path_length > 0) to produce — the
+  // server skips path_length=NULL ones. Tests pass path_length: 4 to
+  // hit the canonical "full rate" path-factor of 1.0.
+  it('sums output across staffed-active extractors at canonical path', () => {
     const buildings = [
       { player_id: 'me', status: 'active', is_staffed: true,
-        building_type_key: 'timber_camp' },
+        building_type_key: 'timber_camp', x: 0, y: 0, path_length: 4 },
       { player_id: 'me', status: 'active', is_staffed: true,
-        building_type_key: 'timber_camp' }
+        building_type_key: 'timber_camp', x: 5, y: 0, path_length: 4 }
     ];
     const { prod, cons } = computeResourceProdCons(buildings, bts, 'me');
     expect(prod.timber).toBe(4);
@@ -399,11 +405,11 @@ describe('computeResourceProdCons', () => {
   it('skips unstaffed / paused / wrong-owner buildings', () => {
     const buildings = [
       { player_id: 'me', status: 'active', is_staffed: false,
-        building_type_key: 'timber_camp' },
+        building_type_key: 'timber_camp', x: 0, y: 0, path_length: 4 },
       { player_id: 'me', status: 'paused', is_staffed: true,
-        building_type_key: 'timber_camp' },
+        building_type_key: 'timber_camp', x: 1, y: 0, path_length: 4 },
       { player_id: 'someone-else', status: 'active', is_staffed: true,
-        building_type_key: 'timber_camp' }
+        building_type_key: 'timber_camp', x: 2, y: 0, path_length: 4 }
     ];
     const { prod } = computeResourceProdCons(buildings, bts, 'me');
     expect(prod).toEqual({});
@@ -416,6 +422,156 @@ describe('computeResourceProdCons', () => {
     ];
     const { prod } = computeResourceProdCons(buildings, bts, 'me');
     expect(prod.money).toBeUndefined();
+  });
+
+  // ── Effective-rate scaling ─────────────────────────────────────
+  // These are the regression tests for the bug Jill filed (clay UI
+  // shown as +9/min net but actual stockpile flat at 0): the city-wide
+  // net rate must apply path_length scaling, booster proximity, and
+  // productivity — same as the server's per-tick math.
+
+  it('extractor with no claimed target (path_length null) produces 0', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp', x: 0, y: 0 }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    expect(prod.timber).toBeUndefined();
+  });
+
+  it('extractor production scales by min(1, 4/path_length)', () => {
+    const buildings = [
+      // path_length 8 → factor 0.5 → 2 × 0.5 = 1.0 timber/min
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp', x: 0, y: 0, path_length: 8 }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    expect(prod.timber).toBeCloseTo(1.0, 5);
+  });
+
+  it('booster within Manhattan range applies MAX multiplier (no stack)', () => {
+    const buildings = [
+      // Two boosters next to one extractor — should pick MAX, not sum.
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'forester', x: 1, y: 0 },
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'forester', x: 0, y: 1 },
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp', x: 0, y: 0, path_length: 4 }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    // 2 (output_rate) × 1.0 (path) × 1.25 (boost) = 2.5
+    expect(prod.timber).toBeCloseTo(2.5, 5);
+  });
+
+  it('out-of-range booster has no effect', () => {
+    const buildings = [
+      // Booster at Manhattan 3 from the extractor — outside range 2.
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'forester', x: 0, y: 3 },
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp', x: 0, y: 0, path_length: 4 }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    expect(prod.timber).toBe(2);
+  });
+
+  it('unstaffed booster has no effect', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: false,
+        building_type_key: 'forester', x: 1, y: 0 },
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp', x: 0, y: 0, path_length: 4 }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    expect(prod.timber).toBe(2);
+  });
+
+  it('booster only boosts matching boost_target', () => {
+    const buildings = [
+      // Apiary boosts food_extractor only — NOT the timber extractor.
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'apiary', x: 1, y: 0 },
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp', x: 0, y: 0, path_length: 4 }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    expect(prod.timber).toBe(2);
+  });
+
+  it('food_extractor is boosted but never path-scaled', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'apiary', x: 1, y: 0 },
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'grain_farm', x: 0, y: 0 }
+    ];
+    const { prod } = computeResourceProdCons(buildings, bts, 'me');
+    // 0.5 × 1.25 boost = 0.625
+    expect(prod.grain).toBeCloseTo(0.625, 5);
+  });
+
+  it('productivity multiplier scales both production and consumption', () => {
+    const buildings = [
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'timber_camp', x: 0, y: 0, path_length: 4 },
+      { player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'sawmill' }
+    ];
+    const profile = { productivity: 1.15 };
+    const { prod, cons } = computeResourceProdCons(buildings, bts, 'me', profile);
+    expect(prod.timber).toBeCloseTo(2.30, 5);   // 2 × 1.15
+    expect(cons.timber).toBeCloseTo(2.30, 5);   // 2 × 1.15
+    expect(prod.lumber).toBeCloseTo(1.15, 5);   // 1 × 1.15
+  });
+
+  it('reproduces Jill\'s clay deficit: 20 pits × scaled + boost vs 12 kilns', () => {
+    // Mirror her actual layout: 20 clay_pits with assorted path_lengths,
+    // 4 clay_master_huts, 12 pottery_kilns, productivity 1.15.
+    // Server-correct math: production ~17.8/min, consumption 20.7/min,
+    // so the UI must show net negative — not +9 like the old buggy calc.
+    const clayBts = {
+      clay_pit: { category: 'extractor', output_resource_key: 'clay', output_rate: 1.5 },
+      clay_master_hut: { category: 'booster', boost_target: 'extractor', boost_multiplier: 1.25, boost_range: 2 },
+      pottery_kiln: { category: 'processor', input_resource_key: 'clay', input_rate: 1.5, output_resource_key: 'pottery', output_rate: 0.75 }
+    };
+    // Place 4 huts and 20 pits with the actual mix of path_lengths
+    // observed on Jill's map (3,3,4,5,6,8,9,13,13,15,17,18,20,21,22,32,32,37 + 1 null).
+    const pits = [
+      { x: 0, y: 0, pl: 3 }, { x: 0, y: 1, pl: 3 }, { x: 0, y: 2, pl: 4 },
+      { x: 0, y: 3, pl: 5 }, { x: 0, y: 4, pl: 6 }, { x: 0, y: 5, pl: 8 },
+      { x: 0, y: 6, pl: 9 }, { x: 0, y: 7, pl: 13 }, { x: 0, y: 8, pl: 13 },
+      { x: 0, y: 9, pl: 15 }, { x: 0, y: 10, pl: 17 }, { x: 0, y: 11, pl: 18 },
+      { x: 0, y: 12, pl: 20 }, { x: 0, y: 13, pl: 21 }, { x: 0, y: 14, pl: 22 },
+      { x: 0, y: 15, pl: 32 }, { x: 0, y: 16, pl: 32 }, { x: 0, y: 17, pl: 37 },
+      { x: 0, y: 18, pl: null }, { x: 0, y: 19, pl: 4 }
+    ].map((p, i) => ({
+      player_id: 'me', status: 'active', is_staffed: true,
+      building_type_key: 'clay_pit', x: p.x, y: p.y, path_length: p.pl
+    }));
+    const huts = [
+      // Place each hut adjacent to a few pits so SOME get boosted.
+      { x: 1, y: 1 }, { x: 1, y: 4 }, { x: 1, y: 9 }, { x: 1, y: 14 }
+    ].map((h) => ({
+      player_id: 'me', status: 'active', is_staffed: true,
+      building_type_key: 'clay_master_hut', x: h.x, y: h.y
+    }));
+    const kilns = [];
+    for (let i = 0; i < 12; i++) {
+      kilns.push({
+        player_id: 'me', status: 'active', is_staffed: true,
+        building_type_key: 'pottery_kiln', x: 50 + i, y: 0
+      });
+    }
+    const profile = { productivity: 1.15 };
+    const { prod, cons } = computeResourceProdCons(
+      [...pits, ...huts, ...kilns], clayBts, 'me', profile
+    );
+    // Consumption: 12 × 1.5 × 1.15 = 20.7
+    expect(cons.clay).toBeCloseTo(20.7, 1);
+    // Production should be well under 20 — the net must be negative.
+    expect(prod.clay).toBeLessThan(20.7);
+    expect(prod.clay - cons.clay).toBeLessThan(0);
   });
 });
 
@@ -783,7 +939,7 @@ describe('computeResourceFlow', () => {
     },
     resources: { timber: { name: 'Timber' }, lumber: { name: 'Lumber' }, furniture: { name: 'Furniture' } },
     housingTierConfig: {}, housingLifestyleDemands: {}, inventory: {}, tradePolicies: {},
-    traders: {}, allTraderPrices: {}
+    traders: {}, allTraderPrices: {}, profile: { productivity: 1.0 }
   };
 
   it('groups producers by building type with count + total rate', () => {

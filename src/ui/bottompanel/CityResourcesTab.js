@@ -149,7 +149,7 @@ export function renderCityResources(parent) {
   loadTradeFlows(parent);
 
   const { prod, cons } = computeResourceProdCons(
-    state.allBuildings, state.buildingTypes, state.currentUser?.id
+    state.allBuildings, state.buildingTypes, state.currentUser?.id, state.profile
   );
 
   const all = Object.values(state.resourceNodes).filter((r) => r.is_active);
@@ -250,7 +250,8 @@ function renderFlowHtml(resourceKey) {
     inventory: state.inventory,
     tradePolicies: state.tradePolicies,
     traders: state.traders,
-    allTraderPrices: state.allTraderPrices
+    allTraderPrices: state.allTraderPrices,
+    profile: state.profile
   };
   const flow = computeResourceFlow(resourceKey, ctx, state.currentUser?.id);
 

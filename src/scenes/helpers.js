@@ -215,8 +215,9 @@ export function periodSuffix(periodMin) {
 //
 // ctx required fields: allBuildings, buildingTypes, resources,
 // housingTierConfig, housingLifestyleDemands, inventory, tradePolicies,
-// traders, allTraderPrices. Pass null for any unused subsystem and the
-// section silently returns empty.
+// traders, allTraderPrices, profile. Pass null for any unused subsystem
+// and the section silently returns empty. `profile` drives productivity
+// scaling on production/consumption.
 export function computeResourceFlow(resourceKey, ctx, myId) {
   const flow = {
     production: [], processing: [], services: [],
@@ -224,34 +225,44 @@ export function computeResourceFlow(resourceKey, ctx, myId) {
   };
   if (!ctx || !ctx.allBuildings) return flow;
 
+  const productivity = getProductivity(ctx.profile);
   const myActive = ctx.allBuildings.filter((b) =>
     b.player_id === myId && b.status === 'active');
 
   // Group worker-consuming buildings by type, only counting staffed.
+  // Per-instance production rates accumulate into prodSum because
+  // extractors with different path_lengths and booster coverage
+  // produce different rates even within the same building type.
   const byType = {};
   for (const b of myActive) {
     const bt = ctx.buildingTypes?.[b.building_type_key];
     if (!bt) continue;
     if (bt.category === 'road' || bt.category === 'housing') continue;
     if (!b.is_staffed) continue;
-    if (!byType[bt.key]) byType[bt.key] = { bt, count: 0 };
+    if (!byType[bt.key]) byType[bt.key] = { bt, count: 0, prodSum: 0 };
     byType[bt.key].count++;
+    if (bt.output_resource_key === resourceKey && Number(bt.output_rate) > 0) {
+      byType[bt.key].prodSum += effectiveOutputRate(
+        b, bt, ctx.allBuildings, ctx.buildingTypes, myId, productivity
+      );
+    }
   }
   for (const k in byType) {
-    const bt = byType[k].bt;
-    const count = byType[k].count;
-    if (bt.output_resource_key === resourceKey && Number(bt.output_rate) > 0) {
-      flow.production.push({ name: bt.name, count, rate: count * Number(bt.output_rate) });
+    const grp = byType[k];
+    const bt = grp.bt;
+    const count = grp.count;
+    if (bt.output_resource_key === resourceKey && Number(bt.output_rate) > 0 && grp.prodSum > 0) {
+      flow.production.push({ name: bt.name, count, rate: grp.prodSum });
     }
     if (bt.input_resource_key === resourceKey && Number(bt.input_rate) > 0) {
-      const item = { name: bt.name, count, rate: count * Number(bt.input_rate) };
+      const item = { name: bt.name, count, rate: count * Number(bt.input_rate) * productivity };
       if (bt.output_resource_key && ctx.resources?.[bt.output_resource_key]) {
         item.output = ctx.resources[bt.output_resource_key].name;
       }
       (bt.category === 'service' ? flow.services : flow.processing).push(item);
     }
     if (bt.input_resource_key_2 === resourceKey && Number(bt.input_rate_2) > 0) {
-      const item = { name: bt.name, count, rate: count * Number(bt.input_rate_2) };
+      const item = { name: bt.name, count, rate: count * Number(bt.input_rate_2) * productivity };
       if (bt.output_resource_key && ctx.resources?.[bt.output_resource_key]) {
         item.output = ctx.resources[bt.output_resource_key].name;
       }
@@ -566,6 +577,70 @@ export function computeProblemTiles(allBuildings, buildingTypes, myId) {
   return tiles;
 }
 
+// ── Production-rate scaling helpers ────────────────────────────
+//
+// The server's per-tick formulas are:
+//   extractor       output = output_rate × min(1, 4/path_length) × boost × productivity
+//   food_extractor  output = output_rate × boost × productivity (no path)
+//   processor       in/out = rate × min(input_avail/need) × productivity
+//
+// The UI's net-rate display assumes max progress (=1), so processors
+// are simply rate × productivity. Extractors and food_extractors need
+// per-instance lookups (path + booster proximity), so we expose the
+// scaling helpers below for both the city-wide aggregate and the
+// per-resource flow drilldown.
+
+// Productivity multiplier from the player's profile. Defaults to 1.0
+// when missing — same as the server's `COALESCE(productivity, 1.0)`.
+export function getProductivity(profile) {
+  return profile?.productivity != null ? Number(profile.productivity) : 1.0;
+}
+
+// MAX booster multiplier applicable to a given extractor or
+// food_extractor. Mirrors the server: only staffed + active boosters
+// of matching boost_target within Manhattan ≤ boost_range count, and
+// multiple in range take the MAX (no stacking).
+export function getBoosterMultiplier(b, bt, allBuildings, buildingTypes, myId) {
+  if (!bt) return 1.0;
+  if (bt.category !== 'extractor' && bt.category !== 'food_extractor') return 1.0;
+  let maxMult = 1.0;
+  for (const b2 of allBuildings) {
+    if (b2.player_id !== myId) continue;
+    if (b2.status !== 'active' || !b2.is_staffed) continue;
+    const bt2 = buildingTypes[b2.building_type_key];
+    if (!bt2 || bt2.category !== 'booster') continue;
+    if (bt2.boost_target !== bt.category) continue;
+    const range = Number(bt2.boost_range) || 0;
+    if (Math.abs(b2.x - b.x) + Math.abs(b2.y - b.y) > range) continue;
+    const mult = Number(bt2.boost_multiplier) || 1.0;
+    if (mult > maxMult) maxMult = mult;
+  }
+  return maxMult;
+}
+
+// Effective per-minute output rate for one building. Applies path-
+// length scaling (extractors only — food_extractors have no claimed
+// target), booster proximity, and productivity. For extractors with
+// no claimed target (path_length null/0), returns 0 — matches the
+// server's "CONTINUE if path_length IS NULL".
+export function effectiveOutputRate(b, bt, allBuildings, buildingTypes, myId, productivity) {
+  const base = Number(bt?.output_rate) || 0;
+  if (!base) return 0;
+  if (bt.category === 'extractor') {
+    const pl = Number(b.path_length);
+    if (!pl || pl <= 0) return 0;
+    const pathFactor = Math.min(1, 4 / pl);
+    const boost = getBoosterMultiplier(b, bt, allBuildings, buildingTypes, myId);
+    return base * pathFactor * boost * productivity;
+  }
+  if (bt.category === 'food_extractor') {
+    const boost = getBoosterMultiplier(b, bt, allBuildings, buildingTypes, myId);
+    return base * boost * productivity;
+  }
+  // Processors / services / tax — flat rate × productivity.
+  return base * productivity;
+}
+
 // ── Resource production / consumption ──────────────────────────
 //
 // Iterates myId's active staffed unpaused buildings, sums their
@@ -573,22 +648,32 @@ export function computeProblemTiles(allBuildings, buildingTypes, myId) {
 // where keys are resource keys and values are per-minute floats.
 // Tax revenue (output_resource_key='money' or category='tax') is
 // excluded from prod — handled separately by the runway calc.
-export function computeResourceProdCons(allBuildings, buildingTypes, myId) {
+//
+// `profile` is required for the productivity multiplier and lets the
+// extractor scaling read the same values the server uses. Without it
+// the rates default to base × 1.0, which under-reports a city with a
+// tavern/education productivity bonus and over-reports a city with a
+// crime drag.
+export function computeResourceProdCons(allBuildings, buildingTypes, myId, profile) {
   const prod = {};
   const cons = {};
+  const productivity = getProductivity(profile);
   for (const b of allBuildings) {
     if (b.player_id !== myId) continue;
     if (b.status !== 'active' || !b.is_staffed) continue;
     const bt = buildingTypes[b.building_type_key];
     if (!bt) continue;
     if (bt.output_resource_key && bt.output_rate > 0 && bt.category !== 'tax') {
-      prod[bt.output_resource_key] = (prod[bt.output_resource_key] || 0) + Number(bt.output_rate);
+      const rate = effectiveOutputRate(b, bt, allBuildings, buildingTypes, myId, productivity);
+      if (rate > 0) {
+        prod[bt.output_resource_key] = (prod[bt.output_resource_key] || 0) + rate;
+      }
     }
     if (bt.input_resource_key && bt.input_rate > 0) {
-      cons[bt.input_resource_key] = (cons[bt.input_resource_key] || 0) + Number(bt.input_rate);
+      cons[bt.input_resource_key] = (cons[bt.input_resource_key] || 0) + Number(bt.input_rate) * productivity;
     }
     if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
-      cons[bt.input_resource_key_2] = (cons[bt.input_resource_key_2] || 0) + Number(bt.input_rate_2);
+      cons[bt.input_resource_key_2] = (cons[bt.input_resource_key_2] || 0) + Number(bt.input_rate_2) * productivity;
     }
   }
   return { prod, cons };
