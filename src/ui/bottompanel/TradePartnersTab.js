@@ -235,7 +235,7 @@ function renderTraderDirectory() {
         ${unlock.unlocked ? `<span class="tp-trader-card-next">next visit · ${escapeHtml(countdown)}</span>` : ''}
       </div>
       ${unlock.unlocked
-        ? (t.description ? `<div class="tp-trader-card-desc">${escapeHtml(t.description)}</div>` : '')
+        ? (t.description ? `<div class="tp-trader-card-desc">${escapeHtml(t.description)}</div>` : '') + renderTraderGoods(t.key)
         : `<div class="tp-trader-card-hint">${escapeHtml(unlock.hint || 'Locked.')}</div>`}
     </div>`;
   }).join('');
@@ -247,6 +247,66 @@ function renderTraderDirectory() {
     <summary>Traders in this city ${totalLabel}</summary>
     ${rows}
   </details>`;
+}
+
+// What this trader buys + sells, with daily-cap usage. Mirrors v1's
+// renderPartnerGoodsCompact (panels.js). Shown inside each unlocked
+// trader card so the player can scan "this caravan sells me flour
+// at $4 and buys my surplus pottery at $9" without having to scroll
+// through every per-resource section to learn it.
+//
+// Buy/sell cells get tp-tg-meets / tp-tg-misses tinting when the
+// player has set a policy gate that this row matches or fails. Same
+// visual signal v1 uses, and it carries over the player's policy
+// reasoning without forcing them to re-think every price.
+function renderTraderGoods(traderKey) {
+  const prices = state.allTraderPrices?.[traderKey] || {};
+  const resourceKeys = Object.keys(prices);
+  if (resourceKeys.length === 0) return '';
+  const quotas = state.traderQuotas?.[traderKey] || {};
+  resourceKeys.sort((a, b) => {
+    const an = state.resourceNodes?.[a]?.name || a;
+    const bn = state.resourceNodes?.[b]?.name || b;
+    return an.localeCompare(bn);
+  });
+  const rows = resourceKeys.map((rk) => {
+    const p = prices[rk];
+    const q = quotas[rk] || {};
+    const resName = state.resourceNodes?.[rk]?.name || rk;
+    const todayParts = [];
+    if (p.buy_price && q.buy_cap != null) {
+      const used = q.buy_used || 0;
+      const full = used >= q.buy_cap;
+      todayParts.push(`<span class="tp-tg-cap${full ? ' tp-tg-cap-full' : ''}" title="Bought from you today">b ${used}/${q.buy_cap}</span>`);
+    }
+    if (p.sell_price && q.sell_cap != null) {
+      const used = q.sell_used || 0;
+      const full = used >= q.sell_cap;
+      todayParts.push(`<span class="tp-tg-cap${full ? ' tp-tg-cap-full' : ''}" title="Sold to you today">s ${used}/${q.sell_cap}</span>`);
+    }
+    const policy = state.tradePolicies?.[rk];
+    let buyHL = '', sellHL = '';
+    if (policy) {
+      if (policy.mode === 'sell_surplus' && policy.min_sell_price != null && p.buy_price) {
+        buyHL = (p.buy_price >= policy.min_sell_price) ? ' tp-tg-meets' : ' tp-tg-misses';
+      }
+      if (policy.mode === 'buy_to_reserve' && policy.max_buy_price != null && p.sell_price) {
+        sellHL = (p.sell_price <= policy.max_buy_price) ? ' tp-tg-meets' : ' tp-tg-misses';
+      }
+    }
+    return `<tr>
+      <td class="tp-tg-res">${escapeHtml(resName)}</td>
+      <td class="tp-tg-buy${buyHL}">${p.buy_price ? '$' + p.buy_price : '—'}</td>
+      <td class="tp-tg-sell${sellHL}">${p.sell_price ? '$' + p.sell_price : '—'}</td>
+      <td class="tp-tg-today">${todayParts.join(' ')}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="tp-trader-goods">
+    <thead><tr>
+      <th>Resource</th><th title="Trader buys from you">Buys at</th><th title="Trader sells to you">Sells at</th><th>Today</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 // Compute unlock state per trader. Mirrors v1's state.js
