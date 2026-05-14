@@ -21,7 +21,7 @@ import {
   getBuildingAoeRange,
   heatmapTintFor,
   computeWorldBounds as _computeWorldBounds,
-  sizeWalkerSvg,
+  sizeSvgDataUri,
   computePoliceCoverage as _computePoliceCoverage,
   computeProblemTiles as _computeProblemTiles,
   computeBuildingIssue,
@@ -168,10 +168,19 @@ export class MainScene extends Phaser.Scene {
     // data:image/svg+xml URI which Phaser's loader handles natively.
     // We use the building_type_key as the texture key so render code
     // can look it up directly with no extra mapping table.
+    //
+    // Inject width/height = 2× viewBox before queuing. Source SVGs
+    // are all viewBox-only (no width/height on <svg>), so the browser
+    // would otherwise rasterize them at its default ~300×150 surface
+    // — fine on desktop, but blows past mobile texture memory budgets
+    // with 57 gradient-laden sprites, which on Atlas's Android Chrome
+    // surfaced as all buildings rendering as Phaser's __MISSING black
+    // square. 2× viewBox = 128×128 keeps them retina-crisp at the
+    // 48px tile display while staying inside mobile's texture budget.
     for (const key in spriteIcons) {
       // Skip if already loaded (scene.restart() re-runs preload).
       if (this.textures.exists(key)) continue;
-      this.load.image(key, spriteIcons[key]);
+      this.load.image(key, sizeSvgDataUri(spriteIcons[key], 2));
       this._textureLoadStatus.queued++;
     }
     // Walker variants — 19 detailed humanoid sprites lifted from v1.
@@ -187,7 +196,7 @@ export class MainScene extends Phaser.Scene {
     for (const key in WALKER_SPRITES) {
       const texKey = 'walker-' + key;
       if (this.textures.exists(texKey)) continue;
-      this.load.image(texKey, sizeWalkerSvg(WALKER_SPRITES[key]));
+      this.load.image(texKey, sizeSvgDataUri(WALKER_SPRITES[key], 4));
       this._textureLoadStatus.queued++;
     }
   }

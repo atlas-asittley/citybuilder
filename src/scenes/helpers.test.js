@@ -7,6 +7,7 @@ import {
   heatmapTintFor,
   computeWorldBounds,
   sizeWalkerSvg,
+  sizeSvgDataUri,
   tutorialAllowsBuilding,
   computePoliceCoverage,
   computeProblemTiles,
@@ -247,6 +248,22 @@ describe('sizeWalkerSvg', () => {
     // The opening tag stays percent-encoded — we only insert the
     // attribute, we don't decode the whole URI.
     expect(out).toContain('%3Csvg');
+  });
+});
+
+describe('sizeSvgDataUri', () => {
+  it('uses the passed scale (buildings at 2× for 64×64 viewBox)', () => {
+    // spriteIcons entries are viewBox-only at 0 0 64 64; without
+    // sizing they rasterized at the browser's default 300×150
+    // surface and tipped mobile texture memory over budget.
+    const input = "data:image/svg+xml,%3Csvg viewBox='0 0 64 64'%3E%3C/svg%3E";
+    const out = sizeSvgDataUri(input, 2);
+    expect(out).toContain("width='128'");
+    expect(out).toContain("height='128'");
+  });
+  it('passes invalid viewBox through unchanged', () => {
+    const input = 'data:image/svg+xml,<svg>...</svg>';
+    expect(sizeSvgDataUri(input, 2)).toBe(input);
   });
 });
 

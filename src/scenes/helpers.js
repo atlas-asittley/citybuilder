@@ -685,13 +685,20 @@ export function computeResourceProdCons(allBuildings, buildingTypes, myId, profi
 // browser rasterizes it at a known small size. Returns a new
 // data URI with width="<vb_w * 4>" height="<vb_h * 4>" added. If
 // the viewBox can't be parsed, returns the input unchanged.
-export function sizeWalkerSvg(dataUri) {
-  // Accept either single or double quotes around viewBox so the
-  // helper isn't brittle to upstream string-formatting changes.
-  // Mobile texture cost: without explicit width/height the browser
-  // rasterizes SVGs at its default surface size (~300px square),
-  // which blows GPU memory across ~80 walkers on a busy city. We
-  // inject width/height = 4× viewBox so each upload is small.
+export function sizeSvgDataUri(dataUri, scale) {
+  // Inject explicit width/height into an SVG data URI so the browser
+  // rasterizes it at a known size. Without width/height the browser
+  // rasterizes viewBox-only SVGs at its default surface (~300×150),
+  // which on mobile (a) wastes massive texture memory and (b) tips
+  // some devices into silent texture-upload failure — the building
+  // sprites show up as Phaser's __MISSING black square.
+  //
+  // `scale` multiplies the viewBox dimensions. We use 4 for walkers
+  // (small source, supersample for crispness) and 2 for buildings
+  // (already 64×64 source, 2× plenty for retina mobile).
+  //
+  // Returns the input unchanged if viewBox can't be parsed (defensive
+  // — better to ship a possibly-large sprite than crash the loader).
   const m = dataUri.match(/viewBox=['"]([\d.\s]+)['"]/);
   if (!m) return dataUri;
   const parts = m[1].split(/\s+/);
@@ -699,13 +706,19 @@ export function sizeWalkerSvg(dataUri) {
   const vbW = parseFloat(parts[2]);
   const vbH = parseFloat(parts[3]);
   if (!Number.isFinite(vbW) || !Number.isFinite(vbH)) return dataUri;
-  const w = Math.round(vbW * 4);
-  const h = Math.round(vbH * 4);
-  // walker_sprites.js mixes two encodings: 9 entries use literal
-  // `<svg ...>` and 10 use URL-encoded `%3Csvg ...%3E`. Handle both
-  // so the size-injection isn't a silent no-op for half the catalog.
+  const w = Math.round(vbW * scale);
+  const h = Math.round(vbH * scale);
+  // Sprite catalogs mix two encodings: some entries use literal
+  // `<svg ...>`, others use URL-encoded `%3Csvg ...%3E`. Handle both
+  // so size-injection isn't a silent no-op for half the catalog.
   if (dataUri.includes('%3Csvg')) {
     return dataUri.replace(/%3Csvg\s+/, `%3Csvg width='${w}' height='${h}' `);
   }
   return dataUri.replace(/<svg\s+/, `<svg width='${w}' height='${h}' `);
+}
+
+// Backwards-compatible alias for the original walker-specific entry
+// point. Scale=4 matches the original sizing.
+export function sizeWalkerSvg(dataUri) {
+  return sizeSvgDataUri(dataUri, 4);
 }
