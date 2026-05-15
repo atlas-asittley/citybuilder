@@ -1211,6 +1211,27 @@ body.app-hidden *::after {
   flex-wrap: wrap;
   margin-bottom: 4px;
 }
+/* When the card is a <details>, the head is a <summary>. Suppress
+   the default disclosure marker (varies across browsers) and rotate
+   our own caret based on open state. */
+details.tp-trader-card > summary.tp-trader-card-head {
+  cursor: pointer;
+  list-style: none;          /* Firefox / Chromium */
+  user-select: none;
+}
+details.tp-trader-card > summary.tp-trader-card-head::-webkit-details-marker {
+  display: none;             /* Safari */
+}
+.tp-trader-card-caret {
+  display: inline-block;
+  width: 12px;
+  color: #888;
+  transition: transform 0.12s ease;
+  font-size: 10px;
+}
+details.tp-trader-card[open] > summary .tp-trader-card-caret {
+  transform: rotate(90deg);
+}
 .tp-trader-card-name { color: #e6e6e6; font-weight: 600; font-size: 13px; }
 .tp-trader-card-next { color: #888; font-size: 11px; margin-left: auto; }
 .tp-trader-card-desc { color: #a0a0a0; font-size: 11px; line-height: 1.4; }

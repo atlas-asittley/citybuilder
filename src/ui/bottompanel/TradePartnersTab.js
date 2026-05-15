@@ -72,6 +72,34 @@ export function renderTradePartners(parent) {
   </div>`;
   parent.innerHTML = html;
   wirePolicyHandlers(parent);
+  wireTraderCardCollapse(parent);
+}
+
+// Per-trader collapse state lives in localStorage so it survives
+// panel re-renders + reloads. Schema: { [traderKey]: 'collapsed' }
+// — only collapsed entries are stored, default is open.
+const TRADER_COLLAPSE_KEY = 'cb-trader-card-collapsed';
+function readCollapseMap() {
+  try { return JSON.parse(localStorage.getItem(TRADER_COLLAPSE_KEY) || '{}'); }
+  catch { return {}; }
+}
+function isTraderCollapsed(tk) {
+  return readCollapseMap()[tk] === true;
+}
+function setTraderCollapsed(tk, collapsed) {
+  const m = readCollapseMap();
+  if (collapsed) m[tk] = true;
+  else delete m[tk];
+  try { localStorage.setItem(TRADER_COLLAPSE_KEY, JSON.stringify(m)); }
+  catch { /* private mode / quota — ignore, state degrades to per-session */ }
+}
+function wireTraderCardCollapse(root) {
+  root.querySelectorAll('details.tp-trader-card').forEach((el) => {
+    el.addEventListener('toggle', () => {
+      const tk = el.dataset.trader;
+      if (tk) setTraderCollapsed(tk, !el.open);
+    });
+  });
 }
 
 function renderResourceRow(resource, traderRows) {
@@ -227,17 +255,33 @@ function renderTraderDirectory() {
     }
     const mode = t.mode || t.transport_mode || 'starter';
     const unlock = unlocks[t.key] || { unlocked: true, hint: '' };
-    return `<div class="tp-trader-card ${unlock.unlocked ? '' : 'tp-trader-locked'}">
-      <div class="tp-trader-card-head">
-        ${unlock.unlocked ? '' : '<span class="tp-trader-lock">🔒</span>'}
+    // Unlocked traders render as <details> so the body collapses;
+    // locked traders stay as <div> since their hint is the whole point.
+    // Open/closed state persists per-trader in localStorage via
+    // wireTraderCardCollapse() — toggle survives panel re-renders +
+    // page reloads. Default to open so first-time players see the
+    // goods table without hunting.
+    if (!unlock.unlocked) {
+      return `<div class="tp-trader-card tp-trader-locked">
+        <div class="tp-trader-card-head">
+          <span class="tp-trader-lock">🔒</span>
+          <span class="tp-trader-card-name">${escapeHtml(t.name)}</span>
+          <span class="tp-mode-badge tp-mode-${mode}">${escapeHtml(mode)}</span>
+        </div>
+        <div class="tp-trader-card-hint">${escapeHtml(unlock.hint || 'Locked.')}</div>
+      </div>`;
+    }
+    const collapsed = isTraderCollapsed(t.key);
+    return `<details class="tp-trader-card" data-trader="${escapeHtml(t.key)}" ${collapsed ? '' : 'open'}>
+      <summary class="tp-trader-card-head">
+        <span class="tp-trader-card-caret" aria-hidden="true">▸</span>
         <span class="tp-trader-card-name">${escapeHtml(t.name)}</span>
         <span class="tp-mode-badge tp-mode-${mode}">${escapeHtml(mode)}</span>
-        ${unlock.unlocked ? `<span class="tp-trader-card-next">next visit · ${escapeHtml(countdown)}</span>` : ''}
-      </div>
-      ${unlock.unlocked
-        ? (t.description ? `<div class="tp-trader-card-desc">${escapeHtml(t.description)}</div>` : '') + renderTraderGoods(t.key)
-        : `<div class="tp-trader-card-hint">${escapeHtml(unlock.hint || 'Locked.')}</div>`}
-    </div>`;
+        <span class="tp-trader-card-next">next visit · ${escapeHtml(countdown)}</span>
+      </summary>
+      ${t.description ? `<div class="tp-trader-card-desc">${escapeHtml(t.description)}</div>` : ''}
+      ${renderTraderGoods(t.key)}
+    </details>`;
   }).join('');
   const lockedCount = traders.filter((t) => !(unlocks[t.key]?.unlocked ?? true)).length;
   const totalLabel = lockedCount > 0
