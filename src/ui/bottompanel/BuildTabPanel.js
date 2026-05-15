@@ -15,10 +15,17 @@ let selectedKey = null;
 
 // Accordion mode — exactly one category open at a time. Persisted to
 // localStorage so the player's last-open section comes back on reload.
-// Empty string means "everything collapsed".
+//   null = user has never picked a section, auto-open the first one
+//          that has buildings (so a fresh player sees SOMETHING)
+//   ''   = user explicitly collapsed the open section, respect it
+//   '<category>' = that category is open
+// Atlas 2026-05-15: the original code coerced null → '' on load,
+// which made clicks-to-close trigger the auto-open path and snap
+// the first section back open. The null vs '' distinction is what
+// lets the player close the last section without it re-opening.
 const OPEN_KEY = 'city_build_open_v2';
 let openSection = (() => {
-  try { return localStorage.getItem(OPEN_KEY) || ''; } catch (_e) { return ''; }
+  try { return localStorage.getItem(OPEN_KEY); } catch (_e) { return null; }
 })();
 function setOpenSection(cat) {
   openSection = cat;
@@ -57,7 +64,9 @@ export function renderBuildTab(parent, onSelect) {
 
   // Default the first section with buildings open if the user hasn't
   // picked one yet (post-tutorial player wants to see SOMETHING).
-  if (!openSection) {
+  // openSection === null means "never picked"; '' means "explicitly
+  // closed everything" and is left alone.
+  if (openSection === null) {
     for (const c of CATEGORY_ORDER) {
       if (grouped[c]?.length) { openSection = c; break; }
     }
