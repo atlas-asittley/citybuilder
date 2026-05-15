@@ -2441,6 +2441,12 @@ details.tp-trader-card[open] > summary .tp-trader-card-caret {
 }
 #bottom-panel.collapsed ~ #zoom-controls,
 body.bp-collapsed #zoom-controls { bottom: 52px; }
+/* Full-size panel covers the map, so the map-overlay controls
+   (zoom + heatmap toggle + any open heatmap popup) hide. They
+   reappear the moment the panel goes back to compact / collapsed. */
+body.bp-full #zoom-controls,
+body.bp-full #heatmap-toggle,
+body.bp-full #heatmap-popup { display: none; }
 .zc-btn {
   width: 48px; height: 48px;
   background: rgba(22, 33, 62, 0.9);
