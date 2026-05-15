@@ -80,34 +80,78 @@ function wireHandlers(parent) {
   parent.querySelectorAll('.bm-row').forEach((rowEl) => {
     const key = rowEl.dataset.key;
     const qtyInput = rowEl.querySelector('.bm-qty');
-    const updateQty = (q) => {
-      const v = Math.max(1, Math.min(9999, Math.floor(q) || 1));
-      qtyMap[key] = v;
-      // Rerender just this row so the totals + disabled-state update.
-      const fresh = renderRow(state.resourceNodes[key]);
-      const tmp = document.createElement('div');
-      tmp.innerHTML = fresh;
-      rowEl.replaceWith(tmp.firstElementChild);
-      // Re-attach handlers for the new row.
-      wireHandlers(parent);
-    };
-    qtyInput.addEventListener('input', () => updateQty(parseInt(qtyInput.value, 10) || 1));
-    rowEl.querySelectorAll('.bm-step').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const act = btn.dataset.act;
-        const cur = qtyMap[key] || 1;
-        const inv = Math.floor(state.inventory[key] || 0);
-        const money = state.profile?.money || 0;
-        const buyPrice = Math.max(1, Math.ceil(state.resourceNodes[key].base_price * 2.0));
-        if (act === 'dec') updateQty(cur - 1);
-        else if (act === 'inc') updateQty(cur + 1);
-        else if (act === 'max-sell') updateQty(Math.max(1, inv));
-        else if (act === 'max-buy')  updateQty(Math.max(1, Math.floor(money / buyPrice)));
-      });
+    const sellBtn  = rowEl.querySelector('.tp-btn-sell');
+    const buyBtn   = rowEl.querySelector('.tp-btn-buy');
+    const decBtn   = rowEl.querySelector('.bm-step[data-act="dec"]');
+    const incBtn   = rowEl.querySelector('.bm-step[data-act="inc"]');
+    const maxSellBtn = rowEl.querySelector('.bm-step[data-act="max-sell"]');
+    const maxBuyBtn  = rowEl.querySelector('.bm-step[data-act="max-buy"]');
+
+    // Recompute everything that depends on quantity + repaint the
+    // row's buttons/totals in place. NO DOM replacement — so the
+    // qty input keeps focus + cursor mid-typing. Empty / NaN inputs
+    // are treated as 0 (disabling commit) so the user can clear and
+    // retype without the field snapping back to 1 between keystrokes.
+    function refreshTotals() {
+      const r = state.resourceNodes[key];
+      const inv = Math.floor(state.inventory[key] || 0);
+      const sellPrice = Math.max(1, Math.floor(r.base_price * 0.35));
+      const buyPrice  = Math.max(1, Math.ceil(r.base_price * 2.0));
+      const money = state.profile?.money || 0;
+      const maxSell = inv;
+      const maxBuy  = Math.floor(money / buyPrice);
+      const rawVal  = qtyInput.value;
+      const qty = rawVal === '' ? 0 : Math.max(0, Math.min(9999, parseInt(rawVal, 10) || 0));
+      const canSell = qty > 0 && qty <= maxSell;
+      const canBuy  = qty > 0 && qty <= maxBuy;
+      sellBtn.disabled = !canSell;
+      buyBtn.disabled  = !canBuy;
+      sellBtn.innerHTML = `Sell ${qty} @ $${sellPrice} = <strong>+$${(qty * sellPrice).toLocaleString()}</strong>`;
+      buyBtn.innerHTML  = `Buy ${qty} @ $${buyPrice} = <strong>−$${(qty * buyPrice).toLocaleString()}</strong>`;
+      maxSellBtn.textContent = `max sell (${maxSell})`;
+      maxBuyBtn.textContent  = `max buy (${maxBuy})`;
+    }
+    // Live update on every keystroke. Don't write back to qtyMap on
+    // intermediate empty values — only persist a real, parsed number
+    // so the panel-tick re-render uses the typed value, not blank.
+    function commitQty() {
+      const v = parseInt(qtyInput.value, 10);
+      if (Number.isFinite(v) && v >= 1) qtyMap[key] = Math.min(9999, v);
+    }
+    function setQty(v) {
+      const clamped = Math.max(1, Math.min(9999, Math.floor(v) || 1));
+      qtyMap[key] = clamped;
+      qtyInput.value = clamped;
+      refreshTotals();
+    }
+
+    qtyInput.addEventListener('input', () => { commitQty(); refreshTotals(); });
+    // On blur, snap an empty / invalid input back to 1 so the next
+    // commit doesn't try to send qty=0.
+    qtyInput.addEventListener('blur', () => {
+      const v = parseInt(qtyInput.value, 10);
+      if (!Number.isFinite(v) || v < 1) setQty(1);
     });
+
+    decBtn.addEventListener('click', () => setQty((qtyMap[key] || 1) - 1));
+    incBtn.addEventListener('click', () => setQty((qtyMap[key] || 1) + 1));
+    maxSellBtn.addEventListener('click', () => {
+      const inv = Math.floor(state.inventory[key] || 0);
+      setQty(Math.max(1, inv));
+    });
+    maxBuyBtn.addEventListener('click', () => {
+      const money = state.profile?.money || 0;
+      const buyPrice = Math.max(1, Math.ceil(state.resourceNodes[key].base_price * 2.0));
+      setQty(Math.max(1, Math.floor(money / buyPrice)));
+    });
+
     rowEl.querySelectorAll('.tp-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const act = btn.dataset.act;
+        // Commit whatever's currently in the field before sending —
+        // a click can land before blur in some browsers, so don't
+        // trust qtyMap alone.
+        commitQty();
         const qty = qtyMap[key] || 1;
         btn.disabled = true;
         const origText = btn.textContent;
