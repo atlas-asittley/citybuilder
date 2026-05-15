@@ -424,7 +424,12 @@ body.app-hidden *::after {
   position: fixed;
   left: 0; right: 0;
   bottom: 0;
-  height: 260px;
+  /* Compact = ~half the visible viewport (Atlas 2026-05-15: 260px
+     felt cramped on mobile). dvh tracks the actual visible area so
+     the height adapts when the mobile address bar appears/hides;
+     vh fallback for the rare browser without dvh support. */
+  height: 50vh;
+  height: 50dvh;
   background: rgba(15, 22, 32, 0.97);
   border-top: 1px solid #0f3460;
   display: flex;
