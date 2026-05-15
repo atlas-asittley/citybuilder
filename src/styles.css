@@ -1839,6 +1839,69 @@ details.tp-trader-card[open] > summary .tp-trader-card-caret {
 }
 .cr-flow-empty { color: #888; font-style: italic; }
 
+/* Per-resource trade policy editor inside the drilldown. Lives
+   between the flow breakdown and the partner table. */
+.cr-policy {
+  margin-top: 10px;
+  padding: 8px;
+  background: rgba(15, 52, 96, 0.30);
+  border: 1px solid rgba(15, 52, 96, 0.7);
+  border-radius: 4px;
+}
+.cr-policy-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cr-policy-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.cr-policy-row:last-child { margin-bottom: 0; }
+.cr-policy-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #c0c0c0;
+}
+.cr-policy-field input {
+  width: 60px;
+  background: #0f1626;
+  border: 1px solid #0f3460;
+  color: #e6e6e6;
+  font-size: 11px;
+  padding: 3px 5px;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.cr-policy-mode {
+  background: #0f1626;
+  border: 1px solid #0f3460;
+  color: #e6e6e6;
+  font-size: 11px;
+  padding: 3px 5px;
+  border-radius: 3px;
+}
+.cr-policy-save {
+  margin-left: auto;
+  background: #16c79a;
+  color: #0a0e14;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cr-policy-save:disabled { opacity: 0.6; cursor: default; }
+
 .cr-partners {
   margin-top: 10px;
   padding-top: 8px;

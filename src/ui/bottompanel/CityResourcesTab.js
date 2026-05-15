@@ -219,6 +219,55 @@ export function renderCityResources(parent) {
       renderCityResources(parent);
     });
   });
+
+  // Trade-policy controls inside the drilldown. Every click/change/
+  // input inside the policy block stops propagation so it doesn't
+  // toggle the parent row's expand/collapse.
+  parent.querySelectorAll('.cr-detail .cr-policy').forEach((box) => {
+    box.addEventListener('click', (e) => e.stopPropagation());
+  });
+
+  // Mode-change reveals the matching price field (sell vs buy).
+  parent.querySelectorAll('.cr-policy-mode').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const box = sel.closest('.cr-policy');
+      if (!box) return;
+      const mode = sel.value;
+      box.querySelector('.cr-policy-sell').style.display = (mode === 'sell_surplus') ? '' : 'none';
+      box.querySelector('.cr-policy-buy').style.display  = (mode === 'buy_to_reserve') ? '' : 'none';
+      const reserve = box.querySelector('.cr-policy-reserve');
+      if (reserve) reserve.disabled = (mode === 'hold');
+    });
+  });
+
+  parent.querySelectorAll('.cr-policy-save').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const rk = btn.dataset.resource;
+      const box = btn.closest('.cr-policy');
+      if (!box) return;
+      const mode = box.querySelector('.cr-policy-mode').value;
+      const reserve = parseInt(box.querySelector('.cr-policy-reserve').value, 10) || 0;
+      const msRaw = box.querySelector('.cr-policy-minsell')?.value;
+      const mbRaw = box.querySelector('.cr-policy-maxbuy')?.value;
+      const minSell = msRaw === '' || msRaw == null ? null : parseInt(msRaw, 10);
+      const maxBuy  = mbRaw === '' || mbRaw == null ? null : parseInt(mbRaw, 10);
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        const { error } = await sb.rpc('save_trade_policy', {
+          p_resource_key: rk, p_mode: mode,
+          p_reserve_target: reserve, p_min_sell_price: minSell, p_max_buy_price: maxBuy
+        });
+        if (error) throw error;
+        state.tradePolicies[rk] = { mode, reserve_target: reserve, min_sell_price: minSell, max_buy_price: maxBuy };
+        btn.textContent = 'Saved';
+        setTimeout(() => { btn.disabled = false; btn.textContent = 'Save'; }, 1200);
+      } catch (err) {
+        alert('Policy save failed: ' + (err.message || err));
+        btn.disabled = false; btn.textContent = 'Save';
+      }
+    });
+  });
 }
 
 function renderRow(r, prod, cons) {
@@ -321,10 +370,52 @@ function renderFlowHtml(resourceKey) {
   const netClass = net > 0.05 ? 'cr-pos' : net < -0.05 ? 'cr-neg' : '';
   html += `<div class="cr-flow-net">Net: <span class="${netClass}">${fmtRate(net)}</span></div>`;
 
+  // Trade policy editor — same fields as Trade > Partners, but
+  // scoped to this one resource. Lets the player set sell/buy gates
+  // without leaving the drilldown they were already reading.
+  html += renderTradePolicy(resourceKey);
+
   // Per-partner trade activity (last 7 days). Renders only when the
   // flow data has been fetched; silently skipped pre-load.
   html += renderPartnerTable(resourceKey);
   return html;
+}
+
+// NPC trade policy editor for one resource. Mirrors v1's
+// reports.js renderResourceDrilldownHtml policy block + v2's
+// existing TradePartnersTab.renderResourceRow controls. Same RPC
+// call (save_trade_policy) so policies edited here, in the Partners
+// tab, or by the auto-trader stay in lockstep.
+function renderTradePolicy(resourceKey) {
+  const policy = state.tradePolicies?.[resourceKey] || { mode: 'hold' };
+  const sellMode = policy.mode === 'sell_surplus';
+  const buyMode  = policy.mode === 'buy_to_reserve';
+  return `<div class="cr-policy" data-resource="${escapeHtml(resourceKey)}">
+    <div class="cr-policy-label">NPC trade policy</div>
+    <div class="cr-policy-row">
+      <select class="cr-policy-mode" data-resource="${escapeHtml(resourceKey)}">
+        <option value="hold"           ${policy.mode === 'hold' ? 'selected' : ''}>Hold (don't trade)</option>
+        <option value="sell_surplus"   ${sellMode ? 'selected' : ''}>Sell surplus above</option>
+        <option value="buy_to_reserve" ${buyMode  ? 'selected' : ''}>Buy to reserve of</option>
+      </select>
+      <label class="cr-policy-field">reserve
+        <input class="cr-policy-reserve" type="number" min="0" max="9999"
+               value="${policy.reserve_target || 0}" data-resource="${escapeHtml(resourceKey)}"
+               ${policy.mode === 'hold' ? 'disabled' : ''} />
+      </label>
+    </div>
+    <div class="cr-policy-row cr-policy-prices">
+      <label class="cr-policy-field cr-policy-sell" style="${sellMode ? '' : 'display:none'}">
+        sell at $<input class="cr-policy-minsell" type="number" min="1" max="9999" placeholder="any"
+               value="${policy.min_sell_price ?? ''}" data-resource="${escapeHtml(resourceKey)}" />+
+      </label>
+      <label class="cr-policy-field cr-policy-buy" style="${buyMode ? '' : 'display:none'}">
+        buy at $<input class="cr-policy-maxbuy" type="number" min="1" max="9999" placeholder="any"
+               value="${policy.max_buy_price ?? ''}" data-resource="${escapeHtml(resourceKey)}" />−
+      </label>
+      <button class="cr-policy-save" data-resource="${escapeHtml(resourceKey)}">Save</button>
+    </div>
+  </div>`;
 }
 
 function renderPartnerTable(resourceKey) {
