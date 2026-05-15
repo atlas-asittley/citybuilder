@@ -13,17 +13,19 @@ import { spriteIcons } from '../../sprites.js';
 
 let selectedKey = null;
 
-// Accordion mode — exactly one category open at a time. Persisted to
+// Accordion mode — exactly one section open at a time. Persisted to
 // localStorage so the player's last-open section comes back on reload.
 //   null = user has never picked a section, auto-open the first one
 //          that has buildings (so a fresh player sees SOMETHING)
 //   ''   = user explicitly collapsed the open section, respect it
-//   '<category>' = that category is open
+//   '<section>' = that section is open (infra/industry/farming/civic/transport)
 // Atlas 2026-05-15: the original code coerced null → '' on load,
 // which made clicks-to-close trigger the auto-open path and snap
 // the first section back open. The null vs '' distinction is what
 // lets the player close the last section without it re-opening.
-const OPEN_KEY = 'city_build_open_v2';
+// Key changed v2→v3 because the values now hold section names, not
+// raw category names — old values would map to invalid sections.
+const OPEN_KEY = 'city_build_open_v3';
 let openSection = (() => {
   try { return localStorage.getItem(OPEN_KEY); } catch (_e) { return null; }
 })();
@@ -32,66 +34,138 @@ function setOpenSection(cat) {
   try { localStorage.setItem(OPEN_KEY, cat); } catch (_e) { /* no-op */ }
 }
 
-const CATEGORY_ORDER = [
-  'housing', 'service', 'police', 'tax',
-  'food_extractor', 'extractor', 'processor',
-  'booster', 'park',
-  'transport_hub', 'transport_connector',
-  'road'
-];
-const CATEGORY_LABELS = {
-  housing: 'Housing', service: 'Services', police: 'Police', tax: 'Tax',
-  food_extractor: 'Food', extractor: 'Extractors', processor: 'Processors',
-  booster: 'Boosters', park: 'Parks',
-  transport_hub: 'Transport Hubs', transport_connector: 'Connectors',
-  road: 'Road'
+// Top-level sections — matches v1's panels.js (Atlas 2026-05-15:
+// "make the buildings tab match the old one"). Two-level grouping:
+// every building maps to one section via sectionFor(bt), then sorted
+// within the section by category → tier → name.
+const SECTION_ORDER = ['infra', 'industry', 'farming', 'civic', 'transport'];
+
+// Category sort order within each section. Pulled out of v1's
+// CATEGORY_ORDER so sub-groupings stay stable across re-renders.
+const CATEGORY_RANK = {
+  road: 0, housing: 1, extractor: 2, food_extractor: 3,
+  processor: 4, booster: 5, service: 6, tax: 7, police: 8, park: 9,
+  transport_hub: 10, transport_connector: 11
 };
+
+// Map a building_type to its top-level section. Mirrors v1's
+// sectionFor in panels.js so the v2 menu groups identically.
+//   infra     = roads + housing
+//   industry  = the player's resource chain (extractor + non-food
+//               processor + resource booster)
+//   farming   = food chain (food_extractor + food-output processor
+//               + food booster)
+//   civic     = services + tax + police + park (industry_key='common')
+//   transport = transport_hub + transport_connector
+function sectionFor(bt) {
+  if (bt.category === 'road' || bt.category === 'housing') return 'infra';
+  if (bt.category === 'transport_hub' || bt.category === 'transport_connector') return 'transport';
+  if (bt.industry_key === 'common') return 'civic';
+  if (bt.category === 'food_extractor') return 'farming';
+  if (bt.category === 'extractor') return 'industry';
+  if (bt.category === 'booster') {
+    return bt.boost_target === 'food_extractor' ? 'farming' : 'industry';
+  }
+  if (bt.category === 'processor') {
+    const out = state.resourceNodes?.[bt.output_resource_key];
+    return out?.is_food ? 'farming' : 'industry';
+  }
+  return 'industry';
+}
+
+function sectionTitles(industryKey) {
+  const name = industryKey
+    ? industryKey.charAt(0).toUpperCase() + industryKey.slice(1)
+    : 'Industry';
+  return {
+    infra: 'Infrastructure',
+    industry: name + ' Industry',
+    farming: 'Farming',
+    civic: 'Civic & Services',
+    transport: 'Transport Network'
+  };
+}
 
 export function renderBuildTab(parent, onSelect) {
   const tutorialStep = state.profile?.tutorial_step;
-  const grouped = {};
+  const playerIndustry = state.profile?.industry_key;
+
+  // Per-industry resource availability: a building can only USEFULLY
+  // produce its output if every input it needs is available from
+  // something in this industry's catalog. Precompute the set of
+  // resources someone in your industry could produce (your industry's
+  // extractors + processors + 'common' producers). Atlas 2026-05-15:
+  // "I shouldn't be able to build a building that makes bread if I
+  // don't have grain as a resource."
+  const producibleResources = new Set();
+  for (const k in state.buildingTypes) {
+    const b = state.buildingTypes[k];
+    if (!b.is_active || !b.output_resource_key) continue;
+    if (b.industry_key !== playerIndustry && b.industry_key !== 'common') continue;
+    producibleResources.add(b.output_resource_key);
+  }
+
+  // Section-keyed buckets (infra / industry / farming / civic /
+  // transport). Industry filter: only show buildings from this
+  // player's industry or shared 'common' buildings. Inputs filter:
+  // skip a building whose declared input isn't producible by
+  // anyone in this industry — that catches the bread-without-grain
+  // case and any future cross-industry processor mis-tagging.
+  const grouped = { infra: [], industry: [], farming: [], civic: [], transport: [] };
   for (const key in state.buildingTypes) {
     const bt = state.buildingTypes[key];
     if (!bt.category || !bt.is_active) continue;
+    if (bt.industry_key && bt.industry_key !== 'common' && bt.industry_key !== playerIndustry) continue;
     if (!tutorialAllowsBuilding(bt, tutorialStep)) continue;
-    (grouped[bt.category] = grouped[bt.category] || []).push(bt);
+    if (bt.input_resource_key && !producibleResources.has(bt.input_resource_key)) continue;
+    if (bt.input_resource_key_2 && !producibleResources.has(bt.input_resource_key_2)) continue;
+    grouped[sectionFor(bt)].push(bt);
   }
 
   const money = state.profile?.money || 0;
   const maxTierEver = state.profile?.highest_housing_tier_ever || 0;
   const inventory = state.inventory || {};
   const resourceCostsByKey = state.buildingResourceCosts || {};
+  const titles = sectionTitles(playerIndustry);
 
   // Default the first section with buildings open if the user hasn't
   // picked one yet (post-tutorial player wants to see SOMETHING).
   // openSection === null means "never picked"; '' means "explicitly
   // closed everything" and is left alone.
   if (openSection === null) {
-    for (const c of CATEGORY_ORDER) {
-      if (grouped[c]?.length) { openSection = c; break; }
+    for (const s of SECTION_ORDER) {
+      if (grouped[s].length) { openSection = s; break; }
     }
   }
 
   let html = '';
-  for (const cat of CATEGORY_ORDER) {
-    if (!grouped[cat] || !grouped[cat].length) continue;
-    grouped[cat].sort((a, b) =>
-      (a.tier_required || 0) - (b.tier_required || 0) ||
-      a.name.localeCompare(b.name));
-    const isOpen = openSection === cat;
+  for (const section of SECTION_ORDER) {
+    const items = grouped[section];
+    if (!items.length) continue;
+    // Sort within section by category rank → tier → name so v1 mixed
+    // category sections (Civic shows service / tax / police / park
+    // in that order) read predictably.
+    items.sort((a, b) => {
+      const ra = CATEGORY_RANK[a.category] ?? 99;
+      const rb = CATEGORY_RANK[b.category] ?? 99;
+      if (ra !== rb) return ra - rb;
+      return (a.tier_required || 0) - (b.tier_required || 0) ||
+             a.name.localeCompare(b.name);
+    });
+    const isOpen = openSection === section;
     const chev = isOpen ? '▾' : '▸';
-    html += `<div class="btp-section ${isOpen ? 'btp-section-open' : ''}" data-cat="${cat}">
+    html += `<div class="btp-section ${isOpen ? 'btp-section-open' : ''}" data-cat="${section}">
       <button class="btp-section-title">
         <span class="btp-section-chev">${chev}</span>
-        ${CATEGORY_LABELS[cat] || cat}
-        <small class="btp-section-count">${grouped[cat].length}</small>
+        ${titles[section]}
+        <small class="btp-section-count">${items.length}</small>
       </button>
       ${isOpen ? `<div class="btp-items">` : ''}`;
     if (!isOpen) {
       html += `</div>`;
       continue;
     }
-    for (const bt of grouped[cat]) {
+    for (const bt of items) {
       const cost = bt.build_cost || 0;
       const canAffordMoney = money >= cost;
       const resourceCosts = resourceCostsByKey[bt.key] || [];
