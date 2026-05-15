@@ -15,6 +15,7 @@
 // productivity colors by direction.
 import { state } from '../state/store.js';
 import { computeCityRunway, formatRunway } from '../state/runway.js';
+import { computeHousingCapacity } from '../scenes/helpers.js';
 import { openExpansionPanel } from './ExpansionPanel.js';
 import { openSettings } from './SettingsPanel.js';
 import { openBellLog, mountBellLog } from './BellLog.js';
@@ -217,10 +218,15 @@ export function refreshTopBar() {
   document.getElementById('tb-workers-stat').title =
     used + ' workers employed / ' + needed + ' jobs available';
 
-  // Population: current / capacity (capacity computed lazily from
-  // housing tiers when state.laborInfo carries it).
+  // Population: current / capacity. Capacity = post-tutorial 15-citizen
+  // floor + sum of each active road-connected house's tier.workers.
+  // Stash on laborInfo so other panels can re-use it without recomputing.
   const pop = Math.floor(p.population || 0);
-  const cap = li.housingCapacity || pop;
+  const cap = computeHousingCapacity(
+    state.allBuildings, state.buildingTypes, state.housingTierConfig,
+    state.currentUser?.id, p
+  );
+  li.housingCapacity = cap;
   document.getElementById('tb-pop').textContent = cap > 0 ? pop + '/' + cap : String(pop);
   document.getElementById('tb-pop-stat').title = pop + ' citizens / ' + cap + ' housing spaces';
 

@@ -19,7 +19,8 @@ import {
   getHousingDevolveRisks,
   describeHousingBlocker,
   describeHousingDevolveReason,
-  computeResourceFlow
+  computeResourceFlow,
+  computeHousingCapacity
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -1081,6 +1082,67 @@ describe('tileHash', () => {
       for (let y = 0; y < 10; y++) seen.add(tileHash(x, y));
     }
     expect(seen.size).toBe(100);
+  });
+});
+
+describe('computeHousingCapacity', () => {
+  const buildingTypes = {
+    house: { category: 'housing', footprint_w: 1, footprint_h: 1 },
+    road: { category: 'road', footprint_w: 1, footprint_h: 1 }
+  };
+  const htc = {
+    0: { workers: 2, needs_road: false },
+    1: { workers: 6, needs_road: false },
+    4: { workers: 24, needs_road: true },
+    5: { workers: 34, needs_road: true }
+  };
+  const myId = 'me';
+  const profile = { tutorial_step: 4 };
+
+  it('post-tutorial 15 floor + summed tier workers for road-connected houses', () => {
+    const buildings = [
+      { player_id: myId, building_type_key: 'road', x: 5, y: 5, status: 'active' },
+      { player_id: myId, building_type_key: 'house', x: 5, y: 6, status: 'active', housing_tier: 4 },
+      { player_id: myId, building_type_key: 'house', x: 4, y: 5, status: 'active', housing_tier: 5 }
+    ];
+    const cap = computeHousingCapacity(buildings, buildingTypes, htc, myId, profile);
+    expect(cap).toBe(15 + 24 + 34);
+  });
+
+  it('tutorial floor is 0', () => {
+    const buildings = [
+      { player_id: myId, building_type_key: 'road', x: 5, y: 5, status: 'active' },
+      { player_id: myId, building_type_key: 'house', x: 5, y: 6, status: 'active', housing_tier: 4 }
+    ];
+    const cap = computeHousingCapacity(buildings, buildingTypes, htc, myId,
+      { tutorial_step: 2 });
+    expect(cap).toBe(24);
+  });
+
+  it('road-less tier-4 house contributes nothing', () => {
+    const buildings = [
+      { player_id: myId, building_type_key: 'house', x: 5, y: 5, status: 'active', housing_tier: 4 }
+    ];
+    const cap = computeHousingCapacity(buildings, buildingTypes, htc, myId, profile);
+    expect(cap).toBe(15);
+  });
+
+  it('tier-0 shanty counts without a road', () => {
+    const buildings = [
+      { player_id: myId, building_type_key: 'house', x: 5, y: 5, status: 'active', housing_tier: 0 }
+    ];
+    const cap = computeHousingCapacity(buildings, buildingTypes, htc, myId, profile);
+    expect(cap).toBe(15 + 2);
+  });
+
+  it('skips other players, inactive houses, and non-housing buildings', () => {
+    const buildings = [
+      { player_id: 'other', building_type_key: 'house', x: 1, y: 1, status: 'active', housing_tier: 4 },
+      { player_id: myId, building_type_key: 'house', x: 2, y: 2, status: 'paused', housing_tier: 4 },
+      { player_id: myId, building_type_key: 'road', x: 3, y: 3, status: 'active' }
+    ];
+    const cap = computeHousingCapacity(buildings, buildingTypes, htc, myId, profile);
+    expect(cap).toBe(15);
   });
 });
 

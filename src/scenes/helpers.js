@@ -334,6 +334,35 @@ export function computeResourceFlow(resourceKey, ctx, myId) {
   return flow;
 }
 
+// Housing capacity for the topbar's "pop / cap" stat. Mirrors v1's
+// state.js calc: post-tutorial 15-citizen floor + sum of each
+// active road-connected house's tier.workers. Houses at tiers 0-2
+// don't need a road (housing_tier_config.needs_road is false).
+export function computeHousingCapacity(allBuildings, buildingTypes, housingTierConfig, myId, profile) {
+  const roadSet = new Set();
+  for (const b of allBuildings) {
+    const bt = buildingTypes[b.building_type_key];
+    if (bt && bt.category === 'road' && b.player_id === myId) {
+      roadSet.add(b.x + ',' + b.y);
+    }
+  }
+  let supply = 0;
+  for (const b of allBuildings) {
+    if (b.player_id !== myId) continue;
+    if (b.status !== 'active') continue;
+    const bt = buildingTypes[b.building_type_key];
+    if (!bt || bt.category !== 'housing') continue;
+    const tier = (b.housing_tier !== undefined && b.housing_tier !== null) ? b.housing_tier : 0;
+    const tierCfg = housingTierConfig[tier];
+    if (!tierCfg) continue;
+    if (tierCfg.needs_road && !hasRoadOnPerimeter(b, bt, roadSet)) continue;
+    supply += tierCfg.workers || 0;
+  }
+  const inTutorial = profile && profile.tutorial_step != null && profile.tutorial_step < 4;
+  const popFloor = inTutorial ? 0 : 15;
+  return popFloor + supply;
+}
+
 // Walk the building's footprint perimeter (NOT just the anchor) and
 // return true if any neighbor tile is a road. Multi-tile buildings
 // touch 2(fw+fh) perimeter cells; anchor-only checks would miss the
