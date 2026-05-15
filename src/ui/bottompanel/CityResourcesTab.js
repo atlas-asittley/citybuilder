@@ -312,11 +312,14 @@ function renderFlowHtml(resourceKey) {
   for (const s of flow.services)   totalOut += s.rate;
   for (const e of flow.exports)    totalOut += e.rate;
 
-  if (totalIn === 0 && totalOut === 0) {
-    return `<div class="cr-flow-empty">No production or consumption right now.</div>`;
-  }
-
+  // Empty-flow note is informational, not a short-circuit — the
+  // player still needs the policy editor + partner table below so
+  // they can set up imports for resources they don't yet produce
+  // ("can't make iron yet, but I want to buy-to-reserve 20").
   let html = '';
+  if (totalIn === 0 && totalOut === 0) {
+    html += `<div class="cr-flow-empty">No production or consumption right now.</div>`;
+  }
   if (flow.production.length > 0 || flow.imports.length > 0) {
     html += `<div class="cr-flow-section">
       <div class="cr-flow-section-title cr-pos">Producing +${(Math.round(totalIn * 10) / 10).toFixed(1)}/min</div>`;
