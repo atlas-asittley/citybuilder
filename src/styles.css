@@ -2432,7 +2432,11 @@ details.tp-trader-card[open] > summary .tp-trader-card-caret {
 #zoom-controls {
   position: fixed;
   right: 12px;
-  bottom: 276px;   /* 260 panel + 16 gap */
+  /* Sits just above the bottom panel. Compact panel = 50dvh
+     (commit 106), so peg the controls to dvh + a small gap rather
+     than the old fixed 276px which now lands inside the panel
+     and covers Build menu rows. */
+  bottom: calc(50dvh + 16px);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2468,10 +2472,10 @@ body.bp-full #heatmap-popup { display: none; }
 #heatmap-toggle {
   position: fixed;
   right: 12px;
-  /* Sits directly above the zoom + / − cluster. zoom-controls
-     bottom = 276 (with bottom panel open); 2 buttons × 48 + 1 gap
-     = 102 height, + 6 gap before heatmap = 384. */
-  bottom: 384px;
+  /* Sits directly above the zoom + / − cluster.
+     zoom-controls bottom = 50dvh + 16; cluster height = 2×48 + 6
+     gap = 102; gap before heatmap = 6 → +108. */
+  bottom: calc(50dvh + 124px);
   z-index: 55;
   width: 48px;
   height: 48px;
@@ -2484,7 +2488,9 @@ body.bp-collapsed #heatmap-toggle { bottom: 160px; }
 #heatmap-popup {
   position: fixed;
   right: 12px;
-  bottom: 438px;
+  /* Toggle bottom = 50dvh + 124; toggle height = 48; gap = 6
+     → popup bottom = 50dvh + 178. */
+  bottom: calc(50dvh + 178px);
   background: rgba(15, 22, 32, 0.96);
   border: 1px solid #0f3460;
   border-radius: 8px;
