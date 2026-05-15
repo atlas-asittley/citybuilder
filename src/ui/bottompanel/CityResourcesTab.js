@@ -99,8 +99,14 @@ function loadTradeFlows(parent) {
 // (P2P) into per-resource per-partner buckets. Each partner entry
 // carries export_qty/export_money + import_qty/import_money so the
 // table can show "you sent N (+$M)" / "you got N (-$M)" side by side.
+//
+// Also rolls a separate per-resource bucket scoped to today (local
+// midnight → now) so the row table can show today's net $ per
+// resource. Matches v1's reports.js Net $ column.
 function aggregateTradeFlows(uid, transactions, offers, nameMap) {
   const byPartner = {};
+  const byResourceToday = {};
+  const todayStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
 
   const bump = (rk, partnerKey, name, kind, playerId, dir, qty, money) => {
     if (!byPartner[rk]) byPartner[rk] = [];
@@ -114,11 +120,21 @@ function aggregateTradeFlows(uid, transactions, offers, nameMap) {
     else                  { entry.import_qty += qty; entry.import_money += money; }
   };
 
+  const bumpToday = (rk, dir, money) => {
+    if (!byResourceToday[rk]) byResourceToday[rk] = { import_money: 0, export_money: 0 };
+    if (dir === 'export') byResourceToday[rk].export_money += money;
+    else                  byResourceToday[rk].import_money += money;
+  };
+
   for (const t of transactions) {
     const dir = t.transaction_type === 'sell' ? 'export' : 'import';
     const traderName = state.traders?.[t.trader_key]?.name || t.trader_key;
+    const money = Number(t.total_price || 0);
     bump(t.resource_key, t.trader_key, traderName, 'npc', null, dir,
-      Number(t.quantity || 0), Number(t.total_price || 0));
+      Number(t.quantity || 0), money);
+    if (t.created_at && new Date(t.created_at).getTime() >= todayStart) {
+      bumpToday(t.resource_key, dir, money);
+    }
   }
 
   for (const o of offers) {
@@ -140,7 +156,7 @@ function aggregateTradeFlows(uid, transactions, offers, nameMap) {
     }
   }
 
-  return { byPartner };
+  return { byPartner, byResourceToday };
 }
 
 export function renderCityResources(parent) {
@@ -178,6 +194,7 @@ export function renderCityResources(parent) {
           <span class="cr-cell cr-num">Prod</span>
           <span class="cr-cell cr-num">Cons</span>
           <span class="cr-cell cr-num">Net</span>
+          <span class="cr-cell cr-num" title="Net $ flow on this resource since local midnight">$ Today</span>
         </div>
         ${rows.map((r) => renderRow(r, prod, cons)).join('')}
       </div>`}
@@ -279,12 +296,20 @@ function renderRow(r, prod, cons) {
   const isOpen = expanded.has(r.key);
   const chev = isOpen ? '▾' : '▸';
 
+  const today = cachedFlows?.byResourceToday?.[r.key];
+  const todayNet = today ? Math.round((today.export_money || 0) - (today.import_money || 0)) : null;
+  const todayClass = todayNet > 0 ? 'cr-pos' : todayNet < 0 ? 'cr-neg' : '';
+  const todayCell = todayNet === null || todayNet === 0
+    ? '—'
+    : (todayNet > 0 ? '+$' : '−$') + Math.abs(todayNet).toLocaleString();
+
   return `<div class="cr-row cr-row-data ${isOpen ? 'cr-open' : ''}" data-resource="${escapeHtml(r.key)}">
     <span class="cr-cell cr-cell-name"><span class="cr-chev">${chev}</span>${escapeHtml(r.name)}</span>
     <span class="cr-cell cr-cell-inv">${inv.toLocaleString()}</span>
     <span class="cr-cell cr-num cr-pos">${p > 0 ? '+' + p.toFixed(1) : '—'}</span>
     <span class="cr-cell cr-num cr-neg">${c > 0 ? '−' + c.toFixed(1) : '—'}</span>
     <span class="cr-cell cr-num ${netClass}">${net !== 0 ? (net > 0 ? '+' : '') + net.toFixed(1) : '—'}</span>
+    <span class="cr-cell cr-num ${todayClass}">${todayCell}</span>
   </div>
   ${isOpen ? `<div class="cr-detail">${renderFlowHtml(r.key)}</div>` : ''}`;
 }

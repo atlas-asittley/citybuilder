@@ -1772,7 +1772,7 @@ details.tp-trader-card[open] > summary .tp-trader-card-caret {
 .cr-table { display: flex; flex-direction: column; gap: 1px; }
 .cr-row {
   display: grid;
-  grid-template-columns: 1.2fr 70px 80px 80px 80px;
+  grid-template-columns: 1.2fr 70px 70px 70px 70px 80px;
   gap: 6px;
   padding: 6px 8px;
   font-size: 12px;
