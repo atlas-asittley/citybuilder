@@ -126,8 +126,8 @@ export function getHousingDevolveRisks(building, currentTierCfg, ctx) {
 
 // Friendly forward-looking copy ("needs X"). Used in the upgrade-
 // blocker + active-devolve-risk lists. `ctx` is optional — when
-// provided, the lifestyle blocker copy lists acceptable substitutes
-// (e.g. "bread or any of spices / caviar / spirits in stock").
+// provided, lifestyle demands with multiple acceptable goods list all
+// of them equally ("any of Bread / Spices / Caviar / Spirits").
 export function describeHousingBlocker(key, resources, ctx) {
   if (key === 'road')                      return 'a road touching this house';
   if (key === 'well')                      return 'a well within 4 tiles';
@@ -140,12 +140,11 @@ export function describeHousingBlocker(key, resources, ctx) {
   if (key === 'desirability')              return 'higher tile desirability (parks, services, less pollution / crime)';
   if (key.startsWith('lifestyle:')) {
     const rk = key.slice('lifestyle:'.length);
-    const name = resources?.[rk]?.name || rk;
-    const subList = substituteNamesFor(rk, ctx, resources);
-    if (subList.length > 0) {
-      return `${name} (or any of ${subList.join(' / ')}) in stock`;
+    const allNames = lifestyleGroupNames(rk, ctx, resources);
+    if (allNames.length > 1) {
+      return `any of ${allNames.join(' / ')} in stock`;
     }
-    return `${name} in stock (this tier consumes it ongoingly)`;
+    return `${allNames[0]} in stock (this tier consumes it ongoingly)`;
   }
   return key;
 }
@@ -164,12 +163,11 @@ export function describeHousingDevolveReason(key, resources, ctx) {
   if (key === 'desirability')              return 'tile desirability dropped too low';
   if (key.startsWith('lifestyle:')) {
     const rk = key.slice('lifestyle:'.length);
-    const name = resources?.[rk]?.name || rk;
-    const subList = substituteNamesFor(rk, ctx, resources);
-    if (subList.length > 0) {
-      return `ran out of ${name} and all substitutes (${subList.join(' / ')})`;
+    const allNames = lifestyleGroupNames(rk, ctx, resources);
+    if (allNames.length > 1) {
+      return `ran out of all of ${allNames.join(' / ')}`;
     }
-    return `ran out of ${name}`;
+    return `ran out of ${allNames[0]}`;
   }
   return key;
 }
@@ -188,9 +186,14 @@ function lifestyleDemandSatisfied(primary, ctx) {
   return false;
 }
 
-function substituteNamesFor(primary, ctx, resources) {
+// Returns every good that satisfies this demand, treated as equals
+// (primary + any registered substitutes). Used by the blocker/devolve
+// copy so the four-good demand reads as "any of A / B / C / D" with no
+// one good treated as canonical.
+function lifestyleGroupNames(primary, ctx, resources) {
+  const primaryName = resources?.[primary]?.name || primary;
   const subs = ctx?.lifestyleSubstitutes?.[primary] || [];
-  return subs.map((k) => resources?.[k]?.name || k);
+  return [primaryName, ...subs.map((k) => resources?.[k]?.name || k)];
 }
 
 function anyResourceFlag(ctx, flagKey) {

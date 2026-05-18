@@ -267,10 +267,11 @@ function renderHousingTierBreakdown() {
         Houses evolve through these tiers automatically as their needs
         are met, and devolve a tier when a need fails (after a grace
         window). Lifestyle goods stack — once a tier earns a good,
-        every higher tier keeps needing it. Some goods accept
-        substitutes (bread, for example, is fully satisfied by
-        spices / caviar / spirits in any combination). Tap any house
-        in the city to see its exact next-upgrade blockers.
+        every higher tier keeps needing it. Some demands are
+        satisfied by any of a group of goods, listed equally (e.g.
+        bread / spices / caviar / spirits — keep any of them stocked,
+        in any combination). Tap any house in the city to see its
+        exact next-upgrade blockers.
       </p>
     </div>
   `;
@@ -312,11 +313,16 @@ function renderTierBlock(tier, cfg, demands, allTiers) {
 
   const lifestyleRows = (demands[tier] || []).slice().sort((a, b) =>
     a.resource_key.localeCompare(b.resource_key));
+  const subsMap = state.lifestyleSubstitutes || {};
   const drainParts = [];
   if (foodPerHour > 0) drainParts.push(`${foodPerHour} food/hr`);
   for (const d of lifestyleRows) {
     const perHour = Math.round(Number(d.qty_per_minute) * 60 * 10) / 10;
-    drainParts.push(`${perHour} ${resName(d.resource_key)}/hr`);
+    const subs = subsMap[d.resource_key] || [];
+    const label = subs.length > 0
+      ? `${[d.resource_key, ...subs].map(resName).join('/')}/hr`
+      : `${resName(d.resource_key)}/hr`;
+    drainParts.push(`${perHour} ${label}`);
   }
 
   const lifestyleGoodsLine = lifestyleRows.length > 0
@@ -344,19 +350,17 @@ function renderTierBlock(tier, cfg, demands, allTiers) {
   `;
 }
 
-// Render the lifestyle-goods list, surfacing acceptable substitutes
-// where they exist (e.g. bread "or spices / caviar / spirits"). Each
-// good is one segment, joined by " + " — keeps the cumulative-stack
-// reading clean while still showing the alternative goods players
-// can use to satisfy the demand.
+// Render the lifestyle-goods list. When a demand has multiple
+// acceptable goods (e.g. bread/spices/caviar/spirits), all of them are
+// listed inline as equals — no good is treated as the canonical one.
 function lifestyleGoodHtml(rows) {
   const subsMap = state.lifestyleSubstitutes || {};
   return rows.map((d) => {
     const primary = resName(d.resource_key);
     const subs = subsMap[d.resource_key] || [];
     if (subs.length === 0) return escapeHtml(primary);
-    const subNames = subs.map(resName).join(' / ');
-    return `${escapeHtml(primary)} <span class="hl-sub">(or ${escapeHtml(subNames)})</span>`;
+    const allNames = [primary, ...subs.map(resName)].join(' / ');
+    return `<span class="hl-group">any of ${escapeHtml(allNames)}</span>`;
   }).join(' + ');
 }
 
