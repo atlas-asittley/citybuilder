@@ -206,7 +206,10 @@ function renderInspector() {
     }
 
     if (b.last_devolve_reason) {
-      const text = describeHousingDevolveReason(b.last_devolve_reason, state.resourceNodes);
+      const text = describeHousingDevolveReason(
+        b.last_devolve_reason, state.resourceNodes,
+        { lifestyleSubstitutes: state.lifestyleSubstitutes }
+      );
       rows.push(row('Last devolved', text, true));
     }
   }
@@ -450,7 +453,8 @@ function buildHousingCtx() {
     inventory: state.inventory || {},
     resources: state.resourceNodes,
     housingLifestyleDemands: state.housingLifestyleDemands,
-    buildingBuffers: state.buildingBuffers
+    buildingBuffers: state.buildingBuffers,
+    lifestyleSubstitutes: state.lifestyleSubstitutes || {}
   };
 }
 
@@ -487,7 +491,10 @@ function pantryHtml(b) {
 function housingBlockersHtml(header, blockers, severity) {
   const sev = severity === 'warn' ? 'warn' : 'bad';
   const items = blockers.map((key) => {
-    const desc = describeHousingBlocker(key, state.resourceNodes);
+    const desc = describeHousingBlocker(
+      key, state.resourceNodes,
+      { lifestyleSubstitutes: state.lifestyleSubstitutes }
+    );
     return `<li class="ip-blocker">${escapeHtml(desc)}</li>`;
   }).join('');
   return `<div class="ip-blockers ip-blockers-${sev}">

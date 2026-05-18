@@ -865,6 +865,28 @@ describe('getHousingUpgradeBlockers', () => {
     expect(getHousingUpgradeBlockers(house, tier, ctx)).toContain('lifestyle:pottery');
   });
 
+  it('accepts a registered substitute as satisfying a lifestyle demand', () => {
+    const tier = { tier: 3 };
+    const ctx = {
+      ...baseCtx,
+      inventory: { bread: 0, spirits: 5 },   // bread empty, spirits stocked
+      housingLifestyleDemands: { 3: [{ resource_key: 'bread', qty_per_minute: 0.05 }] },
+      lifestyleSubstitutes: { bread: ['spices', 'caviar', 'spirits'] }
+    };
+    expect(getHousingUpgradeBlockers(house, tier, ctx)).not.toContain('lifestyle:bread');
+  });
+
+  it('still blocks when neither primary nor any substitute is in stock', () => {
+    const tier = { tier: 3 };
+    const ctx = {
+      ...baseCtx,
+      inventory: { bread: 0, spices: 0, caviar: 0, spirits: 0 },
+      housingLifestyleDemands: { 3: [{ resource_key: 'bread', qty_per_minute: 0.05 }] },
+      lifestyleSubstitutes: { bread: ['spices', 'caviar', 'spirits'] }
+    };
+    expect(getHousingUpgradeBlockers(house, tier, ctx)).toContain('lifestyle:bread');
+  });
+
   it('reports desirability when tile metric < min', () => {
     const tier = { tier: 4, min_desirability: 80 };
     expect(getHousingUpgradeBlockers(house, tier, baseCtx)).toContain('desirability');

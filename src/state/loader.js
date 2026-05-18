@@ -112,6 +112,21 @@ async function fetchHousingLifestyleDemands() {
   return map;
 }
 
+async function fetchLifestyleSubstitutes() {
+  // Maps a primary lifestyle resource to acceptable substitutes — e.g.
+  // bread → [spices, caviar, spirits]. The server's upgrade gate +
+  // refill phase pool across primary + substitutes. UI mirrors that
+  // so the inspector shows the same set of options the engine accepts.
+  const { data, error } = await sb.from('lifestyle_substitutes').select('*');
+  if (error || !data) return {};
+  const map = {};   // primary_key → [substitute_key, ...]
+  for (const r of data) {
+    if (!map[r.primary_key]) map[r.primary_key] = [];
+    map[r.primary_key].push(r.substitute_key);
+  }
+  return map;
+}
+
 async function fetchHousingTiers() {
   // Table is housing_tier_config (not housing_tiers, which would be
   // the natural pluralization). v1's in-state map was called
@@ -256,7 +271,7 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers, traderQuotas, lastVisits] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers, traderQuotas, lastVisits, lifestyleSubs] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
@@ -269,7 +284,8 @@ export async function loadInitialWorld() {
     fetchBuildingResourceCosts(),
     fetchBuildingBuffers(),
     fetchTraderQuotas(),
-    fetchTraderLastVisits()
+    fetchTraderLastVisits(),
+    fetchLifestyleSubstitutes()
   ]);
 
   state.allBuildings = buildings;
@@ -285,6 +301,7 @@ export async function loadInitialWorld() {
   state.buildingBuffers = buffers;
   state.traderQuotas = traderQuotas;
   state.traderLastVisits = lastVisits;
+  state.lifestyleSubstitutes = lifestyleSubs;
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;

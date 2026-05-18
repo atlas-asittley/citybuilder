@@ -98,15 +98,24 @@ export function computeCityRunway() {
     }
   }
 
+  const subsMap = state.lifestyleSubstitutes || {};
   for (const rk in drainPer) {
     const net = drainPer[rk];
     if (net <= 0) continue;
     // Pantry-first when available, city stock as fallback. The server
     // drains the pantry; once it hits zero a missing-refill is what
-    // triggers devolve, not the city stock.
-    const stock = rk in pantryStock
-      ? pantryStock[rk]
-      : Number(state.inventory[rk] || 0);
+    // triggers devolve, not the city stock. When the demand has
+    // substitutes (bread accepts spices/caviar/spirits), include those
+    // in the city-stock fallback — refill pools across them.
+    let stock;
+    if (rk in pantryStock) {
+      stock = pantryStock[rk];
+    } else {
+      stock = Number(state.inventory[rk] || 0);
+      for (const s of subsMap[rk] || []) {
+        stock += Number(state.inventory[s] || 0);
+      }
+    }
     const min = stock / net;
     if (min < bottleneckMin) {
       bottleneckMin = min;

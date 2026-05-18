@@ -50,9 +50,11 @@ export function getHousingUpgradeBlockers(building, tierCfg, ctx) {
 
   // Cumulative lifestyle demands for this tier — each missing resource
   // is its own blocker so the player knows exactly which good ran out.
+  // A demand is satisfied by the primary OR any registered substitute
+  // (e.g. bread accepts spices/caviar/spirits).
   const demands = ctx.housingLifestyleDemands?.[tierCfg.tier] || [];
   for (const d of demands) {
-    if (Number(ctx.inventory?.[d.resource_key] || 0) <= 0) {
+    if (!lifestyleDemandSatisfied(d.resource_key, ctx)) {
       blockers.push('lifestyle:' + d.resource_key);
     }
   }
@@ -123,8 +125,10 @@ export function getHousingDevolveRisks(building, currentTierCfg, ctx) {
 }
 
 // Friendly forward-looking copy ("needs X"). Used in the upgrade-
-// blocker + active-devolve-risk lists.
-export function describeHousingBlocker(key, resources) {
+// blocker + active-devolve-risk lists. `ctx` is optional — when
+// provided, the lifestyle blocker copy lists acceptable substitutes
+// (e.g. "bread or any of spices / caviar / spirits in stock").
+export function describeHousingBlocker(key, resources, ctx) {
   if (key === 'road')                      return 'a road touching this house';
   if (key === 'well')                      return 'a well within 4 tiles';
   if (key === 'food')                      return 'food in stock (any is_food resource)';
@@ -137,6 +141,10 @@ export function describeHousingBlocker(key, resources) {
   if (key.startsWith('lifestyle:')) {
     const rk = key.slice('lifestyle:'.length);
     const name = resources?.[rk]?.name || rk;
+    const subList = substituteNamesFor(rk, ctx, resources);
+    if (subList.length > 0) {
+      return `${name} (or any of ${subList.join(' / ')}) in stock`;
+    }
     return `${name} in stock (this tier consumes it ongoingly)`;
   }
   return key;
@@ -144,7 +152,7 @@ export function describeHousingBlocker(key, resources) {
 
 // Past-tense copy ("ran out of X"). Used by the inspector's last-
 // devolved row.
-export function describeHousingDevolveReason(key, resources) {
+export function describeHousingDevolveReason(key, resources, ctx) {
   if (key === 'road')                      return 'lost road access';
   if (key === 'well')                      return 'lost a well within 4 tiles';
   if (key === 'food')                      return 'ran out of food';
@@ -157,12 +165,33 @@ export function describeHousingDevolveReason(key, resources) {
   if (key.startsWith('lifestyle:')) {
     const rk = key.slice('lifestyle:'.length);
     const name = resources?.[rk]?.name || rk;
+    const subList = substituteNamesFor(rk, ctx, resources);
+    if (subList.length > 0) {
+      return `ran out of ${name} and all substitutes (${subList.join(' / ')})`;
+    }
     return `ran out of ${name}`;
   }
   return key;
 }
 
 // ── Private helpers ─────────────────────────────────────────────
+
+// Mirrors the SQL upgrade gate: a lifestyle demand for `primary` is
+// satisfied if either the primary OR any registered substitute has
+// stock in city inventory.
+function lifestyleDemandSatisfied(primary, ctx) {
+  if (Number(ctx.inventory?.[primary] || 0) > 0) return true;
+  const subs = ctx.lifestyleSubstitutes?.[primary] || [];
+  for (const s of subs) {
+    if (Number(ctx.inventory?.[s] || 0) > 0) return true;
+  }
+  return false;
+}
+
+function substituteNamesFor(primary, ctx, resources) {
+  const subs = ctx?.lifestyleSubstitutes?.[primary] || [];
+  return subs.map((k) => resources?.[k]?.name || k);
+}
 
 function anyResourceFlag(ctx, flagKey) {
   const resources = ctx.resources || {};
