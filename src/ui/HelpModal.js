@@ -267,23 +267,30 @@ function renderHousingTierBreakdown() {
         Houses evolve through these tiers automatically as their needs
         are met, and devolve a tier when a need fails (after a grace
         window). Lifestyle goods stack — once a tier earns a good,
-        every higher tier keeps needing it. Tap any house in the city
-        to see its exact next-upgrade blockers.
+        every higher tier keeps needing it. Some goods accept
+        substitutes (bread, for example, is fully satisfied by
+        spices / caviar / spirits in any combination). Tap any house
+        in the city to see its exact next-upgrade blockers.
       </p>
     </div>
   `;
   for (let t = 0; t <= 8; t++) {
     const cfg = tiers[t];
     if (!cfg) continue;
-    html += renderTierBlock(t, cfg, demands);
+    html += renderTierBlock(t, cfg, demands, tiers);
   }
   return html;
 }
 
-function renderTierBlock(tier, cfg, demands) {
+function renderTierBlock(tier, cfg, demands, allTiers) {
   const workers = cfg.workers || 0;
+  const prevTier = allTiers?.[tier - 1];
+  const prevWorkers = prevTier?.workers || 0;
+  const workerDelta = workers - prevWorkers;
   const foodPerMin = Number(cfg.food_per_minute || 0);
   const foodPerHour = Math.round(foodPerMin * 60);
+  const upgradeSecs = Number(cfg.upgrade_secs || 0);
+  const devolveSecs = Number(cfg.devolve_secs || 0);
 
   const prereqs = [];
   if (tier === 1) {
@@ -313,12 +320,17 @@ function renderTierBlock(tier, cfg, demands) {
   }
 
   const lifestyleGoodsLine = lifestyleRows.length > 0
-    ? `<div class="hl-tier-line"><i>Lifestyle goods (must stay stocked):</i> ${escapeHtml(lifestyleRows.map((d) => resName(d.resource_key)).join(' + '))}</div>`
+    ? `<div class="hl-tier-line"><i>Lifestyle goods (must stay stocked):</i> ${lifestyleGoodHtml(lifestyleRows)}</div>`
     : '';
+
+  const headerExtras = [];
+  if (workerDelta > 0 && tier > 0) headerExtras.push(`+${workerDelta} vs prev tier`);
+  if (upgradeSecs > 0) headerExtras.push(`upgrade after ${upgradeSecs}s`);
+  if (devolveSecs > 0) headerExtras.push(`${devolveSecs}s devolve grace`);
 
   return `
     <div class="hl-tier-block hl-tier-t${tier}">
-      <div class="hl-tier-head">${escapeHtml(cfg.name)} <small>tier ${tier} · houses ${workers}</small></div>
+      <div class="hl-tier-head">${escapeHtml(cfg.name)} <small>tier ${tier} · houses ${workers}${headerExtras.length ? ' · ' + headerExtras.join(' · ') : ''}</small></div>
       ${prereqs.length > 0
         ? `<div class="hl-tier-line"><i>Needs:</i> ${escapeHtml(prereqs.join(' · '))}</div>`
         : tier === 0
@@ -330,6 +342,22 @@ function renderTierBlock(tier, cfg, demands) {
         : ''}
     </div>
   `;
+}
+
+// Render the lifestyle-goods list, surfacing acceptable substitutes
+// where they exist (e.g. bread "or spices / caviar / spirits"). Each
+// good is one segment, joined by " + " — keeps the cumulative-stack
+// reading clean while still showing the alternative goods players
+// can use to satisfy the demand.
+function lifestyleGoodHtml(rows) {
+  const subsMap = state.lifestyleSubstitutes || {};
+  return rows.map((d) => {
+    const primary = resName(d.resource_key);
+    const subs = subsMap[d.resource_key] || [];
+    if (subs.length === 0) return escapeHtml(primary);
+    const subNames = subs.map(resName).join(' / ');
+    return `${escapeHtml(primary)} <span class="hl-sub">(or ${escapeHtml(subNames)})</span>`;
+  }).join(' + ');
 }
 
 function resName(key) {

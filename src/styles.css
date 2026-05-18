@@ -2185,6 +2185,7 @@ details.tp-trader-card[open] > summary .tp-trader-card-caret {
   margin: 2px 0;
 }
 .hl-tier-line i { color: #888; font-style: normal; margin-right: 4px; }
+.hl-sub { color: #8aa; font-style: italic; font-size: 10.5px; }
 
 /* Changelog modal */
 #changelog-overlay {
