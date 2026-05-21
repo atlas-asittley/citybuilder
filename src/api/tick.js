@@ -53,6 +53,10 @@ async function runTick() {
     // Trader daily-cap usage so the Partners tab's "5/10 today"
     // indicators stay live as auto-trade runs.
     refreshTraderQuotas();
+    // Per-house pantry buffers so the runway calc + inspector reflect
+    // the latest drain/refill state. Without this state.buildingBuffers
+    // stays frozen at boot — devolve-risk and lifestyle-runway lie.
+    refreshBuildingBuffers();
     // Drain any new notifications (housing-ready, trade-cancel)
     // and bubble them into the bell-log badge.
     pollNotifications();
@@ -61,6 +65,41 @@ async function runTick() {
     refreshPendingOfferCount();
   } catch (e) {
     console.warn('tick request failed:', e.message || e);
+  }
+}
+
+async function refreshBuildingBuffers() {
+  if (!state.currentUser) return;
+  // Paginated to clear the 1000-row server cap — Jill has 60+ houses
+  // × 4 buffered resources, so this is well under the cap, but other
+  // players can hit it as their cities grow.
+  try {
+    const all = [];
+    const PAGE = 1000;
+    let from = 0;
+    while (true) {
+      const { data, error } = await sb
+        .from('building_resource_buffers')
+        .select('building_id, resource_key, quantity, capacity')
+        .order('building_id')
+        .range(from, from + PAGE - 1);
+      if (error || !data) return;
+      if (data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+    const map = {};
+    for (const b of all) {
+      if (!map[b.building_id]) map[b.building_id] = {};
+      map[b.building_id][b.resource_key] = {
+        quantity: Number(b.quantity),
+        capacity: Number(b.capacity)
+      };
+    }
+    state.buildingBuffers = map;
+  } catch (e) {
+    console.warn('refreshBuildingBuffers error:', e.message || e);
   }
 }
 
