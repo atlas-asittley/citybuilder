@@ -14,7 +14,8 @@ import {
   getHousingDevolveRisks,
   describeHousingBlocker,
   describeHousingDevolveReason,
-  recipeOf, periodSuffix
+  recipeOf, periodSuffix,
+  getProductivity, getBoosterMultiplier
 } from '../scenes/helpers.js';
 
 // Set by main.js after MainScene starts. Lets the inspector ask the
@@ -219,50 +220,99 @@ function renderInspector() {
   if (b.staffing_priority !== null && b.staffing_priority !== undefined && bt.worker_cost > 0) {
     rows.push(row('Staffing priority', priorityLabel(b.staffing_priority)));
   }
-  // Production / consumption details for processors + extractors.
-  // Extractors with a claimed target get path-aware output (effective
-  // rate falls off when the path is longer than canonical=4 tiles).
+  // Production / consumption details. Display the integer-ratio recipe
+  // (the building's *design* throughput) and, when it would differ —
+  // because of productivity, a nearby booster, or path-length falloff —
+  // an "Effective rate" row showing the actual per-minute output. The
+  // server applies all three multiplicatively, so the inspector has to
+  // mirror them or rate displays silently lie (per
+  // feedback_ui_must_mirror_server_math.md).
+  const productivity = getProductivity(state.profile);
+  const boost = getBoosterMultiplier(b, bt, state.allBuildings || [], state.buildingTypes, state.currentUser?.id);
   if (bt.output_resource_key && bt.output_rate > 0) {
     if (bt.category === 'tax') {
-      rows.push(row('Revenue', `$${bt.output_rate}/min per 100 citizens`));
+      const base = Number(bt.output_rate);
+      const eff = base * productivity;
+      rows.push(row('Revenue', `$${base}/min per 100 citizens (design)`));
+      if (Math.abs(eff - base) > 0.01) {
+        rows.push(row('Effective revenue', `$${eff.toFixed(2).replace(/\.?0+$/, '')}/min per 100 citizens (× ${productivity.toFixed(2)} productivity)`));
+      }
     } else if (bt.category === 'extractor' && b.target_x != null && b.target_y != null) {
       const CANONICAL = 4;
       const pathLen = b.path_length || 1;
-      const factor = Math.min(1, CANONICAL / Math.max(pathLen, 1));
-      const effective = bt.output_rate * factor;
+      const pathFactor = Math.min(1, CANONICAL / Math.max(pathLen, 1));
+      const base = Number(bt.output_rate);
+      const effective = base * pathFactor * boost * productivity;
       rows.push(row('Target', `(${b.target_x}, ${b.target_y})`));
       rows.push(row('Path', `${pathLen} tile${pathLen === 1 ? '' : 's'}`));
-      const fullRate = effective >= bt.output_rate - 0.001;
+      const fullRate = Math.abs(effective - base) < 0.001;
       const rateStr = effective.toFixed(2).replace(/\.?0+$/, '');
-      const suffix = fullRate ? '/min (full rate)' : `/min (${Math.round(factor * 100)}% of full)`;
+      // Build a parenthetical that names every multiplier away from 1.
+      const factors = [];
+      if (pathFactor < 0.999) factors.push(`${Math.round(pathFactor * 100)}% path`);
+      if (boost > 1.001) factors.push(`× ${boost.toFixed(2)} booster`);
+      if (Math.abs(productivity - 1) > 0.001) factors.push(`× ${productivity.toFixed(2)} productivity`);
+      const suffix = fullRate ? '/min (full rate)' : `/min (${factors.join(', ')})`;
       rows.push(row('Effective rate', `${rateStr} ${resName(bt.output_resource_key)}${suffix}`));
       if (pathLen > CANONICAL) {
         rows.push(row('', `Tip — a ${CANONICAL}-tile path produces at full rate. Shorten the road to the resource tile to boost output.`, true));
       }
-    } else {
-      // Integer-ratio output: "1 lumber/min" or "1 lumber per 2 min".
+    } else if (bt.category === 'food_extractor') {
+      const base = Number(bt.output_rate);
+      const effective = base * boost * productivity;
       const r = recipeOf(bt);
-      rows.push(row('Output', `${r.output_q} ${resName(bt.output_resource_key)}${periodSuffix(r.period_min)}`));
+      rows.push(row('Output', `${r.output_q} ${resName(bt.output_resource_key)}${periodSuffix(r.period_min)} (design)`));
+      if (Math.abs(effective - base) > 0.01) {
+        const factors = [];
+        if (boost > 1.001) factors.push(`× ${boost.toFixed(2)} booster`);
+        if (Math.abs(productivity - 1) > 0.001) factors.push(`× ${productivity.toFixed(2)} productivity`);
+        rows.push(row('Effective rate', `${effective.toFixed(2).replace(/\.?0+$/, '')} ${resName(bt.output_resource_key)}/min (${factors.join(', ')})`));
+      }
+    } else {
+      // Integer-ratio recipe: "1 lumber/min" or "1 lumber per 2 min".
+      // Processors + services apply productivity to their throughput.
+      const r = recipeOf(bt);
+      rows.push(row('Output', `${r.output_q} ${resName(bt.output_resource_key)}${periodSuffix(r.period_min)} (design)`));
+      if (Math.abs(productivity - 1) > 0.001) {
+        const effective = Number(bt.output_rate) * productivity;
+        rows.push(row('Effective rate', `${effective.toFixed(2).replace(/\.?0+$/, '')} ${resName(bt.output_resource_key)}/min (× ${productivity.toFixed(2)} productivity)`));
+      }
     }
   }
   if (bt.input_resource_key && bt.input_rate > 0) {
-    // Integer-ratio inputs share the same period as the output so
-    // "2 timber + 1 statuary → 1 cabinets per 2 min" reads cleanly.
+    // Integer-ratio inputs share the recipe's period — "2 timber + 1
+    // statuary → 1 cabinets per 2 min" reads cleanly. Effective input
+    // consumption is base × productivity (matches server's
+    // _pp_run_processors / _pp_run_services).
     const r = recipeOf(bt);
     const inputs = [`${r.input_q} ${resName(bt.input_resource_key)}`];
     if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
       inputs.push(`${r.input_q_2} ${resName(bt.input_resource_key_2)}`);
     }
-    rows.push(row('Input', inputs.join(' + ') + periodSuffix(r.period_min)));
+    rows.push(row('Input', inputs.join(' + ') + periodSuffix(r.period_min) + ' (design)'));
+    if (Math.abs(productivity - 1) > 0.001) {
+      const effIns = [`${(Number(bt.input_rate) * productivity).toFixed(2).replace(/\.?0+$/, '')} ${resName(bt.input_resource_key)}`];
+      if (bt.input_resource_key_2 && bt.input_rate_2 > 0) {
+        effIns.push(`${(Number(bt.input_rate_2) * productivity).toFixed(2).replace(/\.?0+$/, '')} ${resName(bt.input_resource_key_2)}`);
+      }
+      rows.push(row('Effective draw', `${effIns.join(' + ')}/min (× ${productivity.toFixed(2)} productivity)`));
+    }
   }
   if (bt.upkeep_per_minute > 0) rows.push(row('Upkeep', `$${bt.upkeep_per_minute}/min`));
   // Trade-value row — for producers with an output, surface what the
-  // best unlocked trader pays per minute. Helps the player see which
-  // production is paying for itself in trade revenue terms.
+  // best unlocked trader pays per minute. Scaled the same way the
+  // building's output is, so the dollar figure matches reality.
   if (isMine && bt.output_resource_key && bt.output_rate > 0 && bt.category !== 'tax') {
     const tradeValue = bestTraderBuyPrice(bt.output_resource_key);
     if (tradeValue > 0) {
-      const perMin = tradeValue * Number(bt.output_rate);
+      let effRate = Number(bt.output_rate) * productivity;
+      if (bt.category === 'extractor' && b.target_x != null && b.target_y != null) {
+        const pathFactor = Math.min(1, 4 / Math.max(b.path_length || 1, 1));
+        effRate *= pathFactor * boost;
+      } else if (bt.category === 'food_extractor') {
+        effRate *= boost;
+      }
+      const perMin = tradeValue * effRate;
       rows.push(row('Trade value', `$${Math.round(perMin)}/min at best trader price ($${tradeValue}/unit)`));
     }
   }
