@@ -1737,6 +1737,10 @@ export class MainScene extends Phaser.Scene {
       back.setDisplaySize(bounds.cols * TILE_PX, bounds.rows * TILE_PX);
       back.setTint(TERRAIN_TINTS.wilderness);
       back.setDepth(-1);
+      // Track for cleanup: rerenderTiles / rerenderWorld destroy every
+      // entry in _tileSprites. Without this key the backdrop leaked one
+      // full-world sprite per expansion.
+      this._tileSprites.set(':wilderness', back);
     }
 
     this._ensureGrassTextures();
@@ -1789,6 +1793,9 @@ export class MainScene extends Phaser.Scene {
         const iconKey = this.textures.exists(tex) ? tex : 'res-default';
         const icon = this.add.sprite(worldX, worldY, iconKey);
         icon.setDepth(5);
+        // Track for cleanup — without this every expansion leaks one
+        // icon per resource tile.
+        this._tileSprites.set(t.x + ',' + t.y + ':resicon', icon);
       }
     }
   }
@@ -2147,6 +2154,13 @@ export class MainScene extends Phaser.Scene {
       }
     };
     document.addEventListener('keydown', this._escHandler);
+    // Phaser fires 'shutdown' when the scene is stopped/restarted.
+    // Without removing the listener, every restart leaves an extra
+    // closure on document referencing the old (destroyed) scene's
+    // _placementMode — Escape would fire N handlers after N restarts.
+    this.events.once('shutdown', () => {
+      document.removeEventListener('keydown', this._escHandler);
+    });
   }
 
   // ── Map view persistence ──────────────────────────────────────
@@ -2203,6 +2217,22 @@ export class MainScene extends Phaser.Scene {
     let downX = 0, downY = 0, downAtMs = 0;
     this.input.on('pointerdown', (p) => {
       downX = p.x; downY = p.y; downAtMs = performance.now();
+
+      // Multi-touch guard: on a pinch-zoom the browser fires
+      // pointerdown for BOTH fingers, and pointermove for the
+      // pinch arc — without this guard each finger would trigger a
+      // road paint and the arc itself would paint a curved trail of
+      // roads. Only the first pointer down can start a paint; any
+      // additional pointer arriving while a paint is active aborts
+      // the paint (the user is clearly trying to pinch).
+      const activeCount = this.input.manager.pointersTotal
+        || this.input.pointers.filter((pp) => pp.isDown).length;
+      if (activeCount > 1) {
+        this._dragPaintActive = false;
+        this._dragPaintPlaced.clear();
+        hideDragCost();
+        return;
+      }
 
       // Drag-paint for roads: if placement mode is active and the
       // selected type is road (1x1, no resource gating), start a

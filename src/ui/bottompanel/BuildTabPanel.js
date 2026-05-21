@@ -26,19 +26,31 @@ let selectedKey = null;
 // Key changed v2→v3 because the values now hold section names, not
 // raw category names — old values would map to invalid sections.
 const OPEN_KEY = 'city_build_open_v3';
-let openSection = (() => {
-  try { return localStorage.getItem(OPEN_KEY); } catch (_e) { return null; }
-})();
-function setOpenSection(cat) {
-  openSection = cat;
-  try { localStorage.setItem(OPEN_KEY, cat); } catch (_e) { /* no-op */ }
-}
 
 // Top-level sections — matches v1's panels.js (Atlas 2026-05-15:
 // "make the buildings tab match the old one"). Two-level grouping:
 // every building maps to one section via sectionFor(bt), then sorted
 // within the section by category → tier → name.
 const SECTION_ORDER = ['infra', 'industry', 'farming', 'civic', 'transport'];
+
+let openSection = (() => {
+  try {
+    const raw = localStorage.getItem(OPEN_KEY);
+    // Valid values: null (never picked → auto-open below), '' (user
+    // explicitly closed all), or one of SECTION_ORDER. Anything else
+    // (corrupted entry, stale schema, browser extension) gets treated
+    // as null so the auto-open fallback runs — otherwise the entire
+    // build menu sits collapsed with no chevron animation and the
+    // player has no way to expand a section short of clearing
+    // localStorage.
+    if (raw === null || raw === '' || SECTION_ORDER.includes(raw)) return raw;
+    return null;
+  } catch (_e) { return null; }
+})();
+function setOpenSection(cat) {
+  openSection = cat;
+  try { localStorage.setItem(OPEN_KEY, cat); } catch (_e) { /* no-op */ }
+}
 
 // Category sort order within each section. Pulled out of v1's
 // CATEGORY_ORDER so sub-groupings stay stable across re-renders.

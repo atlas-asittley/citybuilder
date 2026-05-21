@@ -57,6 +57,14 @@ export async function pollNotifications() {
   unreadCount += bumpUnread;
   if (onChangedCallback) onChangedCallback();
   refreshBadge();
+  // If the bell overlay happens to be open at this moment, refresh
+  // its body too — otherwise the open card would show stale entries
+  // until the player closed and re-opened it.
+  const overlay = document.getElementById('bell-overlay');
+  if (overlay) {
+    const body = overlay.querySelector('.bl-body');
+    if (body) body.innerHTML = renderRows();
+  }
 }
 
 export function mountBellLog(onChanged) {

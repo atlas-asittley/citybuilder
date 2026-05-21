@@ -53,6 +53,9 @@ async function runTick() {
     // Trader daily-cap usage so the Partners tab's "5/10 today"
     // indicators stay live as auto-trade runs.
     refreshTraderQuotas();
+    // Most-recent trader visit timestamps so the "next visit in Xm"
+    // countdowns don't drift stale once auto-trade visits land.
+    refreshTraderLastVisits();
     // Per-house pantry buffers so the runway calc + inspector reflect
     // the latest drain/refill state. Without this state.buildingBuffers
     // stays frozen at boot — devolve-risk and lifestyle-runway lie.
@@ -100,6 +103,26 @@ async function refreshBuildingBuffers() {
     state.buildingBuffers = map;
   } catch (e) {
     console.warn('refreshBuildingBuffers error:', e.message || e);
+  }
+}
+
+async function refreshTraderLastVisits() {
+  if (!state.currentUser) return;
+  try {
+    const { data, error } = await sb
+      .from('trader_visits')
+      .select('trader_key, visited_at')
+      .eq('player_id', state.currentUser.id)
+      .order('visited_at', { ascending: false })
+      .limit(50);
+    if (error || !data) return;
+    const out = {};
+    for (const row of data) {
+      if (!out[row.trader_key]) out[row.trader_key] = row.visited_at;
+    }
+    state.traderLastVisits = out;
+  } catch (e) {
+    console.warn('refreshTraderLastVisits error:', e.message || e);
   }
 }
 
