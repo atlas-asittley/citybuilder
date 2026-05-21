@@ -100,13 +100,19 @@ function loadTradeFlows(parent) {
 // carries export_qty/export_money + import_qty/import_money so the
 // table can show "you sent N (+$M)" / "you got N (-$M)" side by side.
 //
-// Also rolls a separate per-resource bucket scoped to today (local
+// Also rolls a separate per-resource bucket scoped to today (UTC
 // midnight → now) so the row table can show today's net $ per
-// resource. Matches v1's reports.js Net $ column.
+// resource. Aligned with Treasury (which buckets cash_transactions by
+// UTC day server-side) so the two displays read the same boundary —
+// previously this used local midnight, which on US-Eastern (UTC-4)
+// would show 4 extra hours of "today" that Treasury didn't.
 function aggregateTradeFlows(uid, transactions, offers, nameMap) {
   const byPartner = {};
   const byResourceToday = {};
-  const todayStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  const todayStart = (() => {
+    const now = new Date();
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  })();
 
   const bump = (rk, partnerKey, name, kind, playerId, dir, qty, money) => {
     if (!byPartner[rk]) byPartner[rk] = [];
