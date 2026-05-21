@@ -25,6 +25,12 @@ export function buildingVisuallyChanged(oldB, newB) {
     oldB.staffing_priority !== newB.staffing_priority ||
     oldB.last_devolve_reason !== newB.last_devolve_reason ||
     (!!oldB.evolution_eligible_at) !== (!!newB.evolution_eligible_at) ||
+    // path_length feeds the inspector's effective-rate display for
+    // extractors. Without it here, placing a road that shortens an
+    // extractor's path doesn't refresh the inspector until the next
+    // 30s tick — the player sees the old path number for up to 30s.
+    oldB.path_length !== newB.path_length ||
+    oldB.target_x !== newB.target_x || oldB.target_y !== newB.target_y ||
     oldB.x !== newB.x || oldB.y !== newB.y
   );
 }

@@ -208,6 +208,24 @@ export async function refreshPendingOfferCount() {
   }
 }
 
+// Public — call sites that invoke a money-spending RPC (place_building,
+// demolish_building, upgrade_house, expand_district, expand_transport_hub,
+// black_market_trade, dev_grant_money) should pass the response here.
+// Applies money + inventory deltas optimistically so the topbar +
+// affordability filters don't lag a 30s tick. Safe to call with any
+// subset of fields; missing fields are skipped.
+export function applyRpcResponse(data) {
+  if (!data || !state.profile) return;
+  if (data.money !== undefined) state.profile.money = data.money;
+  if (data.inventory) {
+    state.inventory = {};
+    for (const k in data.inventory) state.inventory[k] = Number(data.inventory[k]);
+  }
+  if (data.chunks_owned !== undefined) state.profile.chunks_owned = data.chunks_owned;
+  refreshTopBar();
+  refreshBottomPanel();
+}
+
 function applyTickResponse(data) {
   if (!data || !state.profile) return;
 
@@ -239,6 +257,14 @@ function applyTickResponse(data) {
   if (data.productivity !== undefined) state.profile.productivity = data.productivity;
   if (data.migration_rate !== undefined) state.profile.migration_rate = data.migration_rate;
   if (data.tutorial_step !== undefined) state.profile.tutorial_step = data.tutorial_step;
+  // trade_unlocked + highest_housing_tier_ever drive build-menu gates;
+  // before this they only refreshed on a full page reload, so a
+  // player unlocking trade or hitting a new housing tier mid-session
+  // wouldn't see the new buildings show up until they reloaded.
+  if (data.trade_unlocked !== undefined) state.profile.trade_unlocked = data.trade_unlocked;
+  if (data.highest_housing_tier_ever !== undefined) {
+    state.profile.highest_housing_tier_ever = data.highest_housing_tier_ever;
+  }
 
   // Mirror into laborInfo so the topbar's workers stat reads from a
   // stable shape regardless of which response field name landed.
