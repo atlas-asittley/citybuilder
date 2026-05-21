@@ -8,7 +8,7 @@
 // the chrome is consistent.
 import { sb } from '../api/supabase.js';
 import { state } from '../state/store.js';
-import { ensureInspectorMounted, closeInspector } from './InspectorPanel.js';
+import { ensureInspectorMounted, closeInspector, clearActiveBuilding } from './InspectorPanel.js';
 import { showToast } from './Toast.js';
 
 let activeTile = null;
@@ -18,6 +18,11 @@ export function bindSceneToTileInspector(scene) { sceneRef = scene; }
 export function openResourceTileInspector(tile) {
   if (!tile?.resource_node_key) return;
   activeTile = tile;
+  // The inspector panel is shared with the building inspector. If a
+  // building was previously open its activeBuilding ref survives the
+  // DOM swap, and the next tick's refreshInspectorIfOpen() would
+  // overwrite the tile content with stale building data. Clear it.
+  clearActiveBuilding();
   // Mount the shared inspector DOM (no-op if already mounted by the
   // building inspector — avoids duplicate id="ip-*" elements).
   ensureInspectorMounted();

@@ -8,6 +8,7 @@ import {
   demolishBuilding, upgradeHouse,
   setHouseAutoUpgrade, setBuildingPaused, setBuildingPriority, expandTransportHub
 } from '../api/buildings.js';
+import { applyRpcResponse } from '../api/tick.js';
 import {
   listBuildingIssues,
   getHousingUpgradeBlockers,
@@ -408,7 +409,7 @@ function renderActions(b, bt, isMine) {
 function wireActionHandlers(b) {
   bind('ip-upgrade', async (btn) => {
     btn.disabled = true; btn.textContent = 'Upgrading…';
-    try { await upgradeHouse(b.id); closeInspector(); }
+    try { applyRpcResponse(await upgradeHouse(b.id)); closeInspector(); }
     catch (err) { alert(err.message || 'Upgrade failed.'); btn.disabled = false; btn.textContent = 'Upgrade house'; }
   });
 
@@ -420,7 +421,7 @@ function wireActionHandlers(b) {
       : `Demolish this ${bt.name || 'building'}?`;
     if (!confirm(msg)) return;
     btn.disabled = true; btn.textContent = 'Demolishing…';
-    try { await demolishBuilding(b.id); closeInspector(); }
+    try { applyRpcResponse(await demolishBuilding(b.id)); closeInspector(); }
     catch (err) { alert(err.message || 'Could not demolish.'); btn.disabled = false; btn.textContent = 'Demolish'; }
   });
 
@@ -463,7 +464,7 @@ function wireActionHandlers(b) {
   bind('ip-expand-hub', async (btn) => {
     if (!confirm('Expand this hub? Costs money + raw materials and increases its output capacity.')) return;
     btn.disabled = true; btn.textContent = 'Expanding…';
-    try { await expandTransportHub(b.id); closeInspector(); }
+    try { applyRpcResponse(await expandTransportHub(b.id)); closeInspector(); }
     catch (err) { alert(err.message || 'Could not expand.'); btn.disabled = false; btn.textContent = 'Expand hub'; }
   });
 
@@ -623,4 +624,12 @@ function issueListHtml(issues) {
 
 export function isInspectorOpen() {
   return activeBuilding !== null;
+}
+
+// ResourceTileInspector reuses the same #inspector-panel DOM but for
+// a tile, not a building. It needs to NULL the building-inspector's
+// activeBuilding ref so the per-tick refresh path (refreshInspectorIfOpen)
+// doesn't blow the tile content away with a stale building re-render.
+export function clearActiveBuilding() {
+  activeBuilding = null;
 }

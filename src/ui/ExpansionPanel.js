@@ -53,19 +53,27 @@ export async function openExpansionPanel(onComplete) {
   mountBar(cost);
 }
 
+let claimInFlight = false;
 function onPickCandidate(c, cost) {
+  if (claimInFlight) return;   // ignore double-taps mid-RPC
   if (!confirm(`Claim parcel at (${c.chunk_x}, ${c.chunk_y}) for $${cost.toLocaleString()}?`)) return;
+  claimInFlight = true;
   expandDistrict(c.chunk_x, c.chunk_y)
     .then(async (result) => {
       if (result?.money !== undefined) state.profile.money = result.money;
       if (result?.chunks_owned !== undefined) state.profile.chunks_owned = result.chunks_owned;
+      // If the user hit Cancel between our request and the response,
+      // the panel's already torn down — don't re-open it via the
+      // success path.
+      if (!active) { claimInFlight = false; return; }
       await loadInitialWorld();
       close();
       if (onCompleteCallback) onCompleteCallback();
     })
     .catch((err) => {
       alert('Expansion failed: ' + (err.message || err));
-    });
+    })
+    .finally(() => { claimInFlight = false; });
 }
 
 function mountBar(cost) {

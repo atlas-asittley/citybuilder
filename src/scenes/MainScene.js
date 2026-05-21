@@ -9,6 +9,7 @@ import { openInspector, closeInspector } from '../ui/InspectorPanel.js';
 import { openResourceTileInspector } from '../ui/ResourceTileInspector.js';
 import { openWalkerInfo, tagWalkerSpriteKind } from '../ui/WalkerInfoModal.js';
 import { placeBuilding } from '../api/buildings.js';
+import { applyRpcResponse } from '../api/tick.js';
 import { clearBuildTabSelection as clearBuildSelection } from '../ui/bottompanel/BuildTabPanel.js';
 import { spriteIcons } from '../sprites.js';
 import { WALKER_SPRITES } from '../walker_sprites.js';
@@ -2259,7 +2260,7 @@ export class MainScene extends Phaser.Scene {
         }
         const btKey = this._placementMode.buildingType.key;
         try {
-          await placeBuilding(tile.id, btKey);
+          applyRpcResponse(await placeBuilding(tile.id, btKey));
           showToast('Placed.', 'success');
           if (this._placementMode.buildingType.category !== 'road') {
             this.setPlacementMode(null);
@@ -2321,7 +2322,7 @@ export class MainScene extends Phaser.Scene {
     const total = this._dragPaintPlaced.size;
     showDragCost(total, total * (bt.build_cost || 0));
     try {
-      await placeBuilding(tile.id, bt.key);
+      applyRpcResponse(await placeBuilding(tile.id, bt.key));
     } catch (_err) {
       // Silent during drag-paint — alerting on every failed tile
       // (already-occupied / not adjacent / no road) would spam.
