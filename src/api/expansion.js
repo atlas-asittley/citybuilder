@@ -21,8 +21,10 @@ export async function expandDistrict(chunkX, chunkY) {
   return data;
 }
 
-// Server formula matches v1: 1000 * chunks_owned^2.
+// Mirror the server's expand_district formula: 10_000 * chunks_owned^2.
+// The base was bumped 1000 → 10000 server-side; this mirror has to stay
+// in lockstep or the player will see a price the server won't honor.
 export function nextExpansionCost() {
   const owned = (state.profile && state.profile.chunks_owned) || 1;
-  return 1000 * owned * owned;
+  return 10000 * owned * owned;
 }
