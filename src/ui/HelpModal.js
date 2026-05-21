@@ -9,6 +9,7 @@
 import { state } from '../state/store.js';
 import { recipeOf, periodSuffix } from '../scenes/helpers.js';
 import { spriteIcons } from '../sprites.js';
+import { escapeHtml, resNameLower as resName } from './util.js';
 
 // Module-scope expanded card set — persists across re-renders so
 // clicking a card and waiting for an inadvertent re-render (none
@@ -364,12 +365,4 @@ function lifestyleGoodHtml(rows) {
   }).join(' + ');
 }
 
-function resName(key) {
-  return (state.resourceNodes[key]?.name || key).toLowerCase();
-}
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
-}

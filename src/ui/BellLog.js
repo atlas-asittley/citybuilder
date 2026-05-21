@@ -4,6 +4,7 @@
 // the tick loop; click the bell to see them.
 import { sb } from '../api/supabase.js';
 import { state } from '../state/store.js';
+import { escapeHtml } from './util.js';
 
 let mounted = false;
 let unreadCount = 0;
@@ -150,8 +151,3 @@ function refreshBadge() {
   }
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
-}

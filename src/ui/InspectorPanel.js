@@ -18,6 +18,7 @@ import {
   recipeOf, periodSuffix,
   getProductivity, getBoosterMultiplier
 } from '../scenes/helpers.js';
+import { escapeHtml, resNameLower as resName } from './util.js';
 
 // Set by main.js after MainScene starts. Lets the inspector ask the
 // scene to draw / clear the AoE highlight without an awkward import
@@ -567,11 +568,6 @@ function formatStatus(b) {
   return b.status || '—';
 }
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
-}
 
 // Find the highest buy_price across all loaded trader catalogs for
 // this resource. Returns 0 if no trader buys it.
@@ -585,9 +581,6 @@ function bestTraderBuyPrice(resourceKey) {
   return best;
 }
 
-function resName(key) {
-  return (state.resourceNodes[key]?.name || key).toLowerCase();
-}
 
 // Build the road-set the issue helper needs. Walks state.allBuildings
 // for road-category entries. Cheap O(N) — only fires when inspector

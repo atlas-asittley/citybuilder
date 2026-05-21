@@ -4,6 +4,7 @@
 // the bottom panel rather than a modal overlay.
 import { sb } from '../../api/supabase.js';
 import { state } from '../../state/store.js';
+import { escapeHtml } from '../util.js';
 
 const RESOURCE_GROUPS = [
   { label: 'Raw materials', match: (r) => r.kind === 'raw' && !r.is_food },
@@ -428,8 +429,3 @@ function computeTraderUnlocks() {
   return out;
 }
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
-}

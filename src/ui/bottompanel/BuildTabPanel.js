@@ -10,6 +10,7 @@
 import { state } from '../../state/store.js';
 import { tutorialAllowsBuilding, recipeOf, periodSuffix } from '../../scenes/helpers.js';
 import { spriteIcons } from '../../sprites.js';
+import { resName } from '../util.js';
 
 let selectedKey = null;
 
@@ -369,9 +370,6 @@ function ins(bt) {
   return parts.join(' + ') + periodSuffix(r.period_min);
 }
 
-function resName(key) {
-  return state.resourceNodes[key]?.name || key;
-}
 
 // "Shanty → Mud Hut → ... → Palace" from housingTierConfig. Bounded
 // to whatever tiers the catalog has, so balance migrations that add /

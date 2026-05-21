@@ -10,6 +10,7 @@ import {
   getPlayerTradeView
 } from '../../api/trade.js';
 import { sb } from '../../api/supabase.js';
+import { escapeHtml } from '../util.js';
 
 let composeTarget = null;
 // Counterparty's tradeable stock — populated async after compose
@@ -383,9 +384,4 @@ function timeAgo(iso) {
   if (ms < 3600_000) return Math.floor(ms / 60_000) + 'm ago';
   if (ms < 86400_000) return Math.floor(ms / 3600_000) + 'h ago';
   return Math.floor(ms / 86400_000) + 'd ago';
-}
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
 }

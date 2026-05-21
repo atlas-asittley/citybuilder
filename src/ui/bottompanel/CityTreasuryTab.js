@@ -11,6 +11,7 @@
 // Treasury panel.
 import { sb } from '../../api/supabase.js';
 import { state } from '../../state/store.js';
+import { escapeHtml } from '../util.js';
 
 // Period toggle state. Day / Week / Month selector — corresponds to
 // the daily-series p_days arg + the recent-transactions time window.
@@ -382,8 +383,3 @@ function friendlySource(src) {
   return SOURCE_LABELS[src] || src;
 }
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
-}

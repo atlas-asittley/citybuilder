@@ -9,6 +9,7 @@
 import { state } from '../../state/store.js';
 import { sb, fetchAllPaged } from '../../api/supabase.js';
 import { computeResourceProdCons, computeResourceFlow } from '../../scenes/helpers.js';
+import { escapeHtml } from '../util.js';
 
 const GROUPS = [
   { label: 'Raw materials',     match: (r) => r.kind === 'raw' && !r.is_food },
@@ -496,8 +497,3 @@ function fmtRate(rate) {
   return `${sign}${(Math.round(rate * 10) / 10).toFixed(1)}/min`;
 }
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
-}

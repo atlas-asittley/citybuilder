@@ -10,6 +10,7 @@ import { sb } from '../api/supabase.js';
 import { state } from '../state/store.js';
 import { ensureInspectorMounted, closeInspector, clearActiveBuilding } from './InspectorPanel.js';
 import { showToast } from './Toast.js';
+import { escapeHtml, resName } from './util.js';
 
 let activeTile = null;
 let sceneRef = null;
@@ -114,14 +115,6 @@ function findProcessorConsuming(resourceKey) {
   }
   return null;
 }
-function resName(key) {
-  return state.resourceNodes[key]?.name || key;
-}
 function infoRow(label, value) {
   return `<div class="ip-row"><span class="ip-label">${label}</span><span class="ip-value">${escapeHtml(value)}</span></div>`;
-}
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
 }

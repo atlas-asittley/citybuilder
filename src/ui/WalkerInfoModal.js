@@ -3,6 +3,7 @@
 // applicable). Pure flavor — no actions; the close button or any
 // outside click dismisses.
 import { state } from '../state/store.js';
+import { escapeHtml } from './util.js';
 
 const KIND_LABELS = {
   immigrant:        'Immigrant — moving in',
@@ -102,11 +103,6 @@ function flavorText(kind, persona) {
   return `${persona} in the city.`;
 }
 
-function escapeHtml(s) {
-  return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
-}
 
 // Stash entry.kind back onto sprite.walkerInfo for the ambient walkers
 // (road/collector) so the modal can read it without re-iterating

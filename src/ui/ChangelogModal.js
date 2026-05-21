@@ -4,6 +4,7 @@
 // surface: drop a changelog_entries row when shipping a player-
 // visible feature and players see it on next load.
 import { sb } from '../api/supabase.js';
+import { escapeHtml } from './util.js';
 
 let mounted = false;
 
@@ -76,11 +77,6 @@ function formatDate(iso) {
   return d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"]/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
-  }[c]));
-}
 
 // Preserve newlines so multi-paragraph bodies render readably.
 function escapeMultiline(s) {
