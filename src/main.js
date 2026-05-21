@@ -32,6 +32,7 @@ import { mountBottomPanel, refreshBottomPanel } from './ui/BottomPanel.js';
 import { mountZoomControls } from './ui/ZoomControls.js';
 import { mountHeatmapToggle } from './ui/HeatmapToggle.js';
 import { checkAndShowChangelogIfUnseen } from './ui/ChangelogModal.js';
+import { maybeShowPendingFeedbackPrompt } from './ui/FeedbackPromptModal.js';
 import { mountTutorialBanner } from './ui/TutorialBanner.js';
 import { startTickLoop, onTileMetricsChanged, onPopIncrease, onPopDecrease, onOffersChanged, refreshPendingOfferCount } from './api/tick.js';
 import { subscribeRealtime, setOffersChangedCallback } from './state/realtime.js';
@@ -321,6 +322,11 @@ async function enterGame() {
     // Show any unseen "what's new" entries. Fire-and-forget — never
     // gates the game UI.
     checkAndShowChangelogIfUnseen();
+
+    // If Atlas has queued a feedback prompt for this player, show it.
+    // Fire-and-forget; the modal hides itself if there's nothing.
+    // Delayed so the changelog modal (if any) doesn't stack on top.
+    setTimeout(() => maybeShowPendingFeedbackPrompt(), 1500);
   } catch (err) {
     console.error('Failed to enter game:', err);
     document.getElementById('ui-root').innerHTML = `
