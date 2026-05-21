@@ -24,7 +24,7 @@ const STAT_INFO = {
     icon: '🗺',
     title: 'Parcels',
     what: 'Each parcel is ~225 buildable tiles + a few resource patches. Multiple parcels stitched together make your district.',
-    why: 'More parcels = more room to grow. The cost scales steeply: <b>$1,000 × parcels²</b> for the next claim.',
+    why: 'More parcels = more room to grow. The cost scales steeply: <b>$10,000 × parcels²</b> for the next claim.',
     how: 'Tap <b>Expand parcel</b> from the More menu. Highlighted candidate chunks appear on the map; tap one to claim.'
   },
   happiness: {

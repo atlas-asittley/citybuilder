@@ -148,17 +148,27 @@ function aggregateTradeFlows(uid, transactions, offers, nameMap) {
     const otherId = iAmSender ? o.to_player_id : o.from_player_id;
     const partnerKey = 'player:' + otherId;
     const partnerName = nameMap[otherId] || 'Player';
-    const giveRes = o.give_resources || {};
-    const recvRes = o.receive_resources || {};
+    // give_resources / receive_resources are arrays of
+    // {resource_key, quantity} (the same shape TradePlayersTab composes
+    // and describeBundle / computeInboxBlockers iterate). Earlier this
+    // code did `for (const rk in arr)` which yields indices for arrays,
+    // and parseInt({...}) is NaN — so the partner table silently
+    // dropped every P2P trade.
+    const giveRes = Array.isArray(o.give_resources) ? o.give_resources : [];
+    const recvRes = Array.isArray(o.receive_resources) ? o.receive_resources : [];
     const myExports = iAmSender ? giveRes : recvRes;
     const myImports = iAmSender ? recvRes : giveRes;
-    for (const rk in myExports) {
-      const qty = parseInt(myExports[rk], 10) || 0;
-      if (qty > 0) bump(rk, partnerKey, partnerName, 'player', otherId, 'export', qty, 0);
+    for (const e of myExports) {
+      const qty = Number(e?.quantity || 0);
+      if (qty > 0 && e?.resource_key) {
+        bump(e.resource_key, partnerKey, partnerName, 'player', otherId, 'export', qty, 0);
+      }
     }
-    for (const rk in myImports) {
-      const qty = parseInt(myImports[rk], 10) || 0;
-      if (qty > 0) bump(rk, partnerKey, partnerName, 'player', otherId, 'import', qty, 0);
+    for (const e of myImports) {
+      const qty = Number(e?.quantity || 0);
+      if (qty > 0 && e?.resource_key) {
+        bump(e.resource_key, partnerKey, partnerName, 'player', otherId, 'import', qty, 0);
+      }
     }
   }
 
@@ -200,7 +210,7 @@ export function renderCityResources(parent) {
           <span class="cr-cell cr-num">Prod</span>
           <span class="cr-cell cr-num">Cons</span>
           <span class="cr-cell cr-num">Net</span>
-          <span class="cr-cell cr-num" title="Net $ flow on this resource since local midnight">$ Today</span>
+          <span class="cr-cell cr-num" title="Net $ flow on this resource since UTC midnight (matches Treasury)">$ Today</span>
         </div>
         ${rows.map((r) => renderRow(r, prod, cons)).join('')}
       </div>`}
