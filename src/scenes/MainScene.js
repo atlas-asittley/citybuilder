@@ -1563,6 +1563,29 @@ export class MainScene extends Phaser.Scene {
       aoeKind: aoe?.kind || null,
       aoeSprites: []
     };
+    // Seed the ghost at the cursor (desktop) or camera center
+    // (mobile, where no pointermove fires between selecting a
+    // building and the first tap). Without this the ghost sits
+    // at world (0,0) — off-screen for most players — and the
+    // placement-preview "doesn't show" until they pan.
+    this._seedPlacementGhost();
+  }
+
+  _seedPlacementGhost() {
+    const pm = this._placementMode;
+    if (!pm) return;
+    const cam = this.cameras.main;
+    const ap = this.input.activePointer;
+    const useCursor = ap && ap.x >= 0 && ap.y >= 0
+      && ap.x <= cam.width && ap.y <= cam.height;
+    const world = useCursor
+      ? cam.getWorldPoint(ap.x, ap.y)
+      : { x: cam.midPoint.x, y: cam.midPoint.y };
+    const gx = Math.floor(world.x / TILE_PX);
+    const gy = Math.floor(world.y / TILE_PX);
+    pm.ghostSprite.x = gx * TILE_PX + (pm.fw * TILE_PX) / 2;
+    pm.ghostSprite.y = gy * TILE_PX + (pm.fh * TILE_PX) / 2;
+    this._updatePlacementAoe(gx + state.gridMinX, gy + state.gridMinY);
   }
 
   // Update the AoE preview to ring the current ghost tile. Called
