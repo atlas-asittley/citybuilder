@@ -12,9 +12,9 @@
 //   if net >= 0  → Infinity (sustainable)
 //   else         → money / -net minutes
 //
-// Food/lifestyle is the more common bottleneck on a real city; that
-// piece needs housing_lifestyle_demands loaded into state — defer
-// until that's wired in (matches v1 contract).
+// Now covers money, food (across all is_food resources + per-house
+// pantries), and per-tier lifestyle goods (pottery / bread / furniture
+// / statuary etc.) — matches v1's contract.
 import { state } from './store.js';
 
 export function computeCityRunway() {
@@ -95,6 +95,43 @@ export function computeCityRunway() {
       for (const rk in buf) {
         pantryStock[rk] = (pantryStock[rk] || 0) + Number(buf[rk].quantity || 0);
       }
+    }
+  }
+
+  // ── 3) Food runway ──
+  // Per-tier housing_tier_config.food_per_minute × house count gives
+  // total food drain across the city. Food is pooled across every
+  // is_food resource (the server drains proportionally — see
+  // _pp_drain_housing_food), so the runway is total_food_stock /
+  // total_drain. Per-house pantry's 'food' bucket counts first; city
+  // inventory of every is_food resource is the refill upper bound.
+  // Without this step the runway pill stayed at "∞" or money-only even
+  // when grain hit zero — known undercount per the v2-first-cut TODO.
+  let foodDrain = 0;
+  for (const tier in houseTiers) {
+    const cfg = state.housingTierConfig?.[tier];
+    if (cfg?.food_per_minute) foodDrain += Number(cfg.food_per_minute) * houseTiers[tier];
+  }
+  if (foodDrain > 0) {
+    let foodStock = 0;
+    // Per-house pantry 'food' buckets.
+    if (state.buildingBuffers && Object.keys(state.buildingBuffers).length > 0) {
+      for (const b of myActive) {
+        if (!b.housing_tier || b.player_id !== state.currentUser.id) continue;
+        const buf = state.buildingBuffers[b.id];
+        if (buf?.food) foodStock += Number(buf.food.quantity || 0);
+      }
+    }
+    // Every is_food resource in city inventory tops it up (the server
+    // refills the 'food' pantry from any is_food resource).
+    const resources = state.resourceNodes || {};
+    for (const rk in state.inventory) {
+      if (resources[rk]?.is_food) foodStock += Number(state.inventory[rk] || 0);
+    }
+    const min = foodStock / foodDrain;
+    if (min < bottleneckMin) {
+      bottleneckMin = min;
+      bottleneck = 'food';
     }
   }
 

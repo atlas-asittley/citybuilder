@@ -13,6 +13,8 @@ function resetState() {
   state.buildingTypes = {};
   state.inventory = {};
   state.housingLifestyleDemands = {};
+  state.housingTierConfig = {};
+  state.resourceNodes = {};
   state.buildingBuffers = {};
 }
 
@@ -179,6 +181,43 @@ describe('computeCityRunway', () => {
     const r = computeCityRunway();
     expect(r.bottleneck).toBe('pottery');
     expect(r.minutes).toBeCloseTo(12, 0);
+  });
+
+  it('reports food runway when food is the bottleneck', () => {
+    state.housingTierConfig = {
+      2: { tier: 2, food_per_minute: 1 }
+    };
+    state.resourceNodes = {
+      grain: { is_food: true },
+      berries: { is_food: true },
+      pottery: { is_food: false }
+    };
+    state.buildingTypes = { cottage: { category: 'housing' } };
+    state.allBuildings = [
+      { id: 1, player_id: 'me', status: 'active', is_staffed: true, building_type_key: 'cottage', housing_tier: 2 },
+      { id: 2, player_id: 'me', status: 'active', is_staffed: true, building_type_key: 'cottage', housing_tier: 2 }
+    ];
+    // 2 houses × 1/min = 2/min drain. Inventory has 6 grain + 4 berries
+    // = 10 food-equivalent. 10 / 2 = 5 min runway.
+    state.inventory = { grain: 6, berries: 4, pottery: 100 };
+    const r = computeCityRunway();
+    expect(r.bottleneck).toBe('food');
+    expect(r.minutes).toBeCloseTo(5, 0);
+  });
+
+  it('counts per-house "food" pantry buckets toward food stock', () => {
+    state.housingTierConfig = { 2: { tier: 2, food_per_minute: 1 } };
+    state.resourceNodes = { grain: { is_food: true } };
+    state.buildingTypes = { cottage: { category: 'housing' } };
+    state.allBuildings = [
+      { id: 1, player_id: 'me', status: 'active', is_staffed: true, building_type_key: 'cottage', housing_tier: 2 }
+    ];
+    state.inventory = { grain: 0 };
+    state.buildingBuffers = { 1: { food: { quantity: 8, capacity: 30 } } };
+    // 1 house × 1/min = 1/min drain. Pantry has 8 food. 8 min runway.
+    const r = computeCityRunway();
+    expect(r.bottleneck).toBe('food');
+    expect(r.minutes).toBeCloseTo(8, 0);
   });
 
   it('sums pantry across multiple houses for the same resource', () => {
