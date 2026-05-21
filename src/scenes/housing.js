@@ -217,13 +217,19 @@ function allResourcesWithFlag(ctx, flagKey) {
   return saw;   // false if no resources had the flag at all
 }
 
+// Service proximity uses Chebyshev (king's-move) distance so a "range
+// of 5" reads as a 5-tile square around the building — what a player
+// visually estimates when looking at the map. Switched from Manhattan
+// 2026-05-20 after Jill reported townhouses at Chebyshev=4 from her
+// school still saying "no operating school" because Manhattan=6.
+// Server gates in _pp_evolve_housing + has_well_access mirror this.
 function hasNearbyService(building, serviceKey, range, requiresFeeding, ctx) {
   const myId = building.player_id;
   for (const s of ctx.allBuildings || []) {
     if (s.player_id !== myId) continue;
     if (s.building_type_key !== serviceKey) continue;
     if (s.status !== 'active') continue;
-    const dist = Math.abs(s.x - building.x) + Math.abs(s.y - building.y);
+    const dist = Math.max(Math.abs(s.x - building.x), Math.abs(s.y - building.y));
     if (dist > range) continue;
     if (!requiresFeeding) return true;
     if (!s.is_staffed) continue;
