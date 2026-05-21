@@ -30,13 +30,29 @@ async function fetchAllBuildings() {
 }
 
 async function fetchTileMap(playerId) {
-  const { data, error } = await sb
-    .from('map_tiles')
-    .select('id, x, y, terrain_type, resource_node_key, pollution, desirability, owner_player_id')
-    .eq('owner_player_id', playerId);
-  if (error) throw error;
+  // Paginate — PostgREST defaults to a 1000-row cap and one parcel
+  // is 225 tiles, so any player with 5+ parcels (1125+ tiles) had
+  // their last ~125 tiles silently dropped. Symptom: "certain
+  // squares inside my new parcel say not mine to build on" (Jill,
+  // bugs bcd4939d + 43933d0b — 2026-05-21).
+  const all = [];
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await sb
+      .from('map_tiles')
+      .select('id, x, y, terrain_type, resource_node_key, pollution, desirability, owner_player_id')
+      .eq('owner_player_id', playerId)
+      .order('id')
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
   const map = {};
-  for (const t of data) map[t.x + ',' + t.y] = t;
+  for (const t of all) map[t.x + ',' + t.y] = t;
   return map;
 }
 
