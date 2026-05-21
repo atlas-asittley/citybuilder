@@ -51,8 +51,18 @@ export async function renderCityTreasury(parent) {
   parent.innerHTML = '<p class="rp-loading">Loading…</p>';
   const period = PERIODS.find((p) => p.key === activePeriod) || PERIODS[1];
   const sinceIso = new Date(Date.now() - period.days * 24 * 60 * 60 * 1000).toISOString();
-  const [seriesRes, txRes] = await Promise.all([
+  // Three parallel reads:
+  //   - daily series (bucketed + period_start-aware totals for the chart)
+  //   - ledger-by-source (server-side aggregation; covers the FULL window)
+  //   - recent tx list (capped at 200 — display-only, not used for totals)
+  // We used to compute income/expense + source bars by summing the raw
+  // tx rows the third query returned, but that's capped at 200 rows and
+  // Jill has 4k+ ticks per day, so the totals silently undercounted by
+  // ~95%. Swapped to get_cash_ledger_by_source so the numbers match the
+  // ledger.
+  const [seriesRes, ledgerRes, txRes] = await Promise.all([
     sb.rpc('get_treasury_daily_series', { p_days: period.days }),
+    sb.rpc('get_cash_ledger_by_source', { p_since: sinceIso }),
     sb.from('cash_transactions')
       .select('id, source, amount, context, created_at')
       .gte('created_at', sinceIso)
@@ -74,17 +84,20 @@ export async function renderCityTreasury(parent) {
     sinks:   row.sinks || {}
   }));
 
-  // 24h totals + per-source proportional breakdown.
+  // Period income/expense + per-source split from the ledger RPC.
+  // Each row is one source's signed sum over the window; positive sums
+  // are income, negative are expense.
   let income = 0, expense = 0;
   const sources24h = {};   // positive amounts
   const sinks24h = {};     // negative amounts (stored as positive magnitudes)
-  for (const t of txs) {
-    if (t.amount > 0) {
-      income += t.amount;
-      sources24h[t.source] = (sources24h[t.source] || 0) + t.amount;
-    } else if (t.amount < 0) {
-      expense += -t.amount;
-      sinks24h[t.source] = (sinks24h[t.source] || 0) + -t.amount;
+  for (const row of (ledgerRes.data || [])) {
+    const amt = Number(row.amount) || 0;
+    if (amt > 0) {
+      income += amt;
+      sources24h[row.source] = amt;
+    } else if (amt < 0) {
+      expense += -amt;
+      sinks24h[row.source] = -amt;
     }
   }
 
@@ -131,8 +144,15 @@ function renderTreasuryAdvisor(days, period) {
   if (!hasActivity) return '';
 
   const money = Number(state.profile?.money || 0);
-  const totalNet = days.reduce((s, d) => s + d.net, 0);
-  const avgDailyNet = totalNet / Math.max(1, days.length);
+  // Burn rate = average over the period.days **completed** prior days.
+  // get_treasury_daily_series returns period.days + 1 buckets (today +
+  // N previous); we drop today's bucket because today is only partially
+  // elapsed and would skew a daily-rate projection (e.g. for the Today
+  // toggle this previously divided 2 buckets' net by 2 — sending today's
+  // half-day net through as a full daily rate).
+  const completedDays = days.length > 1 ? days.slice(0, -1) : days;
+  const totalNet = completedDays.reduce((s, d) => s + d.net, 0);
+  const avgDailyNet = totalNet / Math.max(1, completedDays.length);
   const headerSuffix = period ? ` — last ${period.label.toLowerCase()}` : ' — last 7 days';
 
   let rateText, projText, rateClass;
