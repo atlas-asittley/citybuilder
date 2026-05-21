@@ -18,6 +18,7 @@ import { renderCityTreasury } from './bottompanel/CityTreasuryTab.js';
 import { renderTradePartners } from './bottompanel/TradePartnersTab.js';
 import { renderTradeBlackMarket } from './bottompanel/TradeBlackMarketTab.js';
 import { renderTradePlayers } from './bottompanel/TradePlayersTab.js';
+import { renderSupplyContracts } from './bottompanel/SupplyContractsTab.js';
 
 let mounted = false;
 let currentTab = 'build';
@@ -121,11 +122,13 @@ function renderActiveTab() {
     renderSubtabs(content, 'trade',
       [
         { key: 'partners',     label: 'Partners' },
+        { key: 'contracts',    label: 'Contracts' },
         { key: 'black_market', label: 'Black Market' },
         { key: 'players',      label: 'Players' }
       ],
       (sub, body) => {
         if (sub === 'partners') renderTradePartners(body);
+        else if (sub === 'contracts') renderSupplyContracts(body);
         else if (sub === 'black_market') renderTradeBlackMarket(body);
         else if (sub === 'players') renderTradePlayers(body);
       });

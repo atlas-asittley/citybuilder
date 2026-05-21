@@ -137,6 +137,16 @@ export function formatNotification(n) {
     const dups = dedupCount > 1 ? ` (×${dedupCount})` : '';
     return `A trade agreement with ${n.payload?.other_party || 'a partner'} was cancelled.${dups}`;
   }
+  if (n.kind === 'supply_contract_bumped') {
+    // Server emits one of these to every player who'd ever contributed
+    // to this contract when it settles. Show what got better.
+    const trader = n.payload?.trader_key || 'a trader';
+    const resource = n.payload?.resource_key || 'a resource';
+    const direction = n.payload?.direction === 'sell' ? 'sells' : 'buys';
+    const oldCap = Number(n.payload?.old_cap || 0);
+    const newCap = Number(n.payload?.new_cap || 0);
+    return `Supply contract funded: ${trader} now ${direction} ${resource} at ${newCap}/day (was ${oldCap}).`;
+  }
   return JSON.stringify(n);
 }
 
