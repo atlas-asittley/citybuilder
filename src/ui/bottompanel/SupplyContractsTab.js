@@ -18,12 +18,20 @@ const collapsed = new Set();
 
 let cachedContracts = null;
 let pendingFetch = null;
+let cacheFetchedAt = 0;
+// Short TTL because contracts are a cooperative artifact — Drew needs
+// to see Jill's $50k pledge land within seconds of her making it, not
+// after a 30s tick. Bug b67a936c (2026-05-21): Drew's cached view
+// stayed pinned at Jill's first $25 pledge for hours after she'd
+// pushed it past $60k.
+const CACHE_TTL_MS = 5000;
 
 async function loadContracts(parent) {
   if (pendingFetch) return;
   pendingFetch = (async () => {
     try {
       cachedContracts = await listSupplyContracts();
+      cacheFetchedAt = Date.now();
       if (parent.isConnected) renderSupplyContracts(parent);
     } finally {
       pendingFetch = null;
@@ -32,10 +40,16 @@ async function loadContracts(parent) {
 }
 
 export function renderSupplyContracts(parent) {
-  if (cachedContracts === null) {
-    parent.innerHTML = '<p class="rp-loading">Loading…</p>';
+  const cacheStale = cachedContracts === null
+    || (Date.now() - cacheFetchedAt) > CACHE_TTL_MS;
+  if (cacheStale && !pendingFetch) {
+    if (cachedContracts === null) {
+      parent.innerHTML = '<p class="rp-loading">Loading…</p>';
+    }
     loadContracts(parent);
-    return;
+    if (cachedContracts === null) return;
+    // Otherwise: render the stale data immediately, the refresh
+    // re-renders when it lands.
   }
 
   parent.innerHTML = `
