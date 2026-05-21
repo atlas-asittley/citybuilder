@@ -108,17 +108,23 @@ export function renderBuildTab(parent, onSelect) {
   // Section-keyed buckets (infra / industry / farming / civic /
   // transport). Industry filter: only show buildings from this
   // player's industry or shared 'common' buildings. Inputs filter:
-  // skip a building whose declared input isn't producible by
-  // anyone in this industry — that catches the bread-without-grain
-  // case and any future cross-industry processor mis-tagging.
+  // before trade is unlocked, skip buildings whose inputs nobody
+  // in this industry can produce (the bread-without-grain guard).
+  // Once trade is unlocked, every input is obtainable from a partner
+  // city, so school/temple/bathhouse/tavern (common, cross-industry
+  // inputs by design) and late-game cross-industry processors
+  // (e.g. mosaic_workshop needs nails from iron) must remain visible.
+  const tradeUnlocked = !!state.profile?.trade_unlocked;
   const grouped = { infra: [], industry: [], farming: [], civic: [], transport: [] };
   for (const key in state.buildingTypes) {
     const bt = state.buildingTypes[key];
     if (!bt.category || !bt.is_active) continue;
     if (bt.industry_key && bt.industry_key !== 'common' && bt.industry_key !== playerIndustry) continue;
     if (!tutorialAllowsBuilding(bt, tutorialStep)) continue;
-    if (bt.input_resource_key && !producibleResources.has(bt.input_resource_key)) continue;
-    if (bt.input_resource_key_2 && !producibleResources.has(bt.input_resource_key_2)) continue;
+    if (!tradeUnlocked) {
+      if (bt.input_resource_key && !producibleResources.has(bt.input_resource_key)) continue;
+      if (bt.input_resource_key_2 && !producibleResources.has(bt.input_resource_key_2)) continue;
+    }
     grouped[sectionFor(bt)].push(bt);
   }
 
