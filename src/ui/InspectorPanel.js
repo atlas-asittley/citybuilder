@@ -331,6 +331,27 @@ function renderInspector() {
     const activeStr = b.is_staffed ? '' : ' (idle — needs staffing)';
     rows.push(row('Effect', `+${bt.desirability_bonus} desirability within ${bt.desirability_radius} tiles${activeStr}`));
   }
+  // Migration draw (civic amenities): only Public Garden + Monument
+  // have this currently. Shows why the population is creeping up.
+  if (Number(bt.migration_bonus || 0) > 0) {
+    const draw = Number(bt.migration_bonus).toFixed(2);
+    const idle = b.is_staffed ? '' : ' (idle — needs staffing)';
+    rows.push(row('Citizen draw', `+${draw}/min${idle}`));
+  }
+  // Marketplace: trade sell bonus + crime emission.
+  if (Number(bt.trade_sell_bonus_pct || 0) > 0) {
+    const idle = b.is_staffed ? '' : ' (idle)';
+    rows.push(row('Sell bonus', `+${bt.trade_sell_bonus_pct}% trader prices city-wide${idle}`));
+  }
+  if (Number(bt.crime_emit || 0) > 0) {
+    const idle = b.is_staffed ? '' : ' (idle)';
+    rows.push(row('Crime cost', `+${bt.crime_emit} city crime${idle}`));
+  }
+  // Hospital: city-wide crime reduction.
+  if (Number(bt.crime_reduction || 0) > 0) {
+    const idle = b.is_staffed ? '' : ' (idle)';
+    rows.push(row('Crime cut', `-${bt.crime_reduction} city crime${idle}`));
+  }
   rows.push(row('Location', `(${b.x}, ${b.y})`));
   rows.push(row('Footprint', `${bt.footprint_w || 1} × ${bt.footprint_h || 1}`));
   if (bt.pollution_emit > 0) rows.push(row('Pollution', `${bt.pollution_emit} emit, radius ${bt.pollution_radius}`));
