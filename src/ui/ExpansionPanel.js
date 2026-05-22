@@ -67,6 +67,7 @@ function onPickCandidate(c, cost) {
       // success path.
       if (!active) { claimInFlight = false; return; }
       await loadInitialWorld();
+      if (sceneRef?.rerenderWorld) sceneRef.rerenderWorld();
       close();
       if (onCompleteCallback) onCompleteCallback();
     })
