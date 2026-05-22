@@ -149,27 +149,32 @@ function aggregateTradeFlows(uid, transactions, offers, nameMap) {
     const otherId = iAmSender ? o.to_player_id : o.from_player_id;
     const partnerKey = 'player:' + otherId;
     const partnerName = nameMap[otherId] || 'Player';
-    // give_resources / receive_resources are arrays of
-    // {resource_key, quantity} (the same shape TradePlayersTab composes
-    // and describeBundle / computeInboxBlockers iterate). Earlier this
-    // code did `for (const rk in arr)` which yields indices for arrays,
-    // and parseInt({...}) is NaN — so the partner table silently
-    // dropped every P2P trade.
-    const giveRes = Array.isArray(o.give_resources) ? o.give_resources : [];
-    const recvRes = Array.isArray(o.receive_resources) ? o.receive_resources : [];
+    // give_resources / receive_resources are canonically OBJECTS
+    // ({clay: 5}) — that's what server propose_trade stores via
+    // jsonb_each_text. An earlier "fix" treated them as arrays of
+    // {resource_key, quantity}; that was wrong for the actual stored
+    // shape and silently dropped every P2P trade row even after the
+    // explicit attempt to surface them. Defensively accept either
+    // shape so any stale rows still render.
+    const normalize = (r) => {
+      if (!r) return [];
+      if (Array.isArray(r)) {
+        return r.filter((e) => e?.resource_key).map((e) => [e.resource_key, Number(e.quantity || 0)]);
+      }
+      if (typeof r === 'object') {
+        return Object.entries(r).map(([k, v]) => [k, Number(v)]);
+      }
+      return [];
+    };
+    const giveRes = normalize(o.give_resources);
+    const recvRes = normalize(o.receive_resources);
     const myExports = iAmSender ? giveRes : recvRes;
     const myImports = iAmSender ? recvRes : giveRes;
-    for (const e of myExports) {
-      const qty = Number(e?.quantity || 0);
-      if (qty > 0 && e?.resource_key) {
-        bump(e.resource_key, partnerKey, partnerName, 'player', otherId, 'export', qty, 0);
-      }
+    for (const [rk, qty] of myExports) {
+      if (qty > 0) bump(rk, partnerKey, partnerName, 'player', otherId, 'export', qty, 0);
     }
-    for (const e of myImports) {
-      const qty = Number(e?.quantity || 0);
-      if (qty > 0 && e?.resource_key) {
-        bump(e.resource_key, partnerKey, partnerName, 'player', otherId, 'import', qty, 0);
-      }
+    for (const [rk, qty] of myImports) {
+      if (qty > 0) bump(rk, partnerKey, partnerName, 'player', otherId, 'import', qty, 0);
     }
   }
 

@@ -312,7 +312,7 @@ export function computeResourceFlow(resourceKey, ctx, myId) {
 
   // NPC trade flow — cap-aware sustained rate projections.
   const policy = ctx.tradePolicies?.[resourceKey];
-  if (policy && policy.mode !== 'keep') {
+  if (policy && policy.mode !== 'hold') {
     const DAY = 24 * 60;
     for (const tk in (ctx.traders || {})) {
       const t = ctx.traders[tk];

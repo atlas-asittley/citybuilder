@@ -165,12 +165,18 @@ export function computeInboxBlockers(offer, ctx) {
   if (askedMoney > myMoney) {
     blockers.push(`$${askedMoney - myMoney}`);
   }
-  const askedResources = Array.isArray(offer.receive_resources) ? offer.receive_resources : [];
-  for (const r of askedResources) {
-    const have = Math.floor(Number(inv[r.resource_key] || 0));
-    if (have < r.quantity) {
-      const name = resources[r.resource_key]?.name || r.resource_key;
-      blockers.push(`${r.quantity - have} ${name}`);
+  // Canonical shape is OBJECT { resource_key: qty }. Defensive against
+  // any stale array-shaped offers from earlier today.
+  const asked = offer.receive_resources;
+  const entries = Array.isArray(asked)
+    ? asked.map((r) => [r.resource_key, Number(r.quantity)])
+    : (asked && typeof asked === 'object' ? Object.entries(asked).map(([k, v]) => [k, Number(v)]) : []);
+  for (const [rk, qty] of entries) {
+    if (!rk || qty <= 0) continue;
+    const have = Math.floor(Number(inv[rk] || 0));
+    if (have < qty) {
+      const name = resources[rk]?.name || rk;
+      blockers.push(`${qty - have} ${name}`);
     }
   }
   return blockers;
@@ -285,10 +291,18 @@ function renderCompose(parent) {
     const recurring = recBox.checked;
     const interval = parseInt(document.getElementById('compose-interval').value, 10);
 
-    const giveBundle = giveRes && giveQty > 0 ? [{ resource_key: giveRes, quantity: giveQty }] : [];
-    const recvBundle = recvRes && recvQty > 0 ? [{ resource_key: recvRes, quantity: recvQty }] : [];
+    // Server's propose_trade + accept_trade use jsonb_each_text() to
+    // walk resources, so they need an OBJECT shape ({clay: 5}), not
+    // an array of {resource_key, quantity} (that fails with "cannot
+    // call jsonb_each_text on a non-object" — even an empty array []
+    // crashes the call for money-only trades). All stored historic
+    // offers are objects too.
+    const giveBundle = giveRes && giveQty > 0 ? { [giveRes]: giveQty } : {};
+    const recvBundle = recvRes && recvQty > 0 ? { [recvRes]: recvQty } : {};
+    const giveHas = Object.keys(giveBundle).length > 0;
+    const recvHas = Object.keys(recvBundle).length > 0;
 
-    if (giveMoney === 0 && !giveBundle.length && recvMoney === 0 && !recvBundle.length) {
+    if (giveMoney === 0 && !giveHas && recvMoney === 0 && !recvHas) {
       alert('An offer needs at least one thing to give or receive.');
       return;
     }
@@ -306,10 +320,11 @@ function renderCompose(parent) {
         alert(`${composeTarget.display_name} only has $${Math.max(0, composeTargetView.money || 0)} — lower the requested money.`);
         return;
       }
-      for (const r of recvBundle) {
-        const have = Math.floor(Number(composeTargetView.inventory?.[r.resource_key] || 0));
-        if (have < r.quantity) {
-          const name = state.resourceNodes?.[r.resource_key]?.name || r.resource_key;
+      for (const rk in recvBundle) {
+        const need = Number(recvBundle[rk]);
+        const have = Math.floor(Number(composeTargetView.inventory?.[rk] || 0));
+        if (have < need) {
+          const name = state.resourceNodes?.[rk]?.name || rk;
           alert(`${composeTarget.display_name} only has ${have} ${name} — they can't fulfill this offer.`);
           return;
         }
@@ -322,10 +337,11 @@ function renderCompose(parent) {
       alert(`You only have $${Math.floor(state.profile?.money || 0)} — lower the give amount.`);
       return;
     }
-    for (const r of giveBundle) {
-      const mine = Math.floor(Number(state.inventory?.[r.resource_key] || 0));
-      if (mine < r.quantity) {
-        const name = state.resourceNodes?.[r.resource_key]?.name || r.resource_key;
+    for (const rk in giveBundle) {
+      const need = Number(giveBundle[rk]);
+      const mine = Math.floor(Number(state.inventory?.[rk] || 0));
+      if (mine < need) {
+        const name = state.resourceNodes?.[rk]?.name || rk;
         alert(`You only have ${mine} ${name} — lower the give quantity.`);
         return;
       }
@@ -369,10 +385,21 @@ function wireOfferHandlers(root) {
 function describeBundle(money, resources) {
   const parts = [];
   if (money && Number(money) > 0) parts.push(`$${money}`);
+  // resources is canonically an OBJECT { resource_key: qty } — that's
+  // what server propose_trade stores via jsonb_each_text. Defensively
+  // accept the old array shape too so any stale rows still render.
   if (Array.isArray(resources)) {
     for (const r of resources) {
       const res = state.resourceNodes[r.resource_key];
       parts.push(`${r.quantity} ${res?.name || r.resource_key}`);
+    }
+  } else if (resources && typeof resources === 'object') {
+    for (const k in resources) {
+      const qty = Number(resources[k]);
+      if (qty > 0) {
+        const res = state.resourceNodes[k];
+        parts.push(`${qty} ${res?.name || k}`);
+      }
     }
   }
   return parts.length ? parts.join(' + ') : '<em>nothing</em>';
