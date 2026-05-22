@@ -219,7 +219,20 @@ function benefitText(bt) {
     if (bt.key === 'bathhouse') return 'Stops nearby housing from devolving when conditions slip.';
     if (bt.key === 'school')    return 'Gates Townhouse (tier 3) evolution for any housing within 5 tiles.';
     if (bt.key === 'temple')    return 'Gates Villa (tier 4) evolution for any housing within 6 tiles.';
+    if (bt.key === 'hospital')  return `Reduces city-wide crime by ${bt.crime_reduction || 0} while staffed. Consumes ale — competes with high-tier housing for it.`;
     return 'Service building.';
+  }
+  if (bt.category === 'civic') {
+    if (bt.key === 'marketplace') {
+      return `Adds +${bt.trade_sell_bonus_pct || 0}% to trader sell prices city-wide while staffed (across-marketplace cap at +25%). Generates a small amount of crime.`;
+    }
+    const bonus = bt.desirability_bonus || 0;
+    const radius = bt.desirability_radius || 0;
+    const draw = Number(bt.migration_bonus || 0);
+    const drawSentence = draw > 0
+      ? ` Draws +${draw.toFixed(2)} citizens/min while staffed.`
+      : '';
+    return `Adds +${bonus} desirability to every tile within ${radius} squares while staffed.${drawSentence}`;
   }
   if (bt.category === 'tax') {
     return `Tax revenue scales with population: $${bt.output_rate || 0}/min per 100 citizens. A city of 200 generates $${(bt.output_rate || 0) * 2}/min per office.`;
