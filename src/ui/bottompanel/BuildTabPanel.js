@@ -321,6 +321,9 @@ function describeBuilding(bt) {
     if (bt.key === 'temple') return `Gates Villa (tier 4) within 6 tiles. Consumes ${ins(bt)} while staffed.`;
     if (bt.key === 'bathhouse') return `Stops nearby housing from devolving (4 tiles). Consumes ${ins(bt)} while staffed.`;
     if (bt.key === 'tavern') return `+5% productivity nearby (with a small crime hit). Consumes ${ins(bt)} while staffed.`;
+    if (bt.key === 'hospital') {
+      return `Cuts city-wide crime by ${bt.crime_reduction || 0} while staffed. Consumes ${ins(bt)} — competes with high-tier housing for the same ale.`;
+    }
     return `Service building. Needs road access. ${bt.input_resource_key ? 'Consumes ' + ins(bt) + ' while staffed.' : ''}`;
   }
   if (cat === 'police') {
@@ -329,17 +332,28 @@ function describeBuilding(bt) {
   if (cat === 'booster') {
     const pct = Math.round(((bt.boost_multiplier || 1) - 1) * 100);
     const tgt = bt.boost_target === 'food_extractor' ? 'food extractors' : 'extractors';
-    return `+${pct}% to ${tgt} within ${bt.boost_range || 2} tiles. Multiple boosters take MAX, not stack.`;
+    let s = `+${pct}% to ${tgt} within ${bt.boost_range || 2} tiles. Multiple boosters take MAX, not stack.`;
+    if (bt.pollution_emit > 0) {
+      s += ` Emits ${bt.pollution_emit} pollution radius ${bt.pollution_radius} — keep it away from housing.`;
+    }
+    return s;
   }
   if (cat === 'park') {
     return `Reduces pollution by ${Math.abs(bt.pollution_emit || 0)} on every tile within ${bt.pollution_radius || 0}. No staffing needed.`;
   }
   if (cat === 'civic') {
+    if (bt.key === 'marketplace') {
+      const bonus = bt.trade_sell_bonus_pct || 0;
+      const crime = bt.crime_emit || 0;
+      return `+${bonus}% on trader sell prices city-wide while staffed (cap +25% across all marketplaces). Adds ${crime} city-wide crime per staffed office.`;
+    }
     const bonus = bt.desirability_bonus || 0;
     const radius = bt.desirability_radius || 0;
     const upkeep = bt.upkeep_per_minute || 0;
     const upkeepStr = upkeep > 0 ? ` $${upkeep}/min upkeep while staffed.` : '';
-    return `+${bonus} desirability on every tile within ${radius} squares while staffed.${upkeepStr}`;
+    const draw = Number(bt.migration_bonus || 0);
+    const drawStr = draw > 0 ? ` Draws +${draw.toFixed(2)} citizens/min while staffed — make sure you have housing for them.` : '';
+    return `+${bonus} desirability on every tile within ${radius} squares while staffed.${upkeepStr}${drawStr}`;
   }
   if (cat === 'tax') return `+$${bt.output_rate}/min per 100 citizens. A 200-pop city earns $${(bt.output_rate || 0) * 2}/min per office.`;
   if (cat === 'transport_hub') {
