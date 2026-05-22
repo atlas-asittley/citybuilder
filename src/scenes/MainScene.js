@@ -146,7 +146,8 @@ const AOE_TINTS = {
   well: 0x70a0c0,
   school: 0xa07050,
   temple: 0xa89870,
-  bathhouse: 0x587088
+  bathhouse: 0x587088,
+  civic: 0xf0c850   // amber — Public Garden / Monument desirability bonus
 };
 
 

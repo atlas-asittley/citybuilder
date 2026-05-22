@@ -57,8 +57,8 @@ function setOpenSection(cat) {
 // CATEGORY_ORDER so sub-groupings stay stable across re-renders.
 const CATEGORY_RANK = {
   road: 0, housing: 1, extractor: 2, food_extractor: 3,
-  processor: 4, booster: 5, service: 6, tax: 7, police: 8, park: 9,
-  transport_hub: 10, transport_connector: 11
+  processor: 4, booster: 5, service: 6, civic: 7, tax: 8, police: 9, park: 10,
+  transport_hub: 11, transport_connector: 12
 };
 
 // Map a building_type to its top-level section. Mirrors v1's
@@ -333,6 +333,13 @@ function describeBuilding(bt) {
   }
   if (cat === 'park') {
     return `Reduces pollution by ${Math.abs(bt.pollution_emit || 0)} on every tile within ${bt.pollution_radius || 0}. No staffing needed.`;
+  }
+  if (cat === 'civic') {
+    const bonus = bt.desirability_bonus || 0;
+    const radius = bt.desirability_radius || 0;
+    const upkeep = bt.upkeep_per_minute || 0;
+    const upkeepStr = upkeep > 0 ? ` $${upkeep}/min upkeep while staffed.` : '';
+    return `+${bonus} desirability on every tile within ${radius} squares while staffed.${upkeepStr}`;
   }
   if (cat === 'tax') return `+$${bt.output_rate}/min per 100 citizens. A 200-pop city earns $${(bt.output_rate || 0) * 2}/min per office.`;
   if (cat === 'transport_hub') {

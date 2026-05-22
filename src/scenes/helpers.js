@@ -471,6 +471,13 @@ export function getBuildingAoeRange(b, bt) {
     if (bt.key === 'temple')    return { range: 6, kind: 'temple' };
     if (bt.key === 'bathhouse') return { range: 4, kind: 'bathhouse' };
   }
+  // Civic amenities (Public Garden, Monument, future Plaza/Library):
+  // their desirability_radius drives the placement-preview AoE diamond
+  // so players can see exactly which tiles a candidate placement
+  // would lift.
+  if (bt.category === 'civic' && bt.desirability_radius > 0) {
+    return { range: bt.desirability_radius, kind: 'civic' };
+  }
   return null;
 }
 

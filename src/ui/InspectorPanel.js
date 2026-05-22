@@ -324,6 +324,13 @@ function renderInspector() {
     const tgt = bt.boost_target === 'food_extractor' ? 'food extractors' : 'extractors';
     rows.push(row('Effect', `+${pct}% to ${tgt} within ${bt.boost_range || 2} tiles`));
   }
+  // Civic amenities (Public Garden, Monument): show the desirability
+  // bonus they project, so the player understands what they're paying
+  // for and whether the building is helping (staffed) or idle.
+  if (bt.desirability_bonus > 0 && bt.desirability_radius > 0) {
+    const activeStr = b.is_staffed ? '' : ' (idle — needs staffing)';
+    rows.push(row('Effect', `+${bt.desirability_bonus} desirability within ${bt.desirability_radius} tiles${activeStr}`));
+  }
   rows.push(row('Location', `(${b.x}, ${b.y})`));
   rows.push(row('Footprint', `${bt.footprint_w || 1} × ${bt.footprint_h || 1}`));
   if (bt.pollution_emit > 0) rows.push(row('Pollution', `${bt.pollution_emit} emit, radius ${bt.pollution_radius}`));
