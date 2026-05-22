@@ -77,7 +77,8 @@ const CATEGORY_TINTS = {
   park: 0x4a8a4a,
   road: 0x4a4538,
   transport_hub: 0x8a4a8a,
-  transport_connector: 0x6a4a6a
+  transport_connector: 0x6a4a6a,
+  civic: 0xc8b87a
 };
 
 // World bounds (state-bound wrapper around the pure helper).
