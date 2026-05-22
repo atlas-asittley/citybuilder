@@ -156,18 +156,18 @@ describe('computeCityRunway', () => {
     expect(r.minutes).toBe(Infinity);
   });
 
-  it('uses pantry buffers for lifestyle stock when buildingBuffers is loaded', () => {
+  it('adds pantry buffers to city stock for lifestyle runway', () => {
     state.housingLifestyleDemands = { 2: [{ resource_key: 'pottery', qty_per_minute: 1 }] };
     state.buildingTypes = { cottage: { category: 'housing' } };
     state.allBuildings = [
       { id: 1, player_id: 'me', status: 'active', is_staffed: true, building_type_key: 'cottage', housing_tier: 2 }
     ];
-    // City stock says we have plenty; pantry says 5 minutes left.
-    state.inventory = { pottery: 9999 };
+    // Pantry has 5 units; city stock has 10. Runway = (5 + 10) / 1 = 15 min.
+    state.inventory = { pottery: 10 };
     state.buildingBuffers = { 1: { pottery: { quantity: 5, capacity: 30 } } };
     const r = computeCityRunway();
     expect(r.bottleneck).toBe('pottery');
-    expect(r.minutes).toBeCloseTo(5, 0);
+    expect(r.minutes).toBeCloseTo(15, 0);
   });
 
   it('falls back to city inventory when pantry buffers absent', () => {
