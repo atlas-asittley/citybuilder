@@ -28,6 +28,16 @@ let mounted = false;
 let onExpandedCallback = null;
 let traderResetInterval = null;
 
+function syncTopbarHeight() {
+  const bar = document.getElementById('topbar');
+  if (!bar) return;
+  // getBoundingClientRect().bottom already accounts for safe-area-inset-top
+  // (which is part of the topbar's `top`), so the infobar can use it as
+  // its own `top` directly. Rounded up to avoid sub-pixel underlap.
+  const bottom = Math.ceil(bar.getBoundingClientRect().bottom);
+  document.documentElement.style.setProperty('--topbar-h', bottom + 'px');
+}
+
 export function mountTopBar(onExpanded) {
   onExpandedCallback = onExpanded || null;
   if (mounted) return;
@@ -86,6 +96,14 @@ export function mountTopBar(onExpanded) {
   `;
   root.appendChild(bar);
   mounted = true;
+
+  // Publish the topbar's actual rendered height as a CSS variable so
+  // the infobar can sit flush below it regardless of how tall row 1
+  // actually renders (the 36px icon buttons can push it past the row's
+  // 28px min-height). Resync on resize / orientation change.
+  syncTopbarHeight();
+  window.addEventListener('resize', syncTopbarHeight);
+  window.addEventListener('orientationchange', syncTopbarHeight);
 
   // ── More menu ──
   const closeMore = () => document.getElementById('tb-more-menu').classList.remove('open');

@@ -236,9 +236,9 @@ html, body {
   gap: 6px;
   min-height: 28px;
   /* Don't wrap content — on narrow phones it would push the topbar
-     past 58px and clobber the #infobar (which sits at top: 58px +
-     safe-area-inset-top). Scroll horizontally instead, same as row
-     2 already did. */
+     past its row height and clobber the #infobar (which sits at
+     top: var(--topbar-h) published by syncTopbarHeight). Scroll
+     horizontally instead, same as row 2 already did. */
   flex-wrap: nowrap;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -360,7 +360,11 @@ body.app-hidden *::after {
    status bar. */
 #infobar {
   position: fixed;
-  top: calc(58px + env(safe-area-inset-top, 0));
+  /* --topbar-h is published by TopBar.js after mount + on resize so the
+     infobar always sits flush below the topbar's actual rendered height
+     (the 36px icon buttons in row 1 push it past the row's 28px
+     min-height, and that wiggle defeated every hardcoded value). */
+  top: var(--topbar-h, calc(74px + env(safe-area-inset-top, 0)));
   left: 0; right: 0;
   height: 26px;
   background: rgba(15, 22, 32, 0.92);
