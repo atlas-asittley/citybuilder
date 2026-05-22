@@ -236,7 +236,7 @@ html, body {
   gap: 6px;
   min-height: 28px;
   /* Don't wrap content — on narrow phones it would push the topbar
-     past 74px and clobber the #infobar (which sits at top: 74px +
+     past 58px and clobber the #infobar (which sits at top: 58px +
      safe-area-inset-top). Scroll horizontally instead, same as row
      2 already did. */
   flex-wrap: nowrap;
@@ -352,13 +352,15 @@ body.app-hidden *::after {
 }
 
 /* Info bar — thin strip directly below the two-row topbar. The
-   topbar's actual rendered height is ~74px (2 rows × 36px content
-   each + a 1px border-bottom on row 1 + a 1px border-bottom on the
-   whole bar). Add safe-area-inset so iPhones-with-notch don't tuck
-   the infobar under the status bar. */
+   topbar's actual rendered height under box-sizing:border-box is
+   58px (2 rows × min-height 28px = 56px + 1px row-1 border + 1px
+   bottom border). An earlier 74px figure assumed content-box and
+   left a ~16px gap above the infobar — fixed 2026-05-22. Add safe-
+   area-inset so iPhones-with-notch don't tuck the infobar under the
+   status bar. */
 #infobar {
   position: fixed;
-  top: calc(74px + env(safe-area-inset-top, 0));
+  top: calc(58px + env(safe-area-inset-top, 0));
   left: 0; right: 0;
   height: 26px;
   background: rgba(15, 22, 32, 0.92);
@@ -439,8 +441,8 @@ body.app-hidden *::after {
   transition: height 0.22s ease-out;
 }
 #bottom-panel.collapsed { height: 36px; }
-/* Full-size panel — leave enough room above for the topbar (~74px) +
-   infobar (26px) + safe-area-inset-top + a generous 50px gap so the
+/* Full-size panel — leave enough room above for the topbar (~58px) +
+   infobar (26px) + safe-area-inset-top + a generous 66px gap so the
    Hide/Compact controls clear the chrome with breathing room. Uses
    100dvh (dynamic viewport height) rather than 100vh because mobile
    browsers count vh from the FULL viewport including the address bar
@@ -737,8 +739,8 @@ body.app-hidden *::after {
 }
 #version-badge:hover { color: #16c79a; }
 
-/* Bug report modal */
-#bug-overlay {
+/* Bug report modal + feedback prompt modal (reuses the .bug-card chrome). */
+#bug-overlay, #feedback-overlay {
   position: fixed; inset: 0;
   z-index: 90;
   background: rgba(10, 14, 20, 0.85);
