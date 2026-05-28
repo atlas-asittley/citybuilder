@@ -573,14 +573,15 @@ export function tutorialAllowsBuilding(bt, tutorialStep) {
 // ── Heatmap data computation ────────────────────────────────────
 //
 // Set of "x,y" tile keys covered by any of `myId`'s staffed active
-// police buildings' manhattan disks. Pure function so tests don't
-// need a Phaser scene to validate the geometry.
-export function computePoliceCoverage(allBuildings, buildingTypes, myId) {
+// buildings of a given category, over each footprint cell's manhattan
+// coverage_radius disk. Pure so tests don't need a Phaser scene.
+// Coverage-style heatmaps (crime/waste/…) red-tint the UNcovered tiles.
+export function computeCoverageForCategory(allBuildings, buildingTypes, myId, category) {
   const covered = new Set();
   for (const b of allBuildings) {
     if (b.player_id !== myId) continue;
     const bt = buildingTypes[b.building_type_key];
-    if (!bt || bt.category !== 'police') continue;
+    if (!bt || bt.category !== category) continue;
     if (b.status !== 'active' || !b.is_staffed) continue;
     const r = bt.coverage_radius || 0;
     const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
@@ -599,32 +600,12 @@ export function computePoliceCoverage(allBuildings, buildingTypes, myId) {
   return covered;
 }
 
-// Set of "x,y" tile keys covered by any of `myId`'s staffed active
-// sanitation buildings' manhattan disks. Mirrors computePoliceCoverage
-// — the waste heatmap red-tints uncovered tiles.
-export function computeSanitationCoverage(allBuildings, buildingTypes, myId) {
-  const covered = new Set();
-  for (const b of allBuildings) {
-    if (b.player_id !== myId) continue;
-    const bt = buildingTypes[b.building_type_key];
-    if (!bt || bt.category !== 'sanitation') continue;
-    if (b.status !== 'active' || !b.is_staffed) continue;
-    const r = bt.coverage_radius || 0;
-    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
-    for (let dx = 0; dx < fw; dx++) {
-      for (let dy = 0; dy < fh; dy++) {
-        for (let rx = -r; rx <= r; rx++) {
-          for (let ry = -r; ry <= r; ry++) {
-            if (Math.abs(rx) + Math.abs(ry) <= r) {
-              covered.add((b.x + dx + rx) + ',' + (b.y + dy + ry));
-            }
-          }
-        }
-      }
-    }
-  }
-  return covered;
-}
+// Police coverage (crime heatmap) and sanitation coverage (waste heatmap)
+// are the same geometry over different categories.
+export const computePoliceCoverage = (allBuildings, buildingTypes, myId) =>
+  computeCoverageForCategory(allBuildings, buildingTypes, myId, 'police');
+export const computeSanitationCoverage = (allBuildings, buildingTypes, myId) =>
+  computeCoverageForCategory(allBuildings, buildingTypes, myId, 'sanitation');
 
 // Tile keys covered by buildings owned by `myId` that are in a
 // problem state — idle, unstaffed-but-needs-workers, or paused.
