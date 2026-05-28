@@ -298,7 +298,13 @@ export function clearBuildTabSelection() {
 // player sees the evolution arc at the card.
 function describeBuilding(bt) {
   const cat = bt.category;
-  if (cat === 'road') return 'Connects buildings to the city. Housing tier 3+ and most production need road access.';
+  if (cat === 'road') {
+    if (bt.desirability_bonus > 0) {
+      const damp = bt.pollution_emit < 0 ? ` Tree-lined: −${Math.abs(bt.pollution_emit)} pollution nearby.` : '';
+      return `Connects like any road, and lifts desirability +${bt.desirability_bonus} within ${bt.desirability_radius} tile${bt.desirability_radius === 1 ? '' : 's'}.${damp} Higher desirability unlocks higher housing tiers.`;
+    }
+    return 'Connects buildings to the city. Housing tier 3+ and most production need road access.';
+  }
   if (cat === 'housing') {
     return 'Citizens live here. Evolves: ' + housingTierChain() +
       '. Each upgrade adds a new prereq (well, food, school, temple, luxury food, industrial luxuries). Workers 2 → 100 across the ladder.';

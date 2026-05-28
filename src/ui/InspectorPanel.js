@@ -328,7 +328,8 @@ function renderInspector() {
   // bonus they project, so the player understands what they're paying
   // for and whether the building is helping (staffed) or idle.
   if (bt.desirability_bonus > 0 && bt.desirability_radius > 0) {
-    const activeStr = b.is_staffed ? '' : ' (idle — needs staffing)';
+    // Roads project their aura unstaffed; staffed amenities need staffing.
+    const activeStr = (bt.category === 'road' || b.is_staffed) ? '' : ' (idle — needs staffing)';
     rows.push(row('Effect', `+${bt.desirability_bonus} desirability within ${bt.desirability_radius} tiles${activeStr}`));
   }
   // Migration draw (civic amenities): only Public Garden + Monument

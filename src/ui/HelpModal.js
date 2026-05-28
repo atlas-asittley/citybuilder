@@ -192,6 +192,10 @@ function renderCard(bt) {
 // "produces X", we lean on the Output row above and skip the line.
 function benefitText(bt) {
   if (bt.category === 'road') {
+    if (bt.desirability_bonus > 0) {
+      const damp = bt.pollution_emit < 0 ? ` Tree-lined, dampening pollution nearby.` : '';
+      return `An upgraded road. Connects like any road, and projects +${bt.desirability_bonus} desirability within ${bt.desirability_radius} tile${bt.desirability_radius === 1 ? '' : 's'} while it stands (no staffing needed).${damp} Beautify to push housing toward the top tiers.`;
+    }
     return 'Connects buildings to the city. Required for housing tier 3+ and most production.';
   }
   if (bt.category === 'housing') {

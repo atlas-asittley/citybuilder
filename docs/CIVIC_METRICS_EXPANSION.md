@@ -205,6 +205,23 @@ consuming a different industry's goods and emitting a **desirability aura** (rad
   primary lever to push housing to top tiers — beautification gets teeth.
 - This is the sink for **mosaics + monuments + cabinets + tiles** → fixes most of problem #1.
 
+**Built (Phase 3, on branch — `fancier_roads.sql` + `test_fancier_roads.py`, 6 tests):**
+Three tiers as separate `category='road'` keys (so they inherit connectivity, paving,
+autotiling, walker pathing, extractor-path recompute for free) distinguished by a `road_tier`
+smallint: `paved_road` (1 brick → +2 desir r1), `tiled_avenue` (1 tiles → +4 r2),
+`grand_boulevard` (1 **monuments** + 1 **cabinets** + 1 **mosaics** → +6 r3-ish [r2 shipped],
+−3 pollution r2, tree-lined). The Grand Boulevard sinks all three *art* capstones at once; with
+machinery sunk by sanitation/power, **all four dead capstones now have sinks.** Implementation:
+`_pp_update_desirability` rebuilt on the waste version with one change — the amenity subquery
+condition becomes `(b.is_staffed OR bt.category = 'road')` so never-staffed roads still project
+their aura. No new tick phase, no `_pp_for_uid` change. Frontend: roads render via the shared
+autotile texture, so tiers are distinguished by a **map tint** (`ROAD_TIER_TINTS`) + distinct
+build-menu sprites; AOE ring (`kind:'road'`), inspector/help/describe copy updated. **No upgrade
+RPC** — you build the fancier tier directly (placement obeys the normal road connectivity rule).
+**Balance watch:** desirability auras SUM across overlapping roads (consistent with civic
+amenities). Radii were kept small (1/2/2) to limit cheap-paved-road stacking; revisit if players
+trivially max desirability with brick.
+
 ## 9. Feature: New standings/pressures *(Phase 4–5)*
 
 Add as real stored metrics, each with an industry-spread sink:
@@ -267,7 +284,7 @@ Per `feedback_new_building_category_checklist`, each new category touches:
 | 0 | This design doc | none | ✅ |
 | 1 | Waste management (server + tests + frontend) | low (bounded effect) | ✅ built (branch) |
 | 2 | Power/Energy (visible-but-toothless) | low | ✅ built (branch) |
-| 3 | Fancier roads + capstone sinks | medium (sprites, RPC) | queued |
+| 3 | Fancier roads + capstone sinks | medium (sprites, RPC) | ✅ built (branch) |
 | 4 | Congestion + Noise | medium | queued |
 | 5 | Health + Education + food-variety gate | higher (touches upgrade paths) | queued |
 

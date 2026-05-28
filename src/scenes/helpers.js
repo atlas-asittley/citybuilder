@@ -481,6 +481,10 @@ export function getBuildingAoeRange(b, bt) {
   if (bt.category === 'sanitation' && bt.coverage_radius > 0) {
     return { range: bt.coverage_radius, kind: 'sanitation' };
   }
+  // Upgraded roads project a desirability aura (dirt road = 0, no ring).
+  if (bt.category === 'road' && bt.desirability_radius > 0) {
+    return { range: bt.desirability_radius, kind: 'road' };
+  }
   return null;
 }
 

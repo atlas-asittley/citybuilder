@@ -152,7 +152,17 @@ const AOE_TINTS = {
   temple: 0xa89870,
   bathhouse: 0x587088,
   civic: 0xf0c850,  // amber — Public Garden / Monument desirability bonus
-  sanitation: 0x8a6d3b   // brown — waste collection coverage
+  sanitation: 0x8a6d3b,  // brown — waste collection coverage
+  road: 0xc8a850   // gold — upgraded-road desirability aura
+};
+
+// Map tint applied to upgraded road tiers (dirt road stays untinted). Lets the
+// fancy tiers read distinctly on the autotiled road texture without bespoke
+// per-tier road textures.
+const ROAD_TIER_TINTS = {
+  paved_road: 0xc4bcac,
+  tiled_avenue: 0xd0a45c,
+  grand_boulevard: 0x7ab85c
 };
 
 
@@ -1933,6 +1943,12 @@ export class MainScene extends Phaser.Scene {
     } else {
       sprite.setScale(fw - 0.15, fh - 0.15);
       sprite.setTint(CATEGORY_TINTS[bt.category] || 0x888888);
+    }
+    // Upgraded road tiers tint the shared autotile texture so they read
+    // distinctly (dirt road stays its natural color).
+    if (isRoad) {
+      const roadTint = ROAD_TIER_TINTS[b.building_type_key];
+      if (roadTint) sprite.setTint(roadTint);
     }
     // Alpha precedence: neighbor (0.7) > issue (0.55) > healthy (1.0).
     // Roads stay fully opaque regardless of issue state — they're
