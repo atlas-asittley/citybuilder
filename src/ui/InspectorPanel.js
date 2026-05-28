@@ -352,6 +352,11 @@ function renderInspector() {
     const idle = b.is_staffed ? '' : ' (idle)';
     rows.push(row('Crime cut', `-${bt.crime_reduction} city crime${idle}`));
   }
+  // Sanitation: collects waste for housing in range while staffed.
+  if (bt.category === 'sanitation') {
+    const idle = b.is_staffed ? '' : ' (idle — needs staffing)';
+    rows.push(row('Effect', `Collects waste for housing within ${bt.coverage_radius || 0} tiles${idle}`));
+  }
   rows.push(row('Location', `(${b.x}, ${b.y})`));
   rows.push(row('Footprint', `${bt.footprint_w || 1} × ${bt.footprint_h || 1}`));
   if (bt.pollution_emit > 0) rows.push(row('Pollution', `${bt.pollution_emit} emit, radius ${bt.pollution_radius}`));

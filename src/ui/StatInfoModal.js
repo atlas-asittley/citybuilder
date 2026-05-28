@@ -41,6 +41,13 @@ const STAT_INFO = {
     why: 'High crime drags down happiness and citizens start leaving — can undo your service buildouts.',
     how: 'Place police buildings (Watch House r4 / Police Station r6 / Constabulary r8) so they cover housing. They need staffing to work — unstaffed police don\'t reduce crime.'
   },
+  waste: {
+    icon: '🗑',
+    title: 'Waste',
+    what: '0–100, lower is better. Housing generates garbage; a house is "covered" when a <b>staffed sanitation building</b> sits within its coverage radius. Uncovered housing piles up. Production adds a smaller industrial floor.',
+    why: 'High waste drags down <b>desirability</b> (bounded, so it won\'t collapse your city), which gates how far housing can upgrade. Dirty districts stop climbing tiers.',
+    how: 'Build sanitation near housing: <b>Refuse Dump</b> (r5, cheap), <b>Recycling Center</b> (r7), <b>Incinerator</b> (r9, needs Machinery to build). They must be staffed to count.'
+  },
   migration: {
     icon: '↕',
     title: 'Migration',

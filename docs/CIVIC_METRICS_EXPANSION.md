@@ -127,8 +127,8 @@ From the server map (verified 2026-05-28):
 - **Suppression:** new `category='sanitation'` buildings with a `coverage_radius` reduce
   waste for housing in range (Manhattan, like police). Must be **staffed** to count.
 - **Effect (bounded, safe):** waste drags desirability via the city-base term, capped:
-  `desirability_city_base -= LEAST(10, FLOOR(waste / 10))`. Bounded so it cannot trigger
-  mass devolution. (Later: also feed Health in Phase 5.)
+  `desirability_city_base -= LEAST(8, FLOOR(waste / 12))` (max −8, reached at waste≥96).
+  Bounded so it cannot trigger mass devolution. (Later: also feed Health in Phase 5.)
 - **Worker-hungry** per Atlas's ask — sanitation buildings need many workers.
 
 **Buildings (`category='sanitation'`, industry_key='common'):**

@@ -240,6 +240,12 @@ function benefitText(bt) {
   if (bt.category === 'police') {
     return `Reduces crime in housing within ${bt.coverage_radius || 0} tiles. Crime over 50 pushes citizens out of the city.`;
   }
+  if (bt.category === 'sanitation') {
+    return `Collects waste for housing within ${bt.coverage_radius || 0} tiles while staffed. Uncovered homes build up waste, which drags down desirability. The Incinerator needs Machinery to build.`;
+  }
+  if (bt.category === 'power') {
+    return 'Generates power for the city while staffed.';
+  }
   if (bt.category === 'park') {
     return `Dampens pollution by ${Math.abs(bt.pollution_emit || 0)} on every tile within ${bt.pollution_radius || 0}. No staffing needed.`;
   }

@@ -478,6 +478,9 @@ export function getBuildingAoeRange(b, bt) {
   if (bt.category === 'civic' && bt.desirability_radius > 0) {
     return { range: bt.desirability_radius, kind: 'civic' };
   }
+  if (bt.category === 'sanitation' && bt.coverage_radius > 0) {
+    return { range: bt.coverage_radius, kind: 'sanitation' };
+  }
   return null;
 }
 
@@ -505,6 +508,12 @@ export function heatmapTintFor(mode, value) {
   if (mode === 'crime') {
     if (value < 50) return { tint: 0, alpha: 0 };
     return { tint: 0xc84878, alpha: 0.42 };
+  }
+  if (mode === 'waste') {
+    // Mirrors crime: housing outside staffed sanitation coverage is
+    // tinted (value 100 = uncovered), clean tiles draw nothing.
+    if (value < 50) return { tint: 0, alpha: 0 };
+    return { tint: 0x8a6d3b, alpha: 0.42 };
   }
   if (mode === 'issues') {
     if (value < 50) return { tint: 0, alpha: 0 };
@@ -568,6 +577,33 @@ export function computePoliceCoverage(allBuildings, buildingTypes, myId) {
     if (b.player_id !== myId) continue;
     const bt = buildingTypes[b.building_type_key];
     if (!bt || bt.category !== 'police') continue;
+    if (b.status !== 'active' || !b.is_staffed) continue;
+    const r = bt.coverage_radius || 0;
+    const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;
+    for (let dx = 0; dx < fw; dx++) {
+      for (let dy = 0; dy < fh; dy++) {
+        for (let rx = -r; rx <= r; rx++) {
+          for (let ry = -r; ry <= r; ry++) {
+            if (Math.abs(rx) + Math.abs(ry) <= r) {
+              covered.add((b.x + dx + rx) + ',' + (b.y + dy + ry));
+            }
+          }
+        }
+      }
+    }
+  }
+  return covered;
+}
+
+// Set of "x,y" tile keys covered by any of `myId`'s staffed active
+// sanitation buildings' manhattan disks. Mirrors computePoliceCoverage
+// — the waste heatmap red-tints uncovered tiles.
+export function computeSanitationCoverage(allBuildings, buildingTypes, myId) {
+  const covered = new Set();
+  for (const b of allBuildings) {
+    if (b.player_id !== myId) continue;
+    const bt = buildingTypes[b.building_type_key];
+    if (!bt || bt.category !== 'sanitation') continue;
     if (b.status !== 'active' || !b.is_staffed) continue;
     const r = bt.coverage_radius || 0;
     const fw = bt.footprint_w || 1, fh = bt.footprint_h || 1;

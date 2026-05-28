@@ -57,7 +57,8 @@ function setOpenSection(cat) {
 // CATEGORY_ORDER so sub-groupings stay stable across re-renders.
 const CATEGORY_RANK = {
   road: 0, housing: 1, extractor: 2, food_extractor: 3,
-  processor: 4, booster: 5, service: 6, civic: 7, tax: 8, police: 9, park: 10,
+  processor: 4, booster: 5, service: 6, civic: 7, tax: 8, police: 9,
+  sanitation: 9.5, power: 9.7, park: 10,
   transport_hub: 11, transport_connector: 12
 };
 
@@ -328,6 +329,16 @@ function describeBuilding(bt) {
   }
   if (cat === 'police') {
     return `Covers ${bt.coverage_radius || 0} tiles for crime when staffed. $${bt.upkeep_per_minute || 0}/min upkeep while staffed.`;
+  }
+  if (cat === 'sanitation') {
+    let s = `Collects waste for housing within ${bt.coverage_radius || 0} tiles when staffed — uncovered homes pile up garbage. $${bt.upkeep_per_minute || 0}/min upkeep.`;
+    if (bt.pollution_emit > 0) {
+      s += ` Emits ${bt.pollution_emit} pollution radius ${bt.pollution_radius} — site it away from homes.`;
+    }
+    return s;
+  }
+  if (cat === 'power') {
+    return `Generates power for the city while staffed. $${bt.upkeep_per_minute || 0}/min upkeep.`;
   }
   if (cat === 'booster') {
     const pct = Math.round(((bt.boost_multiplier || 1) - 1) * 100);

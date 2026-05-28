@@ -86,6 +86,9 @@ export function mountTopBar(onExpanded) {
       <span class="topbar-stat" id="tb-crime-stat" title="Crime (0–100, lower is better)">
         <span>🚨</span><span class="v" id="tb-crime">0</span>
       </span>
+      <span class="topbar-stat" id="tb-waste-stat" title="Waste (0–100, lower is better)">
+        <span>🗑</span><span class="v" id="tb-waste">0</span>
+      </span>
       <span class="topbar-stat" id="tb-migration-stat" title="Net population change per minute">
         <span id="tb-migration-icon">→</span><span class="v" id="tb-migration">0</span>
       </span>
@@ -144,6 +147,7 @@ export function mountTopBar(onExpanded) {
   wireStat('tb-parcels-stat', 'parcels');
   wireStat('tb-happiness-stat', 'happiness');
   wireStat('tb-crime-stat', 'crime');
+  wireStat('tb-waste-stat', 'waste');
   wireStat('tb-migration-stat', 'migration');
   wireStat('tb-productivity-stat', 'productivity');
 
@@ -266,6 +270,16 @@ export function refreshTopBar() {
     (c <= 25 ? 'Streets are quiet.' :
      c <= 50 ? 'Some unrest — consider more police coverage.' :
               'High crime is dragging down happiness.');
+
+  // Waste — colored by severity, same scale/thresholds as crime.
+  const w = Math.round(p.waste || 0);
+  const wsv = document.getElementById('tb-waste');
+  wsv.textContent = w;
+  wsv.className = 'v ' + (w <= 25 ? 'crime-low' : w <= 50 ? 'crime-mid' : 'crime-high');
+  document.getElementById('tb-waste-stat').title = 'Waste ' + w + '/100. ' +
+    (w <= 25 ? 'Streets are clean.' :
+     w <= 50 ? 'Garbage building up — add sanitation coverage.' :
+              'Heavy waste is dragging down desirability.');
 
   // Migration — arrow + signed rate per minute.
   const rate = Number(p.migration_rate || 0);

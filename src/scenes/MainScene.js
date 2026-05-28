@@ -24,6 +24,7 @@ import {
   computeWorldBounds as _computeWorldBounds,
   sizeSvgDataUri,
   computePoliceCoverage as _computePoliceCoverage,
+  computeSanitationCoverage as _computeSanitationCoverage,
   computeProblemTiles as _computeProblemTiles,
   computeBuildingIssue,
   tileHash
@@ -78,7 +79,9 @@ const CATEGORY_TINTS = {
   road: 0x4a4538,
   transport_hub: 0x8a4a8a,
   transport_connector: 0x6a4a6a,
-  civic: 0xc8b87a
+  civic: 0xc8b87a,
+  sanitation: 0x8a6d3b,
+  power: 0xd8b020
 };
 
 // World bounds (state-bound wrapper around the pure helper).
@@ -148,7 +151,8 @@ const AOE_TINTS = {
   school: 0xa07050,
   temple: 0xa89870,
   bathhouse: 0x587088,
-  civic: 0xf0c850   // amber — Public Garden / Monument desirability bonus
+  civic: 0xf0c850,  // amber — Public Garden / Monument desirability bonus
+  sanitation: 0x8a6d3b   // brown — waste collection coverage
 };
 
 
@@ -1486,8 +1490,10 @@ export class MainScene extends Phaser.Scene {
     // 'issues' needs the set of problematic-building tiles (red overlay).
     let policeCovered = null;
     let problemTiles = null;
+    let sanitationCovered = null;
     if (this._heatmapMode === 'crime') policeCovered = this._computePoliceCoverage();
     if (this._heatmapMode === 'issues') problemTiles = this._computeProblemTiles();
+    if (this._heatmapMode === 'waste') sanitationCovered = this._computeSanitationCoverage();
 
     // Pollution + desirability paint the city-wide metric set
     // (loaded separately by refreshCityTileMetrics so a fetch error
@@ -1505,6 +1511,7 @@ export class MainScene extends Phaser.Scene {
       if (this._heatmapMode === 'pollution') value = Number(t.pollution || 0);
       else if (this._heatmapMode === 'desirability') value = Number(t.desirability || 0);
       else if (this._heatmapMode === 'crime') value = policeCovered.has(k) ? 0 : 100;
+      else if (this._heatmapMode === 'waste') value = sanitationCovered.has(k) ? 0 : 100;
       else if (this._heatmapMode === 'issues') value = problemTiles.has(k) ? 100 : 0;
       else value = 0;
 
@@ -1528,6 +1535,9 @@ export class MainScene extends Phaser.Scene {
   }
   _computeProblemTiles() {
     return _computeProblemTiles(state.allBuildings, state.buildingTypes, state.currentUser?.id);
+  }
+  _computeSanitationCoverage() {
+    return _computeSanitationCoverage(state.allBuildings, state.buildingTypes, state.currentUser?.id);
   }
 
   // Called by BuildMenu when the player picks a building type to
