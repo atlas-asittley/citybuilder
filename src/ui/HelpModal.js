@@ -244,7 +244,10 @@ function benefitText(bt) {
     return `Collects waste for housing within ${bt.coverage_radius || 0} tiles while staffed. Uncovered homes build up waste, which drags down desirability. The Incinerator needs Machinery to build.`;
   }
   if (bt.category === 'power') {
-    return 'Generates power for the city while staffed.';
+    const fuel = bt.input_resource_key
+      ? ` Burns ${resName(bt.input_resource_key)} while running (needs Machinery to build).`
+      : ' No fuel needed.';
+    return `Generates +${bt.power_output || 0} power while staffed.${fuel} Processors and transport hubs consume power; a shortage will throttle production once that mechanic is switched on.`;
   }
   if (bt.category === 'park') {
     return `Dampens pollution by ${Math.abs(bt.pollution_emit || 0)} on every tile within ${bt.pollution_radius || 0}. No staffing needed.`;

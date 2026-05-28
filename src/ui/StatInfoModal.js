@@ -41,6 +41,13 @@ const STAT_INFO = {
     why: 'High crime drags down happiness and citizens start leaving — can undo your service buildouts.',
     how: 'Place police buildings (Watch House r4 / Police Station r6 / Constabulary r8) so they cover housing. They need staffing to work — unstaffed police don\'t reduce crime.'
   },
+  power: {
+    icon: '⚡',
+    title: 'Power',
+    what: 'Your city\'s electricity balance: <b>demand / capacity</b>. Processors and transport hubs draw power; <b>power plants</b> generate it. Extractors, farms, housing and services don\'t draw any.',
+    why: 'A utility, like water. Today the number is informational — running short does nothing yet. The plan is for a shortage to throttle production (a "brownout"), so it pays to get ahead of it.',
+    how: 'Build power: <b>Watermill / Windmill</b> (fuel-free, +20 each) or a <b>Powerhouse</b> (+80, burns Charcoal, needs Machinery to build). They must be staffed to generate.'
+  },
   waste: {
     icon: '🗑',
     title: 'Waste',

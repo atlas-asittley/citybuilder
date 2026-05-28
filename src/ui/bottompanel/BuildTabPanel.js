@@ -338,7 +338,8 @@ function describeBuilding(bt) {
     return s;
   }
   if (cat === 'power') {
-    return `Generates power for the city while staffed. $${bt.upkeep_per_minute || 0}/min upkeep.`;
+    const fuel = bt.input_resource_key ? ` Burns ${ins(bt)} while running.` : ' No fuel needed.';
+    return `Generates +${bt.power_output || 0} power for the city while staffed.${fuel} Processors and transport draw power.`;
   }
   if (cat === 'booster') {
     const pct = Math.round(((bt.boost_multiplier || 1) - 1) * 100);

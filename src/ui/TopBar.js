@@ -95,6 +95,9 @@ export function mountTopBar(onExpanded) {
       <span class="topbar-stat" id="tb-productivity-stat" title="Production multiplier (100% = baseline)">
         <span>⚒</span><span class="v" id="tb-productivity">100%</span>
       </span>
+      <span class="topbar-stat" id="tb-power-stat" title="Power: demand / capacity">
+        <span>⚡</span><span class="v" id="tb-power">0/0</span>
+      </span>
     </div>
   `;
   root.appendChild(bar);
@@ -150,6 +153,7 @@ export function mountTopBar(onExpanded) {
   wireStat('tb-waste-stat', 'waste');
   wireStat('tb-migration-stat', 'migration');
   wireStat('tb-productivity-stat', 'productivity');
+  wireStat('tb-power-stat', 'power');
 
   // Triple-tap the money chip → server-side dev_grant_money cheat.
   // v1 has this as a developer convenience; same RPC, same gesture.
@@ -312,6 +316,19 @@ export function refreshTopBar() {
     ? 'Production at baseline (100%)'
     : pct > 100 ? 'Production +' + (pct - 100) + '% above baseline'
                 : 'Production ' + (pct - 100) + '% below baseline';
+
+  // Power — demand / capacity. Red when demand outstrips supply.
+  const pcap = Math.round(Number(p.power_capacity || 0));
+  const pdem = Math.round(Number(p.power_demand || 0));
+  const pwv = document.getElementById('tb-power');
+  pwv.textContent = pdem + '/' + pcap;
+  const short = pdem > pcap;
+  pwv.className = 'v ' + (short ? 'crime-high' : pdem > 0 ? 'productivity-up' : 'migration-steady');
+  document.getElementById('tb-power-stat').title = pdem === 0 && pcap === 0
+    ? 'No power generated or used yet. Build power plants once you run processors.'
+    : short
+      ? 'Power shortage: drawing ' + pdem + ' but only generating ' + pcap + '. Build more power plants.'
+      : 'Power: using ' + pdem + ' of ' + pcap + ' generated.';
 }
 
 function updateTraderResetCountdown() {

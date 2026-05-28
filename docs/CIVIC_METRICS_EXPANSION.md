@@ -173,6 +173,18 @@ housing tiles, or per-tile if we later go per-tile).
 - Ship visible-but-toothless: compute and display capacity/demand first, flip the brownout
   penalty after we confirm balance (otherwise existing cities suddenly slow down).
 
+**Built (Phase 2, on branch — `power_energy.sql` + `test_power_energy.py`, 7 tests):** exactly
+as above, with these concrete values: consumers draw `power_load` = 3 (processor) / 8
+(transport_hub) / 4 (transport_connector); plants supply `power_output` = 20 (Watermill/Windmill,
+fuel-free) / 80 (Powerhouse). The Powerhouse burns `0.5 charcoal`/tick (via its
+`input_resource_key`) and costs **1 machinery** to build. `_pp_update_power` runs after waste in
+the tick, writing `player_profiles.power_capacity` / `power_demand`. **Brownout is deliberately
+NOT wired** — to flip it on, multiply `_pp_compute_productivity`'s result by
+`clamp(power_capacity / GREATEST(1, power_demand), 0.6, 1.0)` (one spot, no schema change).
+Frontend: ⚡ demand/capacity chip + StatInfoModal + Inspector rows + sprites. **Era decision
+(resolves §13):** pre-industrial flavour — Watermill/Windmill + a charcoal-fired Powerhouse —
+not full industrial.
+
 ## 8. Feature: Fancier Roads *(Phase 3)*
 
 Roads today are pure connectivity (`category='road'`, no metric effect). Add tiers, each
@@ -253,8 +265,8 @@ Per `feedback_new_building_category_checklist`, each new category touches:
 | Phase | Content | Risk | State |
 |---|---|---|---|
 | 0 | This design doc | none | ✅ |
-| 1 | Waste management (server + tests + frontend) | low (bounded effect) | in progress |
-| 2 | Power/Energy (visible-but-toothless) | low | queued |
+| 1 | Waste management (server + tests + frontend) | low (bounded effect) | ✅ built (branch) |
+| 2 | Power/Energy (visible-but-toothless) | low | ✅ built (branch) |
 | 3 | Fancier roads + capstone sinks | medium (sprites, RPC) | queued |
 | 4 | Congestion + Noise | medium | queued |
 | 5 | Health + Education + food-variety gate | higher (touches upgrade paths) | queued |
