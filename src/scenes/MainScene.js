@@ -2319,7 +2319,9 @@ export class MainScene extends Phaser.Scene {
         }
         const btKey = this._placementMode.buildingType.key;
         try {
-          applyRpcResponse(await placeBuilding(tile.id, btKey));
+          const rpcData = await placeBuilding(tile.id, btKey);
+          applyRpcResponse(rpcData);
+          this._addBuildingOptimistically(rpcData, tile, btKey);
           showToast('Placed.', 'success');
           if (this._placementMode.buildingType.category !== 'road') {
             this.setPlacementMode(null);
@@ -2367,6 +2369,36 @@ export class MainScene extends Phaser.Scene {
     return state.tileMap[gx + ',' + gy] || null;
   }
 
+  // After place_building succeeds, add the building to state.allBuildings
+  // immediately so road/building renders without waiting for the realtime
+  // INSERT event (which can lag seconds on mobile). The realtime handler's
+  // duplicate-id check prevents double-adding when the event eventually fires.
+  _addBuildingOptimistically(rpcData, tile, btKey) {
+    if (!rpcData?.building_id) return;
+    if (state.allBuildings.some(b => b.id === rpcData.building_id)) return;
+    state.allBuildings.push({
+      id: rpcData.building_id,
+      building_type_key: btKey,
+      player_id: state.currentUser?.id,
+      x: tile.x, y: tile.y,
+      status: 'active',
+      is_staffed: false,
+      housing_tier: 1,
+      stored_input: 0, stored_output: 0,
+      expansion_level: 0,
+      path_length: null,
+      target_x: rpcData.extractor_target?.x ?? null,
+      target_y: rpcData.extractor_target?.y ?? null,
+      auto_upgrade: false, staffing_priority: null,
+      last_devolve_reason: null, evolution_eligible_at: null,
+      player_profiles: {
+        display_name: state.profile?.display_name,
+        color_hex: state.profile?.color_hex
+      }
+    });
+    this.rerenderBuildings();
+  }
+
   // Drag-paint helper. Fires place_building for the tile under the
   // cursor at most once per drag sequence — _dragPaintPlaced tracks
   // which tiles we've already submitted so revisiting one (e.g., the
@@ -2381,7 +2413,9 @@ export class MainScene extends Phaser.Scene {
     const total = this._dragPaintPlaced.size;
     showDragCost(total, total * (bt.build_cost || 0));
     try {
-      applyRpcResponse(await placeBuilding(tile.id, bt.key));
+      const rpcData = await placeBuilding(tile.id, bt.key);
+      applyRpcResponse(rpcData);
+      this._addBuildingOptimistically(rpcData, tile, bt.key);
     } catch (_err) {
       // Silent during drag-paint — alerting on every failed tile
       // (already-occupied / not adjacent / no road) would spam.
