@@ -284,6 +284,7 @@ export class MainScene extends Phaser.Scene {
     this._heatmapMode = 'normal';
     this._dragPaintActive = false;
     this._dragPaintPlaced = new Set();
+    this._dragPaintQueue = Promise.resolve(); // serializes road RPCs so each tile commits before the next adjacency check
     this._tileSprites = new Map(); // "x,y" → tile sprite, for re-tint on tick
 
     this._renderTiles();
@@ -2270,6 +2271,7 @@ export class MainScene extends Phaser.Scene {
       if (this._placementMode?.buildingType.category === 'road') {
         this._dragPaintActive = true;
         this._dragPaintPlaced.clear();
+        this._dragPaintQueue = Promise.resolve();
         this._paintAtPointer(p);
       }
     });
@@ -2403,7 +2405,12 @@ export class MainScene extends Phaser.Scene {
   // cursor at most once per drag sequence — _dragPaintPlaced tracks
   // which tiles we've already submitted so revisiting one (e.g., the
   // user sweeps back over a tile) doesn't double-call the RPC.
-  async _paintAtPointer(p) {
+  //
+  // For roads, RPCs are serialized through _dragPaintQueue so each tile
+  // commits to the DB before the next tile's adjacency check fires.
+  // Without serialization, concurrent RPCs race: tile B's "must connect"
+  // check runs before tile A commits and B silently fails.
+  _paintAtPointer(p) {
     const tile = this._tileAtPointer(p);
     if (!tile) return;
     const key = tile.id;
@@ -2416,17 +2423,27 @@ export class MainScene extends Phaser.Scene {
     const bt = this._placementMode.buildingType;
     const total = this._dragPaintPlaced.size;
     showDragCost(total, total * (bt.build_cost || 0));
-    try {
-      const rpcData = await placeBuilding(tile.id, bt.key);
-      applyRpcResponse(rpcData);
-      this._addBuildingOptimistically(rpcData, tile, bt.key);
-    } catch (err) {
-      if (isFirstTile) {
-        // First tile = single tap or the start of a drag — user needs to know
-        // why it failed (e.g. "Roads must connect to another of your roads").
-        // Subsequent drag tiles stay silent to avoid spamming occupied-tile errors.
-        showToast(err.message || 'Could not place road.', 'error');
+
+    const doPlace = async () => {
+      try {
+        const rpcData = await placeBuilding(tile.id, bt.key);
+        applyRpcResponse(rpcData);
+        this._addBuildingOptimistically(rpcData, tile, bt.key);
+      } catch (err) {
+        if (isFirstTile) {
+          // First tile = single tap or the start of a drag — user needs to know
+          // why it failed (e.g. "Roads must connect to another of your roads").
+          // Subsequent drag tiles stay silent to avoid spamming occupied-tile errors.
+          showToast(err.message || 'Could not place road.', 'error');
+        }
       }
+    };
+
+    if (bt.category === 'road') {
+      // Chain onto the queue so each road RPC completes before the next starts.
+      this._dragPaintQueue = this._dragPaintQueue.then(doPlace);
+    } else {
+      doPlace();
     }
   }
 }
