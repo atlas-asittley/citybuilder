@@ -1520,6 +1520,7 @@ export class MainScene extends Phaser.Scene {
       let value;
       if (this._heatmapMode === 'pollution') value = Number(t.pollution || 0);
       else if (this._heatmapMode === 'desirability') value = Number(t.desirability || 0);
+      else if (this._heatmapMode === 'noise') value = Number(t.noise || 0);
       else if (this._heatmapMode === 'crime') value = policeCovered.has(k) ? 0 : 100;
       else if (this._heatmapMode === 'waste') value = sanitationCovered.has(k) ? 0 : 100;
       else if (this._heatmapMode === 'issues') value = problemTiles.has(k) ? 100 : 0;

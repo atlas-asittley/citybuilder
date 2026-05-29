@@ -89,6 +89,9 @@ export function mountTopBar(onExpanded) {
       <span class="topbar-stat" id="tb-waste-stat" title="Waste (0–100, lower is better)">
         <span>🗑</span><span class="v" id="tb-waste">0</span>
       </span>
+      <span class="topbar-stat" id="tb-congestion-stat" title="Traffic congestion (0–100, lower is better)">
+        <span>🚗</span><span class="v" id="tb-congestion">0</span>
+      </span>
       <span class="topbar-stat" id="tb-migration-stat" title="Net population change per minute">
         <span id="tb-migration-icon">→</span><span class="v" id="tb-migration">0</span>
       </span>
@@ -151,6 +154,7 @@ export function mountTopBar(onExpanded) {
   wireStat('tb-happiness-stat', 'happiness');
   wireStat('tb-crime-stat', 'crime');
   wireStat('tb-waste-stat', 'waste');
+  wireStat('tb-congestion-stat', 'congestion');
   wireStat('tb-migration-stat', 'migration');
   wireStat('tb-productivity-stat', 'productivity');
   wireStat('tb-power-stat', 'power');
@@ -284,6 +288,15 @@ export function refreshTopBar() {
     (w <= 25 ? 'Streets are clean.' :
      w <= 50 ? 'Garbage building up — add sanitation coverage.' :
               'Heavy waste is dragging down desirability.');
+
+  // Congestion — colored by severity, same thresholds as crime/waste.
+  const cong = Math.round(p.congestion || 0);
+  const cgv = document.getElementById('tb-congestion');
+  cgv.textContent = cong;
+  cgv.className = 'v ' + (cong <= 25 ? 'crime-low' : cong <= 50 ? 'crime-mid' : 'crime-high');
+  document.getElementById('tb-congestion-stat').title = 'Congestion ' + cong + '/100. ' +
+    (cong <= 40 ? 'Traffic flows freely.' :
+                 'Streets are clogged — build more / wider roads to keep production moving.');
 
   // Migration — arrow + signed rate per minute.
   const rate = Number(p.migration_rate || 0);

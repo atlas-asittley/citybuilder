@@ -519,6 +519,12 @@ export function heatmapTintFor(mode, value) {
     if (value < 50) return { tint: 0, alpha: 0 };
     return { tint: 0x8a6d3b, alpha: 0.42 };
   }
+  if (mode === 'noise') {
+    // Per-tile, scaled like pollution (purple).
+    if (value <= 0) return { tint: 0, alpha: 0 };
+    const t = Math.min(1, value / 20);
+    return { tint: 0xa050b0, alpha: 0.15 + t * 0.45 };
+  }
   if (mode === 'issues') {
     if (value < 50) return { tint: 0, alpha: 0 };
     return { tint: 0xf0a838, alpha: 0.5 };

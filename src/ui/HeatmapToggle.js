@@ -17,6 +17,7 @@ const MODES = [
   { key: 'pollution',    label: 'Pollution',        swatch: '#e85a3a' },
   { key: 'crime',        label: 'Crime risk',       swatch: '#c84878' },
   { key: 'waste',        label: 'Waste',            swatch: '#8a6d3b' },
+  { key: 'noise',        label: 'Noise',            swatch: '#a050b0' },
   { key: 'issues',       label: 'Building issues',  swatch: '#f0a838' },
   { key: 'desirability', label: 'Desirability',     swatch: '#3ac860' }
 ];

@@ -144,7 +144,7 @@ async function refreshTileMetrics() {
   if (!state.currentUser) return;
   const { data, error } = await sb
     .from('map_tiles')
-    .select('id, x, y, pollution, desirability')
+    .select('id, x, y, pollution, desirability, noise')
     .eq('owner_player_id', state.currentUser.id);
   if (error) {
     console.warn('refreshTileMetrics error:', error.message);
@@ -155,6 +155,7 @@ async function refreshTileMetrics() {
     if (!t) continue;
     t.pollution = row.pollution;
     t.desirability = row.desirability;
+    t.noise = row.noise;
   }
   if (onTileMetricsChangedCallback) onTileMetricsChangedCallback();
 }

@@ -371,6 +371,8 @@ function renderInspector() {
   rows.push(row('Location', `(${b.x}, ${b.y})`));
   rows.push(row('Footprint', `${bt.footprint_w || 1} × ${bt.footprint_h || 1}`));
   if (bt.pollution_emit > 0) rows.push(row('Pollution', `${bt.pollution_emit} emit, radius ${bt.pollution_radius}`));
+  if (Number(bt.noise_emit || 0) > 0) rows.push(row('Noise', `${bt.noise_emit} emit, radius ${bt.noise_radius}`));
+  else if (Number(bt.noise_emit || 0) < 0) rows.push(row('Noise', `dampens ${Math.abs(bt.noise_emit)} within ${bt.noise_radius}`));
   // For housing, surface this tile's environmental metrics + what tier
   // they qualify for. Helps the player see why a fancy house won't
   // upgrade ("desirability 48, Villa needs 60") at a glance.

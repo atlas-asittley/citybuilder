@@ -48,6 +48,13 @@ const STAT_INFO = {
     why: 'A utility, like water. Today the number is informational — running short does nothing yet. The plan is for a shortage to throttle production (a "brownout"), so it pays to get ahead of it.',
     how: 'Build power: <b>Watermill / Windmill</b> (fuel-free, +20 each) or a <b>Powerhouse</b> (+80, burns Charcoal, needs Machinery to build). They must be staffed to generate.'
   },
+  congestion: {
+    icon: '🚗',
+    title: 'Congestion',
+    what: '0–100, lower is better. Rises with <b>traffic</b> — population, staffed processors, and transport hubs — measured against your <b>road capacity</b> (every road tile counts, and fancier/wider roads count for more).',
+    why: 'Above 40, clogged streets throttle <b>productivity</b> (bounded, recoverable). It\'s the payoff for letting your road network lag behind a booming city.',
+    how: 'Lay more roads, and upgrade key arteries to <b>Tiled Avenue</b> / <b>Grand Boulevard</b> — higher road tiers carry more traffic and relieve congestion.'
+  },
   waste: {
     icon: '🗑',
     title: 'Waste',
