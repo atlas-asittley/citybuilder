@@ -22,6 +22,38 @@ so the table doesn't grow visually as we work through them.
 
 ---
 
+## 2026-05-29 — Civic Metrics Expansion follow-ups (Jill ×3, Drew ×1)
+
+Four reports landed right after the expansion went live — three from Jill
+playing with it, one from Drew. All four resolved.
+
+**Jill — "let me upgrade a road in place instead of demolish + rebuild"** (e2b47efb).
+A feature gap I'd flagged in the design doc ("no upgrade RPC"). Fix: added
+`upgrade_road(building_id, target_key)` (charges the target tier's cash +
+materials, writes the cash-ledger row, swaps `building_type_key` in place,
+keeps connectivity) + an inspector "Upgrade → <tier>" button with optimistic
+repaint. Commits v1 `27a9e7c`, v2 `5554397`. Tests `test_road_upgrade.py` (4).
+
+**Jill — "can't place multiple buildings, 'occupied' but it isn't"** (96a575a6).
+Diagnosis: no server-side phantom occupancy (0 stale tiles). Root cause was the
+place→render lag — a just-placed building hadn't rendered yet (realtime event
+lags on mobile Safari), so the tile looked empty while the server knew it was
+taken. Same cause as the "roads not showing after placement" report; fixed by
+the optimistic render-on-place commit `d4caff4` (Sonnet 4.6, parallel session).
+
+**Jill — "incinerator doesn't show its radius when clicked"** (0f6e4178).
+Not a code bug — the deployed `getBuildingAoeRange` handles the `sanitation`
+category and `showAoe` fires on inspect. It was the DB-ahead-of-frontend window
+at go-live (migrations applied before the frontend deployed), so her cached
+client was pre-expansion. Resolves on hard reload. **Lesson: deploy frontend
+first, then migrate** — the old frontend degrades gracefully on the new DB.
+
+**Drew — "should be able to zoom out way more"** (06038bff). Pre-existing.
+Lowered the min-zoom clamp 0.25 → 0.1 (ZoomControls + both MainScene clamps).
+Commit v2 `5554397`.
+
+---
+
 ## 2026-05-09 — Jill — "unable to update from a townhouse to a villa"
 
 **Reported:** 2026-05-09 19:22 UTC, in-game bug-report modal.
