@@ -20,7 +20,9 @@ import {
   describeHousingBlocker,
   describeHousingDevolveReason,
   computeResourceFlow,
-  computeHousingCapacity
+  computeHousingCapacity,
+  computeCoverageForCategory,
+  computeSanitationCoverage
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -168,6 +170,19 @@ describe('getBuildingAoeRange', () => {
     expect(getBuildingAoeRange({}, { category: 'service', key: 'temple' })).toEqual({ range: 6, kind: 'temple' });
     expect(getBuildingAoeRange({}, { category: 'service', key: 'bathhouse' })).toEqual({ range: 4, kind: 'bathhouse' });
   });
+  // Civic Metrics Expansion AOE kinds.
+  it('returns coverage_radius for sanitation', () => {
+    expect(getBuildingAoeRange({}, { category: 'sanitation', coverage_radius: 9 })).toEqual({ range: 9, kind: 'sanitation' });
+    expect(getBuildingAoeRange({}, { category: 'sanitation', coverage_radius: 0 })).toBeNull();
+  });
+  it('returns desirability_radius for civic amenities', () => {
+    expect(getBuildingAoeRange({}, { category: 'civic', desirability_radius: 3 })).toEqual({ range: 3, kind: 'civic' });
+    expect(getBuildingAoeRange({}, { category: 'civic', desirability_radius: 0 })).toBeNull();
+  });
+  it('returns a road aura only for upgraded roads with a desirability radius', () => {
+    expect(getBuildingAoeRange({}, { category: 'road', desirability_radius: 2 })).toEqual({ range: 2, kind: 'road' });
+    expect(getBuildingAoeRange({}, { category: 'road', desirability_radius: 0 })).toBeNull();  // dirt road
+  });
 });
 
 describe('heatmapTintFor', () => {
@@ -191,6 +206,17 @@ describe('heatmapTintFor', () => {
   it('issues: binary on/off at the 50 threshold', () => {
     expect(heatmapTintFor('issues', 0).alpha).toBe(0);
     expect(heatmapTintFor('issues', 100).tint).toBe(0xf0a838);
+  });
+  it('waste: mirrors crime — binary at 50, brown tint', () => {
+    expect(heatmapTintFor('waste', 0).alpha).toBe(0);
+    expect(heatmapTintFor('waste', 49).alpha).toBe(0);
+    expect(heatmapTintFor('waste', 100).tint).toBe(0x8a6d3b);
+  });
+  it('waste: noise — scaled purple like pollution', () => {
+    expect(heatmapTintFor('noise', 0)).toEqual({ tint: 0, alpha: 0 });
+    const r = heatmapTintFor('noise', 20);
+    expect(r.tint).toBe(0xa050b0);
+    expect(r.alpha).toBeGreaterThan(0.5);
   });
   it('unknown mode → no overlay', () => {
     expect(heatmapTintFor('zzz', 999)).toEqual({ tint: 0, alpha: 0 });
@@ -1168,3 +1194,39 @@ describe('computeHousingCapacity', () => {
   });
 });
 
+
+describe('computeCoverageForCategory / computeSanitationCoverage', () => {
+  const bt = {
+    dump: { category: 'sanitation', coverage_radius: 1, footprint_w: 1, footprint_h: 1 },
+    incinerator: { category: 'sanitation', coverage_radius: 2, footprint_w: 2, footprint_h: 2 },
+    watch_house: { category: 'police', coverage_radius: 1, footprint_w: 1, footprint_h: 1 }
+  };
+  it('returns the manhattan disk around a staffed building of the category', () => {
+    const b = [{ player_id: 'me', building_type_key: 'dump', x: 5, y: 5, status: 'active', is_staffed: true }];
+    const cov = computeCoverageForCategory(b, bt, 'me', 'sanitation');
+    expect(cov.has('5,5')).toBe(true);
+    expect(cov.has('6,5')).toBe(true);   // r1 east
+    expect(cov.has('5,6')).toBe(true);   // r1 south
+    expect(cov.has('6,6')).toBe(false);  // diagonal is manhattan-distance 2 > 1
+    expect(cov.has('7,5')).toBe(false);  // r2 east, out of range
+  });
+  it('excludes unstaffed, inactive, and other-player buildings', () => {
+    const b = [
+      { player_id: 'me', building_type_key: 'dump', x: 1, y: 1, status: 'active', is_staffed: false },
+      { player_id: 'me', building_type_key: 'dump', x: 9, y: 9, status: 'paused', is_staffed: true },
+      { player_id: 'them', building_type_key: 'dump', x: 3, y: 3, status: 'active', is_staffed: true }
+    ];
+    expect(computeCoverageForCategory(b, bt, 'me', 'sanitation').size).toBe(0);
+  });
+  it('unions the disk over every footprint cell of a multi-tile building', () => {
+    const b = [{ player_id: 'me', building_type_key: 'incinerator', x: 0, y: 0, status: 'active', is_staffed: true }];
+    const cov = computeCoverageForCategory(b, bt, 'me', 'incinerator'.slice(0, 0) || 'sanitation');
+    // footprint cells (0,0),(1,0),(0,1),(1,1) each project r2 → far corner reachable
+    expect(cov.has('1,1')).toBe(true);
+    expect(cov.has('3,1')).toBe(true);   // from (1,1) cell, r2 east
+  });
+  it('computeSanitationCoverage is the sanitation-category specialization', () => {
+    const b = [{ player_id: 'me', building_type_key: 'dump', x: 5, y: 5, status: 'active', is_staffed: true }];
+    expect(computeSanitationCoverage(b, bt, 'me')).toEqual(computeCoverageForCategory(b, bt, 'me', 'sanitation'));
+  });
+});
