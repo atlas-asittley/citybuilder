@@ -246,6 +246,7 @@ export function applyRpcResponse(data) {
     for (const k in data.inventory) state.inventory[k] = Number(data.inventory[k]);
   }
   if (data.chunks_owned !== undefined) state.profile.chunks_owned = data.chunks_owned;
+  if (data.congestion !== undefined) state.profile.congestion = data.congestion;
   refreshTopBar();
   refreshBottomPanel();
 }
