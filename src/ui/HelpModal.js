@@ -31,8 +31,9 @@ const CATEGORY_ORDER = {
   road: 0, housing: 1,
   extractor: 2, food_extractor: 3,
   processor: 4, booster: 5,
-  service: 6, tax: 7, police: 8,
-  park: 9, transport_hub: 10, transport_connector: 11
+  service: 6, civic: 7, tax: 8, police: 9,
+  sanitation: 10, power: 11,
+  park: 12, transport_hub: 13, transport_connector: 14
 };
 
 export function openHelp() {

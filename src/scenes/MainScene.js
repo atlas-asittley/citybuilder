@@ -2383,7 +2383,7 @@ export class MainScene extends Phaser.Scene {
       x: tile.x, y: tile.y,
       status: 'active',
       is_staffed: false,
-      housing_tier: 1,
+      housing_tier: 0,   // place_building inserts housing at tier 0 (Shanty); was 1, caused a brief wrong-sprite flash
       stored_input: 0, stored_output: 0,
       expansion_level: 0,
       path_length: null,
