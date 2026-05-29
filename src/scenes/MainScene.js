@@ -2132,7 +2132,7 @@ export class MainScene extends Phaser.Scene {
     // load, not the world centroid.
     const restored = this._loadSavedMapView();
     if (restored) {
-      cam.setZoom(Phaser.Math.Clamp(restored.zoom, 0.25, 3));
+      cam.setZoom(Phaser.Math.Clamp(restored.zoom, 0.1, 3));
       cam.scrollX = restored.scrollX;
       cam.scrollY = restored.scrollY;
     } else {
@@ -2157,7 +2157,7 @@ export class MainScene extends Phaser.Scene {
     // away from where the player was pointing.
     this.input.on('wheel', (pointer, _o, _dx, dy) => {
       const before = cam.getWorldPoint(pointer.x, pointer.y);
-      cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.25, 3));
+      cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.1, 3));
       const after = cam.getWorldPoint(pointer.x, pointer.y);
       cam.scrollX -= (after.x - before.x);
       cam.scrollY -= (after.y - before.y);

@@ -50,6 +50,13 @@ export function upgradeHouse(buildingId) {
   return callWithDeadlockRetry('upgrade_house', { p_building_id: buildingId });
 }
 
+export function upgradeRoad(buildingId, targetKey) {
+  return callWithDeadlockRetry('upgrade_road', {
+    p_building_id: buildingId,
+    p_target_key: targetKey
+  });
+}
+
 export function setHouseAutoUpgrade(buildingId, enabled) {
   return callWithDeadlockRetry('set_house_auto_upgrade', {
     p_building_id: buildingId,

@@ -12,7 +12,7 @@ import Phaser from 'phaser';
 let mounted = false;
 let sceneRef = null;
 
-const Z_MIN = 0.25;
+const Z_MIN = 0.1;   // allow zooming further out for big multi-parcel cities (Drew's request 2026-05-29)
 const Z_MAX = 3;
 
 export function mountZoomControls(scene) {

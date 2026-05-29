@@ -5,7 +5,7 @@
 // surface and grow from there.
 import { state } from '../state/store.js';
 import {
-  demolishBuilding, upgradeHouse,
+  demolishBuilding, upgradeHouse, upgradeRoad,
   setHouseAutoUpgrade, setBuildingPaused, setBuildingPriority, expandTransportHub
 } from '../api/buildings.js';
 import { applyRpcResponse } from '../api/tick.js';
@@ -449,6 +449,15 @@ function renderActions(b, bt, isMine) {
   if (isTransportHub) {
     parts.push(`<button class="ip-btn" id="ip-expand-hub">Expand hub (lvl ${(b.expansion_level || 0) + 1})</button>`);
   }
+  // Roads: upgrade in place to the next tier (no demolish/rebuild needed).
+  if (bt.category === 'road') {
+    const nextTier = (bt.road_tier || 1) + 1;
+    const target = Object.values(state.buildingTypes)
+      .find(t => t.category === 'road' && t.road_tier === nextTier);
+    if (target) {
+      parts.push(`<button class="ip-btn ip-btn-primary" id="ip-upgrade-road" data-target="${target.key}">Upgrade → ${target.name} ($${(target.build_cost || 0).toLocaleString()})</button>`);
+    }
+  }
   parts.push('<button class="ip-btn ip-btn-danger" id="ip-demolish">Demolish</button>');
   return parts.join('');
 }
@@ -458,6 +467,27 @@ function wireActionHandlers(b) {
     btn.disabled = true; btn.textContent = 'Upgrading…';
     try { applyRpcResponse(await upgradeHouse(b.id)); closeInspector(); }
     catch (err) { alert(err.message || 'Upgrade failed.'); btn.disabled = false; btn.textContent = 'Upgrade house'; }
+  });
+
+  bind('ip-upgrade-road', async (btn) => {
+    const target = btn.dataset.target;
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Upgrading…';
+    try {
+      applyRpcResponse(await upgradeRoad(b.id, target));
+      // Optimistic: swap the type locally + refresh the map and panel rather
+      // than waiting on the realtime UPDATE (which lags on mobile — the same
+      // issue that bit road PLACEMENT). buildingSignature keys on
+      // building_type_key, so rerenderBuildings repaints the new tier.
+      b.building_type_key = target;
+      const live = state.allBuildings.find(x => x.id === b.id);
+      if (live) live.building_type_key = target;
+      sceneRef?.rerenderBuildings?.();
+      renderInspector();
+      if (sceneRef?.showAoe) sceneRef.showAoe(b);
+    } catch (err) {
+      alert(err.message || 'Upgrade failed.'); btn.disabled = false; btn.textContent = label;
+    }
   });
 
   bind('ip-demolish', async (btn) => {
