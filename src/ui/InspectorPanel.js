@@ -216,6 +216,11 @@ function renderInspector() {
       rows.push(row('Last devolved', text, true));
     }
   }
+  if (bt.category === 'road' && bt.road_tier) {
+    const hasNextTier = Object.values(state.buildingTypes)
+      .some(t => t.category === 'road' && t.road_tier === bt.road_tier + 1);
+    rows.push(row('Road tier', hasNextTier ? bt.name : `${bt.name} — max tier`));
+  }
   if (b.expansion_level > 0) {
     rows.push(row('Expansion level', `${b.expansion_level}× (output multiplier)`));
   }

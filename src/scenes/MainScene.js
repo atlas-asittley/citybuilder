@@ -2409,6 +2409,10 @@ export class MainScene extends Phaser.Scene {
     const key = tile.id;
     if (this._dragPaintPlaced.has(key)) return;
     this._dragPaintPlaced.add(key);
+    // Capture before the await so we know this was the tap's first tile even
+    // after pointerup clears _dragPaintPlaced. Single-tap road placement goes
+    // through this path (not pointerup), so the user needs error feedback.
+    const isFirstTile = this._dragPaintPlaced.size === 1;
     const bt = this._placementMode.buildingType;
     const total = this._dragPaintPlaced.size;
     showDragCost(total, total * (bt.build_cost || 0));
@@ -2416,10 +2420,13 @@ export class MainScene extends Phaser.Scene {
       const rpcData = await placeBuilding(tile.id, bt.key);
       applyRpcResponse(rpcData);
       this._addBuildingOptimistically(rpcData, tile, bt.key);
-    } catch (_err) {
-      // Silent during drag-paint — alerting on every failed tile
-      // (already-occupied / not adjacent / no road) would spam.
-      // The successful tiles still go down.
+    } catch (err) {
+      if (isFirstTile) {
+        // First tile = single tap or the start of a drag — user needs to know
+        // why it failed (e.g. "Roads must connect to another of your roads").
+        // Subsequent drag tiles stay silent to avoid spamming occupied-tile errors.
+        showToast(err.message || 'Could not place road.', 'error');
+      }
     }
   }
 }
