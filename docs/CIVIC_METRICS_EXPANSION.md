@@ -243,6 +243,22 @@ Add as real stored metrics, each with an industry-spread sink:
 Cheapest high-impact pair: **Health** (loops with waste) and **Congestion** (loops with
 roads), because they reinforce Phases 1 & 3.
 
+**Built (Phases 4 & 5, on branch).** Phase 4 `noise_congestion.sql` (6 tests): **Noise** per-tile
+(clone of pollution; industry/transport emit, parks/groves dampen) — ships *toothless* (heatmap +
+computed, no desirability effect; flip = `- LEAST(10, mt.noise)`). **Congestion** per-player =
+traffic (pop + staffed processors + transport) vs road capacity (Σ `road_tier`, so Phase-3 roads
+relieve it) — *real*, gated >40, bounded −8% productivity. Phase 5 `health_education.sql` (8 tests):
+**Education** 0–100 = % housing covered by a staffed School/Library; **Health** 0–100 = 50 +
+Clinic/Hospital coverage − bounded waste. Both *upside-only* on productivity (Library extends the
+edu bonus; health>70 → +0.05; no penalties), so existing cities can only gain. New **Clinic** +
+**Library** services consume lumber+glass (timber/clay sink). **Food-variety**:
+`housing_tier_config.food_variety_required` added + populated (T4+ →2, T6+ →3) but *toothless* —
+`_pp_evolve_housing` doesn't read it yet (enforcing could strand cities); flip = gate evolution on
+the count of distinct in-stock `is_food` resources. This is the structural de-throning of iron's
+bread monopoly. Power **brownout** flipped on (electrified-only; `power_energy_brownout.sql`, 9
+tests). Productivity now composes: education + health (upside) → base; brownout × congestion
+(bounded downside).
+
 ## 10. Industry equalization *(cross-cutting)*
 
 Beyond the sink map (§4), one structural lever:
@@ -285,8 +301,9 @@ Per `feedback_new_building_category_checklist`, each new category touches:
 | 1 | Waste management (server + tests + frontend) | low (bounded effect) | ✅ built (branch) |
 | 2 | Power/Energy (visible-but-toothless) | low | ✅ built (branch) |
 | 3 | Fancier roads + capstone sinks | medium (sprites, RPC) | ✅ built (branch) |
-| 4 | Congestion + Noise | medium | queued |
-| 5 | Health + Education + food-variety gate | higher (touches upgrade paths) | queued |
+| 2b | Power brownout (electrified-only) | low | ✅ built (branch) |
+| 4 | Congestion + Noise | medium | ✅ built (branch) |
+| 5 | Health + Education + food-variety gate | higher (touches upgrade paths) | ✅ built (branch) |
 
 **Deployment policy for this work:** built on branch `civic-metrics-expansion`, tested via
 savepoint-isolated pytest (no live commit). The DB migration is **not applied to live**

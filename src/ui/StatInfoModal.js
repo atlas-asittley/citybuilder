@@ -48,6 +48,20 @@ const STAT_INFO = {
     why: 'A utility, like water. Today the number is informational — running short does nothing yet. The plan is for a shortage to throttle production (a "brownout"), so it pays to get ahead of it.',
     how: 'Build power: <b>Watermill / Windmill</b> (fuel-free, +20 each) or a <b>Powerhouse</b> (+80, burns Charcoal, needs Machinery to build). They must be staffed to generate.'
   },
+  health: {
+    icon: '❤️',
+    title: 'Public Health',
+    what: '0–100, higher is better. Starts at 50; rises with <b>Clinic / Hospital</b> coverage of your housing, and falls with high <b>waste</b>.',
+    why: 'A healthy city (above 70) gets a small <b>productivity</b> boost. There\'s no penalty for low health — it\'s pure upside, so it\'s always worth improving.',
+    how: 'Build <b>Clinics</b> within 5 tiles of housing (they consume lumber + glass while staffed), and keep waste down with sanitation.'
+  },
+  education: {
+    icon: '🎓',
+    title: 'Education',
+    what: '0–100, higher is better. The share of your housing within 5 tiles of a staffed <b>School</b> or <b>Library</b>.',
+    why: 'Educated cities are more productive — coverage feeds directly into your productivity multiplier.',
+    how: 'Place <b>Schools</b> and <b>Libraries</b> so their range blankets your housing (Libraries consume lumber + glass while staffed).'
+  },
   congestion: {
     icon: '🚗',
     title: 'Congestion',

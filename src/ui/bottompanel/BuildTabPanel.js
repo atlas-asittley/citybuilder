@@ -331,6 +331,12 @@ function describeBuilding(bt) {
     if (bt.key === 'hospital') {
       return `Cuts city-wide crime by ${bt.crime_reduction || 0} while staffed. Consumes ${ins(bt)} — competes with high-tier housing for the same ale.`;
     }
+    if (bt.key === 'clinic') {
+      return `Raises public Health for housing within ${bt.coverage_radius || 0} tiles while staffed. Consumes ${ins(bt)}.`;
+    }
+    if (bt.key === 'library') {
+      return `Raises Education for housing within ${bt.coverage_radius || 0} tiles while staffed (boosts productivity). Consumes ${ins(bt)}.`;
+    }
     return `Service building. Needs road access. ${bt.input_resource_key ? 'Consumes ' + ins(bt) + ' while staffed.' : ''}`;
   }
   if (cat === 'police') {

@@ -224,6 +224,8 @@ function benefitText(bt) {
     if (bt.key === 'school')    return 'Gates Townhouse (tier 3) evolution for any housing within 5 tiles.';
     if (bt.key === 'temple')    return 'Gates Villa (tier 4) evolution for any housing within 6 tiles.';
     if (bt.key === 'hospital')  return `Reduces city-wide crime by ${bt.crime_reduction || 0} while staffed. Consumes ale — competes with high-tier housing for it.`;
+    if (bt.key === 'clinic')    return `Raises public Health for housing within ${bt.coverage_radius || 0} tiles while staffed. High health gives a small productivity boost. Consumes lumber + glass.`;
+    if (bt.key === 'library')   return `Raises Education for housing within ${bt.coverage_radius || 0} tiles while staffed, boosting productivity. Consumes lumber + glass.`;
     return 'Service building.';
   }
   if (bt.category === 'civic') {

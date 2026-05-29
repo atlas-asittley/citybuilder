@@ -101,6 +101,12 @@ export function mountTopBar(onExpanded) {
       <span class="topbar-stat" id="tb-power-stat" title="Power: demand / capacity">
         <span>⚡</span><span class="v" id="tb-power">0/0</span>
       </span>
+      <span class="topbar-stat" id="tb-health-stat" title="Public health (0–100, higher is better)">
+        <span>❤️</span><span class="v" id="tb-health">50</span>
+      </span>
+      <span class="topbar-stat" id="tb-education-stat" title="Education (0–100, higher is better)">
+        <span>🎓</span><span class="v" id="tb-education">0</span>
+      </span>
     </div>
   `;
   root.appendChild(bar);
@@ -158,6 +164,8 @@ export function mountTopBar(onExpanded) {
   wireStat('tb-migration-stat', 'migration');
   wireStat('tb-productivity-stat', 'productivity');
   wireStat('tb-power-stat', 'power');
+  wireStat('tb-health-stat', 'health');
+  wireStat('tb-education-stat', 'education');
 
   // Triple-tap the money chip → server-side dev_grant_money cheat.
   // v1 has this as a developer convenience; same RPC, same gesture.
@@ -342,6 +350,21 @@ export function refreshTopBar() {
     : short
       ? 'Power shortage: drawing ' + pdem + ' but only generating ' + pcap + '. Build more power plants.'
       : 'Power: using ' + pdem + ' of ' + pcap + ' generated.';
+
+  // Health + Education — standings (higher is better): green high, red low.
+  const standingClass = (v) => v >= 70 ? 'migration-up' : v >= 40 ? 'productivity-neutral' : 'crime-high';
+  const hl = Math.round(p.health != null ? Number(p.health) : 50);
+  const hlv = document.getElementById('tb-health');
+  hlv.textContent = hl;
+  hlv.className = 'v ' + standingClass(hl);
+  document.getElementById('tb-health-stat').title = 'Public health ' + hl + '/100. ' +
+    (hl >= 70 ? 'A healthy city — small productivity boost.' : 'Build Clinics near housing and cut waste.');
+  const ed = Math.round(p.education != null ? Number(p.education) : 0);
+  const edv = document.getElementById('tb-education');
+  edv.textContent = ed;
+  edv.className = 'v ' + standingClass(ed);
+  document.getElementById('tb-education-stat').title = 'Education ' + ed + '/100. ' +
+    'Share of housing covered by a School or Library. Educated cities are more productive.';
 }
 
 function updateTraderResetCountdown() {
