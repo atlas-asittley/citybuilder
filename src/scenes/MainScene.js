@@ -2441,7 +2441,10 @@ export class MainScene extends Phaser.Scene {
 
     if (bt.category === 'road') {
       // Chain onto the queue so each road RPC completes before the next starts.
-      this._dragPaintQueue = this._dragPaintQueue.then(doPlace);
+      // .catch keeps the queue alive if doPlace ever rejects (e.g. showToast
+      // throws on a stale DOM reference) — without it the queue stays rejected
+      // and every subsequent road tap silently drops.
+      this._dragPaintQueue = this._dragPaintQueue.then(doPlace).catch(() => {});
     } else {
       doPlace();
     }
