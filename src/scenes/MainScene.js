@@ -2271,7 +2271,7 @@ export class MainScene extends Phaser.Scene {
       if (this._placementMode?.buildingType.category === 'road') {
         this._dragPaintActive = true;
         this._dragPaintPlaced.clear();
-        this._dragPaintQueue = Promise.resolve();
+        // Queue intentionally NOT reset here — persists across drags so rapid successive taps chain RPCs in order.
         this._paintAtPointer(p);
       }
     });
