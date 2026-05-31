@@ -261,6 +261,17 @@ async function fetchTradePolicies() {
   return map;
 }
 
+async function fetchInventory() {
+  const { data, error } = await sb
+    .from('inventories')
+    .select('resource_key, quantity')
+    .eq('player_id', state.currentUser.id);
+  if (error || !data) return {};
+  const map = {};
+  for (const row of data) map[row.resource_key] = Number(row.quantity);
+  return map;
+}
+
 // Compute grid bounds from the player's owned tiles so the Phaser
 // camera knows what world rectangle to constrain to.
 function computeGridBounds(tileMap) {
@@ -287,7 +298,7 @@ export async function loadInitialWorld() {
   if (!state.currentUser) throw new Error('loadInitialWorld called before auth');
   if (!state.profile) throw new Error('loadInitialWorld called before profile fetched');
 
-  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers, traderQuotas, lastVisits, lifestyleSubs] = await Promise.all([
+  const [buildings, tileMap, buildingTypes, housingTiers, resources, traders, traderPrices, tradePolicies, housingDemands, resourceCosts, buffers, traderQuotas, lastVisits, lifestyleSubs, inventory] = await Promise.all([
     fetchAllBuildings(),
     fetchTileMap(state.currentUser.id),
     fetchBuildingTypes(),
@@ -301,7 +312,8 @@ export async function loadInitialWorld() {
     fetchBuildingBuffers(),
     fetchTraderQuotas(),
     fetchTraderLastVisits(),
-    fetchLifestyleSubstitutes()
+    fetchLifestyleSubstitutes(),
+    fetchInventory()
   ]);
 
   state.allBuildings = buildings;
@@ -318,6 +330,7 @@ export async function loadInitialWorld() {
   state.traderQuotas = traderQuotas;
   state.traderLastVisits = lastVisits;
   state.lifestyleSubstitutes = lifestyleSubs;
+  state.inventory = inventory;
 
   const bounds = computeGridBounds(tileMap);
   state.gridMinX = bounds.minX;
