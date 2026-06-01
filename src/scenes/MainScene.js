@@ -866,14 +866,13 @@ export class MainScene extends Phaser.Scene {
     const fw = bt.footprint_w || 1;
     const fh = bt.footprint_h || 1;
     const cells = new Set();
-    // Manhattan disk around every footprint cell, then unioned.
+    // Chebyshev square around every footprint cell, then unioned.
+    // Must match the server's GREATEST(ABS(dx),ABS(dy)) check in _pp_evolve_housing.
     for (let dx = 0; dx < fw; dx++) {
       for (let dy = 0; dy < fh; dy++) {
         for (let rx = -aoe.range; rx <= aoe.range; rx++) {
           for (let ry = -aoe.range; ry <= aoe.range; ry++) {
-            if (Math.abs(rx) + Math.abs(ry) <= aoe.range) {
-              cells.add((building.x + dx + rx) + ',' + (building.y + dy + ry));
-            }
+            cells.add((building.x + dx + rx) + ',' + (building.y + dy + ry));
           }
         }
       }
@@ -1620,16 +1619,14 @@ export class MainScene extends Phaser.Scene {
     const pm = this._placementMode;
     if (!pm || !pm.aoeRange) return;
 
-    // Footprint-aware disk: union of manhattan disks around every
-    // footprint cell. Same formula the inspector uses.
+    // Footprint-aware coverage: union of Chebyshev squares around every
+    // footprint cell. Matches the server's GREATEST(ABS(dx),ABS(dy)) check.
     const cells = new Set();
     for (let dx = 0; dx < pm.fw; dx++) {
       for (let dy = 0; dy < pm.fh; dy++) {
         for (let rx = -pm.aoeRange; rx <= pm.aoeRange; rx++) {
           for (let ry = -pm.aoeRange; ry <= pm.aoeRange; ry++) {
-            if (Math.abs(rx) + Math.abs(ry) <= pm.aoeRange) {
-              cells.add((anchorX + dx + rx) + ',' + (anchorY + dy + ry));
-            }
+            cells.add((anchorX + dx + rx) + ',' + (anchorY + dy + ry));
           }
         }
       }
