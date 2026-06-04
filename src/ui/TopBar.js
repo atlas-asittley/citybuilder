@@ -302,9 +302,31 @@ export function refreshTopBar() {
   const cgv = document.getElementById('tb-congestion');
   cgv.textContent = cong;
   cgv.className = 'v ' + (cong <= 25 ? 'crime-low' : cong <= 50 ? 'crime-mid' : 'crime-high');
-  document.getElementById('tb-congestion-stat').title = 'Congestion ' + cong + '/100. ' +
-    (cong <= 40 ? 'Traffic flows freely.' :
-                 'Streets are clogged — build more / wider roads to keep production moving.');
+  let congTip = 'Congestion ' + cong + '/100. ';
+  if (cong <= 40) {
+    congTip += 'Traffic flows freely.';
+  } else {
+    // Compute actual traffic vs road capacity so the player can see how far they are from improvement.
+    const allB = state.allBuildings || [];
+    const btMap = state.buildingTypes || {};
+    let roadCap = 0, staffedProcs = 0, transportCount = 0;
+    for (const b of allB) {
+      if (b.status !== 'active') continue;
+      const bt = btMap[b.building_type_key];
+      if (!bt) continue;
+      if (bt.category === 'road') roadCap += (bt.road_tier || 1);
+      else if (bt.category === 'processor' && b.is_staffed) staffedProcs++;
+      else if (bt.category === 'transport_hub' || bt.category === 'transport_connector') transportCount++;
+    }
+    const traffic = Math.floor((p.population || 0) / 5) + 2 * staffedProcs + 3 * transportCount;
+    const deficit = Math.max(0, traffic - roadCap);
+    congTip += 'Streets are clogged — traffic ' + traffic + ' vs road capacity ' + roadCap + '. ';
+    if (deficit > 0) {
+      const neededBoulevards = Math.ceil(deficit / 4);
+      congTip += 'Need ' + deficit + ' more capacity (~' + neededBoulevards + ' Grand Boulevards) before the stat starts falling.';
+    }
+  }
+  document.getElementById('tb-congestion-stat').title = congTip;
 
   // Migration — arrow + signed rate per minute.
   const rate = Number(p.migration_rate || 0);
