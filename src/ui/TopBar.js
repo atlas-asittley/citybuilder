@@ -292,10 +292,35 @@ export function refreshTopBar() {
   const wsv = document.getElementById('tb-waste');
   wsv.textContent = w;
   wsv.className = 'v ' + (w <= 25 ? 'crime-low' : w <= 50 ? 'crime-mid' : 'crime-high');
-  document.getElementById('tb-waste-stat').title = 'Waste ' + w + '/100. ' +
-    (w <= 25 ? 'Streets are clean.' :
-     w <= 50 ? 'Garbage building up — add sanitation coverage.' :
-              'Heavy waste is dragging down desirability.');
+  let wasteTip = 'Waste ' + w + '/100. ';
+  if (w <= 25) {
+    wasteTip += 'Streets are clean.';
+  } else {
+    // Compute industrial waste from staffed buildings so the player can see the split
+    // (mirrors compute_waste server formula: base 3 + 3×uncovered + min(15,pop/10) + industry).
+    const allBW = state.allBuildings || [];
+    const btMapW = state.buildingTypes || {};
+    let industryWaste = 0;
+    for (const b of allBW) {
+      if (b.status !== 'active' || !b.is_staffed) continue;
+      const bt = btMapW[b.building_type_key];
+      if (bt && bt.waste_emit > 0) industryWaste += bt.waste_emit;
+    }
+    const popFloor = Math.min(15, Math.floor((p.population || 0) / 10));
+    if (industryWaste > 0) {
+      wasteTip += 'Industrial waste: ' + industryWaste + ' (staffed processors) + base ' + (3 + popFloor) + '. ';
+      if (industryWaste + 3 + popFloor >= 100) {
+        wasteTip += 'Processor output alone saturates the cap — sanitation covers housing but cannot offset industrial byproduct.';
+      } else {
+        wasteTip += 'Add sanitation near housing to cover the remainder.';
+      }
+    } else if (w <= 50) {
+      wasteTip += 'Garbage building up — add sanitation coverage near housing.';
+    } else {
+      wasteTip += 'Heavy waste is dragging down desirability — add sanitation coverage near housing.';
+    }
+  }
+  document.getElementById('tb-waste-stat').title = wasteTip;
 
   // Congestion — colored by severity, same thresholds as crime/waste.
   const cong = Math.round(p.congestion || 0);
