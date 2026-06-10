@@ -1,8 +1,8 @@
 # V1 → V2 Consolidation & Retirement Plan
 
-_Drafted 2026-06-10. Status: **executing — Phase A in progress.** This doc is the
+_Drafted 2026-06-10. Status: **Phases A–D complete (2026-06-10); Phase E (delete v1 dirs) pending a soak + Atlas sign-off.** This doc is the
 deep-dive plan for folding everything into the v2 (`citybuilder`) repo and
-retiring v1._
+retiring v1. Live status tracked in the `project_v1_v2_consolidation` memory._
 
 ## Decisions (locked 2026-06-10)
 1. **v2 is production.** Real players are on `/citybuilder/`; `/city-builder-mvp/` is safe to take offline (Phase E).
