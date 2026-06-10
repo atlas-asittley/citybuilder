@@ -217,23 +217,28 @@ function allResourcesWithFlag(ctx, flagKey) {
   return saw;   // false if no resources had the flag at all
 }
 
-// Service proximity uses Chebyshev (king's-move) distance so a "range
-// of 5" reads as a 5-tile square around the building — what a player
-// visually estimates when looking at the map. Switched from Manhattan
-// 2026-05-20 after Jill reported townhouses at Chebyshev=4 from her
-// school still saying "no operating school" because Manhattan=6.
-// Server gates in _pp_evolve_housing + has_well_access mirror this.
+// Service proximity uses footprint-perimeter Chebyshev: the minimum
+// Chebyshev distance from any cell in the service building's footprint
+// to the house. 2×2 buildings (school, temple) gain 1 tile of effective
+// range on their right/bottom edges vs anchor-only checks. 2026-06-02:
+// Jill reported school-within-5 houses stuck at tier 3 because anchor
+// was 6 tiles away even though the school's nearest cell was only 5.
+// Server gate _pp_evolve_housing mirrors this formula.
 function hasNearbyService(building, serviceKey, range, requiresFeeding, ctx) {
   const myId = building.player_id;
+  const sbt = ctx.buildingTypes?.[serviceKey];
+  const fw = sbt?.footprint_w ?? 1;
+  const fh = sbt?.footprint_h ?? 1;
   for (const s of ctx.allBuildings || []) {
     if (s.player_id !== myId) continue;
     if (s.building_type_key !== serviceKey) continue;
     if (s.status !== 'active') continue;
-    const dist = Math.max(Math.abs(s.x - building.x), Math.abs(s.y - building.y));
+    const dx = Math.max(s.x - building.x, building.x - (s.x + fw - 1), 0);
+    const dy = Math.max(s.y - building.y, building.y - (s.y + fh - 1), 0);
+    const dist = Math.max(dx, dy);
     if (dist > range) continue;
     if (!requiresFeeding) return true;
     if (!s.is_staffed) continue;
-    const sbt = ctx.buildingTypes?.[serviceKey];
     if (!sbt) continue;
     if (sbt.input_resource_key && Number(sbt.input_rate) > 0
         && Number(ctx.inventory?.[sbt.input_resource_key] || 0) <= 0) continue;

@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>City Builder</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── Reset ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0b0f14; color: #e0e6ed; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Screen system ─────────────────────────────────── */
+.screen { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; flex-direction: column; }
+.screen.active { display: flex; }
+.screen-center { justify-content: center; align-items: center; padding: 24px; }
+
+/* ── Shared UI ─────────────────────────────────────── */
+.card { width: 100%; max-width: 380px; background: #131a24; border: 1px solid #1e2a3a; border-radius: 12px; padding: 32px 24px; }
+.card h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+.card .sub { color: #7a8a9e; font-size: 0.9rem; margin-bottom: 20px; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 0.75rem; font-weight: 600; color: #7a8a9e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.field input, .field select { display: block; width: 100%; padding: 10px 12px; background: #0b0f14; border: 1px solid #1e2a3a; border-radius: 8px; color: #e0e6ed; font-size: 1rem; }
+.field input:focus { outline: none; border-color: #4fa3e0; }
+.btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; text-align: center; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: opacity 0.2s; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn-primary { background: #4fa3e0; color: #0b0f14; }
+.btn-secondary { background: transparent; color: #4fa3e0; border: 1px solid #1e2a3a; }
+.error-msg { background: #3b1219; border: 1px solid #5c1d2a; color: #f0a0a0; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 12px; display: none; }
+.error-msg.show { display: block; }
+.link { color: #4fa3e0; cursor: pointer; font-size: 0.85rem; text-align: center; margin-top: 12px; }
+
+/* ── Loading ───────────────────────────────────────── */
+.spinner { width: 32px; height: 32px; border: 3px solid #1e2a3a; border-top-color: #4fa3e0; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Industry picker ───────────────────────────────── */
+.industry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }
+.industry-card { background: #1a2332; border: 2px solid #1e2a3a; border-radius: 12px; padding: 20px 16px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.industry-card:hover { border-color: #4fa3e0; }
+.industry-card.selected { border-color: #4fa3e0; background: #1a2a3a; }
+.industry-card .ic-icon { font-size: 2rem; margin-bottom: 8px; }
+.industry-card .ic-name { font-weight: 700; margin-bottom: 4px; }
+.industry-card .ic-desc { font-size: 0.78rem; color: #7a8a9e; }
+
+/* ── Game: top bar ─────────────────────────────────── */
+#screen-game { background: #0b0f14; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #131a24; border-bottom: 1px solid #1e2a3a; flex-shrink: 0; }
+.topbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.topbar-title { font-weight: 700; font-size: 1rem; }
+.stat { font-size: 0.78rem; color: #7a8a9e; }
+.stat .v { font-weight: 700; }
+.stat .v.gold { color: #e6c65a; }
+.stat .v.workers { color: #5ec49e; }
+.btn-sm { padding: 4px 10px; font-size: 0.75rem; background: none; border: 1px solid #1e2a3a; color: #7a8a9e; border-radius: 6px; cursor: pointer; }
+
+/* ── Game: info bar ────────────────────────────────── */
+.info-bar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 5px 12px; background: #111820; font-size: 0.78rem; color: #7a8a9e; border-bottom: 1px solid #1a2332; flex-shrink: 0; }
+.info-bar .tag { background: rgba(79,163,224,0.1); color: #4fa3e0; padding: 2px 8px; border-radius: 4px; font-weight: 600; text-transform: capitalize; }
+
+/* ── Game: layout ──────────────────────────────────── */
+.game-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.map-area { flex: 1; display: flex; align-items: center; justify-content: center; padding: 8px; overflow: auto; min-height: 0; }
+
+/* ── Map grid ──────────────────────────────────────── */
+#map-grid { display: grid; grid-template-columns: repeat(15, 1fr); gap: 1px; width: 100%; max-width: 520px; }
+.cell { aspect-ratio: 1; background: #1a2332; border-radius: 2px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; user-select: none; transition: box-shadow 0.15s; }
+.cell:hover { filter: brightness(1.15); }
+.cell.res-timber { background: #1a2e22; }
+.cell.res-stone { background: #252530; }
+.cell.city-center { background: #251a30; cursor: default; }
+.cell.valid-placement { box-shadow: inset 0 0 0 2px #5ec49e; cursor: crosshair; }
+.cell.valid-placement:hover { background: rgba(94,196,158,0.15); }
+.res-dot { width: 5px; height: 5px; border-radius: 50%; }
+.res-timber .res-dot { background: #5ec49e; }
+.res-stone .res-dot { background: #8888aa; }
+.bldg { width: 78%; height: 78%; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 8px; color: #fff; line-height: 1; }
+.bldg.mine { box-shadow: 0 0 0 1.5px #4fa3e0; }
+.bldg.timber_camp { background: #3a7a4a; }
+.bldg.sawmill { background: #7a5a2a; }
+.bldg.stone_quarry { background: #5a5a7a; }
+.bldg.mason_workshop { background: #7a4a3a; }
+.hq-label { font-size: 7px; color: #7a8a9e; font-weight: 600; letter-spacing: 0.05em; }
+
+/* ── Bottom panel ──────────────────────────────────── */
+.bottom-panel { flex-shrink: 0; background: #131a24; border-top: 1px solid #1e2a3a; max-height: 42vh; display: flex; flex-direction: column; }
+.tab-bar { display: flex; border-bottom: 1px solid #1e2a3a; flex-shrink: 0; }
+.tab-btn { flex: 1; padding: 9px; text-align: center; font-size: 0.78rem; font-weight: 600; color: #7a8a9e; cursor: pointer; background: none; border: none; border-bottom: 2px solid transparent; transition: color 0.2s; }
+.tab-btn.active { color: #4fa3e0; border-bottom-color: #4fa3e0; }
+.panel-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px; display: none; }
+.panel-content.active { display: block; }
+
+/* ── Build panel ───────────────────────────────────── */
+.build-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: #1a2332; border: 1px solid #1e2a3a; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.2s; }
+.build-item:hover { border-color: #4fa3e0; }
+.build-item.selected { border-color: #4fa3e0; background: #1a2a3a; }
+.build-item.disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+.build-icon { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; font-size: 0.85rem; flex-shrink: 0; }
+.build-info { flex: 1; }
+.build-name { font-weight: 600; font-size: 0.85rem; }
+.build-name small { color: #7a8a9e; font-weight: 400; }
+.build-cost { font-size: 0.72rem; color: #e6c65a; }
+.build-cost.warn { color: #f0a0a0; }
+.build-desc { font-size: 0.7rem; color: #5a6a7e; }
+
+/* ── Inventory panel ───────────────────────────────── */
+.inv-section { font-size: 0.7rem; font-weight: 600; color: #7a8a9e; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 4px 4px; }
+.inv-row { display: flex; justify-content: space-between; padding: 7px 4px; border-bottom: 1px solid #1a2332; }
+.inv-name { font-size: 0.85rem; }
+.inv-qty { font-weight: 700; font-size: 0.85rem; }
+.inv-qty.zero { color: #5a6a7e; }
+
+/* ── Trade panel ───────────────────────────────────── */
+.trader-header { font-weight: 700; font-size: 0.95rem; margin-bottom: 2px; }
+.trader-desc { font-size: 0.78rem; color: #7a8a9e; margin-bottom: 12px; }
+.trade-row { display: flex; align-items: center; gap: 8px; padding: 10px; background: #1a2332; border-radius: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.trade-info { flex: 1; min-width: 90px; }
+.trade-res { font-weight: 600; font-size: 0.85rem; }
+.trade-price { font-size: 0.72rem; color: #e6c65a; }
+.trade-stock { font-size: 0.72rem; color: #7a8a9e; }
+.trade-controls { display: flex; align-items: center; gap: 5px; }
+.trade-amt-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #1e2a3a; background: #0b0f14; color: #e0e6ed; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.trade-amt-btn:active { background: #1e2a3a; }
+.trade-amt { font-weight: 700; min-width: 22px; text-align: center; font-size: 0.9rem; }
+.btn-sell { padding: 6px 12px; border-radius: 6px; border: none; background: #e6c65a; color: #0b0f14; font-weight: 600; font-size: 0.78rem; cursor: pointer; }
+.btn-sell:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Placement bar ─────────────────────────────────── */
+.placement-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(20,30,20,0.95); border-top: 1px solid #5ec49e; padding: 10px 16px; display: none; align-items: center; justify-content: space-between; z-index: 100; }
+.placement-bar.active { display: flex; }
+.placement-bar span { color: #5ec49e; font-weight: 600; font-size: 0.85rem; }
+.btn-cancel { padding: 6px 14px; border-radius: 6px; border: 1px solid #5ec49e; background: none; color: #5ec49e; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+
+/* ── Toast ──────────────────────────────────────────── */
+.toast { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); background: #131a24; border: 1px solid #1e2a3a; color: #e0e6ed; padding: 8px 20px; border-radius: 8px; font-size: 0.82rem; z-index: 200; opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; }
+.toast.show { opacity: 1; }
+.toast.success { border-color: #5ec49e; color: #5ec49e; }
+.toast.error { border-color: #f06060; color: #f0a0a0; }
+
+/* ── Version badge ─────────────────────────────────── */
+.version-badge { position: fixed; bottom: 4px; right: 6px; font-size: 0.62rem; color: #4a5a6e; font-family: monospace; z-index: 300; pointer-events: none; user-select: none; }
+
+/* ── Responsive ────────────────────────────────────── */
+@media (max-width: 420px) {
+  .topbar-left { gap: 6px; }
+  .topbar-title { font-size: 0.9rem; }
+  .stat { font-size: 0.72rem; }
+  .bldg { font-size: 7px; }
+  .bottom-panel { max-height: 38vh; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Loading ──────────────────────────────────────── -->
+<div id="screen-loading" class="screen active screen-center">
+  <div class="spinner"></div>
+  <div style="color:#7a8a9e;font-size:0.9rem;margin-top:12px;">Loading...</div>
+</div>
+
+<!-- ── Welcome ─────────────────────────────────────── -->
+<div id="screen-welcome" class="screen screen-center">
+  <div class="card" style="text-align:center;">
+    <h1>City Builder</h1>
+    <div class="sub">Build, produce, trade. A shared city awaits.</div>
+    <button id="btn-to-login" class="btn btn-primary" style="margin-bottom:10px;">Sign In</button>
+    <button id="btn-to-register" class="btn btn-secondary">Create Account</button>
+  </div>
+</div>
+
+<!-- ── Login ────────────────────────────────────────── -->
+<div id="screen-login" class="screen screen-center">
+  <div class="card">
+    <h1>Sign In</h1>
+    <div class="sub">Welcome back, builder.</div>
+    <div id="login-error" class="error-msg"></div>
+    <form id="login-form">
+      <div class="field"><label>Email</label><input id="login-email" type="email" autocomplete="email" required></div>
+      <div class="field"><label>Password</label><input id="login-password" type="password" autocomplete="current-password" required></div>
+      <button id="login-submit" type="submit" class="btn btn-primary">Sign In</button>
+    </form>
+    <div class="link" id="login-to-register">No account? Create one</div>
+  </div>
+</div>
+
+<!-- ── Register ─────────────────────────────────────── -->
+<div id="screen-register" class="screen screen-center">
+  <div class="card">
+    <h1>Create Account</h1>
+    <div class="sub">Join the city.</div>
+    <div id="register-error" class="error-msg"></div>
+    <form id="register-form">
+      <div class="field"><label>Email</label><input id="register-email" type="email" autocomplete="email" required></div>
+      <div class="field"><label>Password</label><input id="register-password" type="password" autocomplete="new-password" required minlength="6"></div>
+      <div class="field"><label>Confirm Password</label><input id="register-confirm" type="password" autocomplete="new-password" required></div>
+      <button id="register-submit" type="submit" class="btn btn-primary">Create Account</button>
+    </form>
+    <div class="link" id="register-to-login">Already have an account? Sign in</div>
+  </div>
+</div>
+
+<!-- ── Industry Selection ───────────────────────────── -->
+<div id="screen-industry" class="screen screen-center">
+  <div class="card">
+    <h1>Choose Your Industry</h1>
+    <div class="sub">Pick your specialization. This decides your buildings and resources.</div>
+    <div class="field">
+      <label>Display Name</label>
+      <input id="industry-name" type="text" maxlength="24" placeholder="Your builder name">
+    </div>
+    <div class="industry-grid">
+      <div class="industry-card" data-industry="timber">
+        <div class="ic-icon" style="color:#5ec49e;">&#9650;</div>
+        <div class="ic-name">Timber</div>
+        <div class="ic-desc">Harvest timber, produce lumber. Sell wood products.</div>
+      </div>
+      <div class="industry-card" data-industry="stone">
+        <div class="ic-icon" style="color:#8888aa;">&#9670;</div>
+        <div class="ic-name">Stone</div>
+        <div class="ic-desc">Quarry stone, craft bricks. Build with masonry.</div>
+      </div>
+    </div>
+    <div id="industry-error" class="error-msg"></div>
+    <button id="industry-confirm" class="btn btn-primary" disabled>Start Building</button>
+  </div>
+</div>
+
+<!-- ── Game ──────────────────────────────────────────── -->
+<div id="screen-game" class="screen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-title">City Builder</span>
+      <span class="stat"><span class="v gold" id="g-money">$500</span></span>
+      <span class="stat"><span class="v workers" id="g-workers">0/5</span> wkrs</span>
+    </div>
+    <button class="btn-sm" id="g-logout">Logout</button>
+  </div>
+  <div class="info-bar">
+    <span>Industry: <span class="tag" id="g-industry">-</span></span>
+    <span id="g-player-name" style="color:#e0e6ed;font-weight:600;"></span>
+  </div>
+  <div class="game-body">
+    <div class="map-area">
+      <div id="map-grid"></div>
+    </div>
+    <div class="bottom-panel">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="build">Build</button>
+        <button class="tab-btn" data-tab="inventory">Inventory</button>
+        <button class="tab-btn" data-tab="trade">Trade</button>
+      </div>
+      <div id="panel-build" class="panel-content active"></div>
+      <div id="panel-inventory" class="panel-content"></div>
+      <div id="panel-trade" class="panel-content"></div>
+    </div>
+  </div>
+  <div class="placement-bar" id="placement-bar">
+    <span id="placement-text">Tap a tile to place</span>
+    <button class="btn-cancel" id="placement-cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<!-- ── Version badge (always visible) ─────────────────── -->
+<div class="version-badge" id="version-badge"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Version (update this string to change the displayed build) ──
+  var APP_VERSION = 'v0.1-mvp';
+  document.getElementById('version-badge').textContent = APP_VERSION;
+
+  // ── Config ──────────────────────────────────────────
+  var SUPABASE_URL = 'https://igaulapupbtdcqqjobhs.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_7yi3BNg-J-K5nralw5JSww_c71Pge6e';
+
+  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+    document.getElementById('screen-loading').innerHTML =
+      '<div style="color:#f0a0a0;padding:24px;text-align:center;">Failed to load Supabase library.<br>Check your connection and reload.</div>';
+    return;
+  }
+
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ── State ───────────────────────────────────────────
+  var currentUser = null;
+  var profile = null;
+  var tiles = [];
+  var tileMap = {};          // "x,y" -> tile object
+  var allBuildings = [];     // all players' buildings
+  var inventory = {};        // resource_key -> quantity
+  var buildingTypes = {};    // key -> building_type row
+  var resources = {};        // key -> resource row
+  var traderPrices = {};     // resource_key -> buy_price
+  var selectedBuildType = null;
+  var prodTimer = null;
+  var channel = null;
+  var tradeAmounts = {};
+
+  // ── Screens ─────────────────────────────────────────
+  var screens = document.querySelectorAll('.screen');
+  function showScreen(id) {
+    screens.forEach(function (s) { s.classList.remove('active'); });
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ── Helpers ─────────────────────────────────────────
+  function showError(el, msg) { el.textContent = msg; el.classList.add('show'); }
+  function clearError(el) { el.textContent = ''; el.classList.remove('show'); }
+  function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+  function resourceName(key) {
+    return resources[key] ? resources[key].name : capitalize(key);
+  }
+
+  var toastTimer = null;
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
+  }
+
+  // ── Auth routing ────────────────────────────────────
+  function checkProfileAndRoute(user) {
+    currentUser = user;
+    sb.from('player_profiles').select('*').eq('id', user.id).maybeSingle()
+      .then(function (r) {
+        if (r.error) {
+          console.warn('Profile check error:', r.error.message);
+          enterIndustrySelect();
+          return;
+        }
+        if (r.data && r.data.industry_key) {
+          profile = r.data;
+          enterGame();
+        } else {
+          enterIndustrySelect();
+        }
+      })
+      .catch(function () { enterIndustrySelect(); });
+  }
+
+  function enterIndustrySelect() {
+    var nameInput = document.getElementById('industry-name');
+    nameInput.value = (currentUser.email || '').split('@')[0];
+    selectedIndustry = null;
+    document.querySelectorAll('.industry-card').forEach(function (c) { c.classList.remove('selected'); });
+    document.getElementById('industry-confirm').disabled = true;
+    clearError(document.getElementById('industry-error'));
+    showScreen('screen-industry');
+  }
+
+  // ── Industry selection ──────────────────────────────
+  var selectedIndustry = null;
+  document.querySelectorAll('.industry-card').forEach(function (card) {
+    card.addEventListener('click', function () {
+      document.querySelectorAll('.industry-card').forEach(function (c) { c.classList.remove('selected'); });
+      card.classList.add('selected');
+      selectedIndustry = card.dataset.industry;
+      document.getElementById('industry-confirm').disabled = false;
+    });
+  });
+
+  document.getElementById('industry-confirm').addEventListener('click', function () {
+    var name = document.getElementById('industry-name').value.trim();
+    var errEl = document.getElementById('industry-error');
+    clearError(errEl);
+    if (!name || name.length < 2) { showError(errEl, 'Name must be at least 2 characters.'); return; }
+    if (!selectedIndustry) { showError(errEl, 'Choose an industry.'); return; }
+
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Setting up...';
+
+    sb.rpc('choose_industry', { p_display_name: name, p_industry_key: selectedIndustry })
+      .then(function (r) {
+        if (r.error) {
+          showError(errEl, r.error.message);
+          btn.disabled = false;
+          btn.textContent = 'Start Building';
+          return;
+        }
+        profile = r.data;
+        enterGame();
+      })
+      .catch(function (err) {
+        showError(errEl, err.message || 'Setup failed. Try again.');
+        btn.disabled = false;
+        btn.textContent = 'Start Building';
+      });
+  });
+
+  // ── Enter game ──────────────────────────────────────
+  function enterGame() {
+    showScreen('screen-game');
+    document.getElementById('g-industry').textContent = capitalize(profile.industry_key);
+    document.getElementById('g-player-name').textContent = profile.display_name;
+    updateMoney();
+    updateWorkers();
+
+    loadGameData().then(function () {
+      renderMap();
+      renderBuildPanel();
+      renderInventory();
+      renderTradePanel();
+      processProduction();
+      subscribeRealtime();
+      startProdLoop();
+    }).catch(function (err) {
+      console.error('Game load failed:', err);
+      showToast('Failed to load game data', 'error');
+    });
+  }
+
+  function loadGameData() {
+    return Promise.all([
+      sb.from('building_types').select('*').eq('is_active', true),
+      sb.from('resources').select('*').eq('is_active', true),
+      sb.from('map_tiles').select('*').order('y', { ascending: true }).order('x', { ascending: true }),
+      sb.from('buildings').select('*, player_profiles(display_name, color_hex)'),
+      sb.from('trader_prices').select('*').eq('is_active', true).eq('trader_key', 'starter_trader'),
+      sb.from('inventories').select('resource_key, quantity').eq('player_id', currentUser.id)
+    ]).then(function (results) {
+      buildingTypes = {};
+      if (results[0].data) results[0].data.forEach(function (bt) { buildingTypes[bt.key] = bt; });
+
+      resources = {};
+      if (results[1].data) results[1].data.forEach(function (r) { resources[r.key] = r; });
+
+      tiles = results[2].data || [];
+      tileMap = {};
+      tiles.forEach(function (t) { tileMap[t.x + ',' + t.y] = t; });
+
+      allBuildings = results[3].data || [];
+
+      traderPrices = {};
+      if (results[4].data) results[4].data.forEach(function (tp) { traderPrices[tp.resource_key] = tp.buy_price; });
+
+      inventory = {};
+      if (results[5].data) results[5].data.forEach(function (inv) { inventory[inv.resource_key] = Number(inv.quantity); });
+    });
+  }
+
+  // ── Production ──────────────────────────────────────
+  function processProduction() {
+    return sb.rpc('process_production').then(function (r) {
+      if (r.error) {
+        console.warn('Production error:', r.error.message);
+        return;
+      }
+      var data = r.data;
+      if (data.inventory) {
+        inventory = {};
+        Object.keys(data.inventory).forEach(function (k) {
+          inventory[k] = Number(data.inventory[k]);
+        });
+      }
+      if (data.money !== undefined) profile.money = data.money;
+      if (data.workers_used !== undefined) profile.workers_used = data.workers_used;
+      if (data.worker_capacity !== undefined) profile.worker_capacity = data.worker_capacity;
+
+      updateMoney();
+      updateWorkers();
+      renderInventory();
+
+      // Only re-render trade if that panel is visible
+      if (document.getElementById('panel-trade').classList.contains('active')) {
+        renderTradePanel();
+      }
+
+      if (data.total_produced > 0) {
+        showToast('+' + data.total_produced + ' goods produced', 'success');
+      }
+    }).catch(function (err) {
+      console.warn('Production fetch error:', err);
+    });
+  }
+
+  function startProdLoop() {
+    stopProdLoop();
+    prodTimer = setInterval(function () { processProduction(); }, 30000);
+  }
+
+  function stopProdLoop() {
+    if (prodTimer) { clearInterval(prodTimer); prodTimer = null; }
+  }
+
+  // ── Map rendering ───────────────────────────────────
+  var BLDG_LABELS = {
+    timber_camp: 'TC', sawmill: 'SM',
+    stone_quarry: 'SQ', mason_workshop: 'MW'
+  };
+
+  function renderMap() {
+    var grid = document.getElementById('map-grid');
+    var buildingAt = {};
+    allBuildings.forEach(function (b) { buildingAt[b.x + ',' + b.y] = b; });
+
+    var html = '';
+    for (var y = 0; y < 15; y++) {
+      for (var x = 0; x < 15; x++) {
+        var tile = tileMap[x + ',' + y];
+        var building = buildingAt[x + ',' + y];
+        var classes = ['cell'];
+
+        if (!tile) {
+          html += '<div class="cell" data-x="' + x + '" data-y="' + y + '"></div>';
+          continue;
+        }
+
+        if (x === 7 && y === 7) {
+          classes.push('city-center');
+        } else if (tile.resource_node_key) {
+          classes.push('res-' + tile.resource_node_key);
+        }
+
+        if (selectedBuildType && !building && isPlacementValid(selectedBuildType, tile)) {
+          classes.push('valid-placement');
+        }
+
+        html += '<div class="' + classes.join(' ') + '" data-x="' + x + '" data-y="' + y + '" data-tile-id="' + tile.id + '">';
+
+        if (building) {
+          var mine = building.player_id === currentUser.id;
+          var btk = building.building_type_key;
+          var label = BLDG_LABELS[btk] || '?';
+          var btInfo = buildingTypes[btk];
+          var titleText = (btInfo ? btInfo.name : btk);
+          if (!mine && building.player_profiles) {
+            titleText += ' (' + building.player_profiles.display_name + ')';
+          }
+          html += '<div class="bldg ' + btk + (mine ? ' mine' : '') + '" title="' + titleText + '">' + label + '</div>';
+        } else if (x === 7 && y === 7) {
+          html += '<span class="hq-label">HQ</span>';
+        } else if (tile.resource_node_key) {
+          html += '<div class="res-dot"></div>';
+        }
+
+        html += '</div>';
+      }
+    }
+    grid.innerHTML = html;
+  }
+
+  function isPlacementValid(btKey, tile) {
+    var bt = buildingTypes[btKey];
+    if (!bt) return false;
+    if (!tile.buildable) return false;
+    if (tile.occupied_building_id) return false;
+
+    if (bt.category === 'extractor') {
+      return tile.resource_node_key === bt.output_resource_key;
+    }
+    // Processors can go on any buildable empty tile (including resource tiles)
+    return true;
+  }
+
+  // ── Map click ───────────────────────────────────────
+  document.getElementById('map-grid').addEventListener('click', function (e) {
+    var cell = e.target.closest('.cell');
+    if (!cell) return;
+
+    if (!selectedBuildType) return;
+
+    var tileId = cell.dataset.tileId;
+    if (!tileId) return;
+    var tile = tileMap[cell.dataset.x + ',' + cell.dataset.y];
+    if (!tile || !isPlacementValid(selectedBuildType, tile)) {
+      showToast('Cannot place here', 'error');
+      return;
+    }
+    placeBuilding(tileId, selectedBuildType);
+  });
+
+  function placeBuilding(tileId, btKey) {
+    var bt = buildingTypes[btKey];
+    if (!bt) return;
+    if (profile.money < bt.build_cost) {
+      showToast('Not enough money (need $' + bt.build_cost + ')', 'error');
+      return;
+    }
+    if (profile.workers_used + bt.worker_cost > profile.worker_capacity) {
+      showToast('Not enough workers', 'error');
+      return;
+    }
+
+    showToast('Placing...', '');
+    sb.rpc('place_building', { p_tile_id: tileId, p_building_type_key: btKey })
+      .then(function (r) {
+        if (r.error) {
+          showToast(r.error.message, 'error');
+          return;
+        }
+        var data = r.data;
+        profile.money = data.money;
+        profile.workers_used = data.workers_used;
+        profile.worker_capacity = data.worker_capacity;
+        updateMoney();
+        updateWorkers();
+        showToast(bt.name + ' placed!', 'success');
+        cancelPlacement();
+
+        // Reload buildings and tiles to get fresh state
+        Promise.all([
+          sb.from('buildings').select('*, player_profiles(display_name, color_hex)'),
+          sb.from('map_tiles').select('*').order('y', { ascending: true }).order('x', { ascending: true })
+        ]).then(function (results) {
+          allBuildings = results[0].data || [];
+          tiles = results[1].data || [];
+          tileMap = {};
+          tiles.forEach(function (t) { tileMap[t.x + ',' + t.y] = t; });
+          renderMap();
+          renderBuildPanel();
+        });
+      })
+      .catch(function (err) {
+        showToast(err.message || 'Placement failed', 'error');
+      });
+  }
+
+  // ── Build panel ─────────────────────────────────────
+  function renderBuildPanel() {
+    var panel = document.getElementById('panel-build');
+    var html = '';
+
+    var available = Object.keys(buildingTypes).filter(function (k) {
+      return buildingTypes[k].industry_key === profile.industry_key;
+    }).sort(function (a, b) {
+      return buildingTypes[a].tier - buildingTypes[b].tier;
+    });
+
+    if (available.length === 0) {
+      html = '<div style="color:#7a8a9e;text-align:center;padding:20px;">No buildings available for your industry.</div>';
+      panel.innerHTML = html;
+      return;
+    }
+
+    available.forEach(function (key) {
+      var bt = buildingTypes[key];
+      var canAfford = profile.money >= bt.build_cost;
+      var hasWorkers = profile.workers_used + bt.worker_cost <= profile.worker_capacity;
+      var disabled = !canAfford || !hasWorkers;
+      var selected = selectedBuildType === key;
+
+      var colors = {
+        timber_camp: '#3a7a4a', sawmill: '#7a5a2a',
+        stone_quarry: '#5a5a7a', mason_workshop: '#7a4a3a'
+      };
+      var bgColor = colors[key] || '#4a4a6a';
+      var label = BLDG_LABELS[key] || '?';
+
+      var desc = bt.category === 'extractor'
+        ? 'Extracts ' + resourceName(bt.output_resource_key) + ' from resource tiles'
+        : 'Converts ' + resourceName(bt.input_resource_key) + ' into ' + resourceName(bt.output_resource_key);
+
+      var costStr = '$' + bt.build_cost + ' | ' + bt.worker_cost + ' worker';
+      var costClass = 'build-cost';
+      if (!canAfford) { costStr = '$' + bt.build_cost + ' (need $' + (bt.build_cost - profile.money) + ' more)'; costClass += ' warn'; }
+      else if (!hasWorkers) { costStr += ' (no workers available)'; costClass += ' warn'; }
+
+      html += '<div class="build-item' + (disabled ? ' disabled' : '') + (selected ? ' selected' : '') + '" data-bt="' + key + '">';
+      html += '<div class="build-icon" style="background:' + bgColor + '">' + label + '</div>';
+      html += '<div class="build-info">';
+      html += '<div class="build-name">' + bt.name + ' <small>Tier ' + bt.tier + '</small></div>';
+      html += '<div class="' + costClass + '">' + costStr + '</div>';
+      html += '<div class="build-desc">' + desc + '</div>';
+      html += '</div></div>';
+    });
+
+    panel.innerHTML = html;
+
+    panel.querySelectorAll('.build-item:not(.disabled)').forEach(function (item) {
+      item.addEventListener('click', function () {
+        selectBuildingType(item.dataset.bt);
+      });
+    });
+  }
+
+  function selectBuildingType(key) {
+    selectedBuildType = key;
+    var bt = buildingTypes[key];
+    document.getElementById('placement-text').textContent = 'Tap a tile to place ' + bt.name;
+    document.getElementById('placement-bar').classList.add('active');
+    renderMap();
+    renderBuildPanel();
+  }
+
+  function cancelPlacement() {
+    selectedBuildType = null;
+    document.getElementById('placement-bar').classList.remove('active');
+    renderMap();
+    renderBuildPanel();
+  }
+
+  document.getElementById('placement-cancel').addEventListener('click', cancelPlacement);
+
+  // ── Inventory panel ─────────────────────────────────
+  function renderInventory() {
+    var panel = document.getElementById('panel-inventory');
+    var html = '';
+
+    html += '<div class="inv-section">Raw Materials</div>';
+    ['timber', 'stone'].forEach(function (k) {
+      var qty = Math.floor(inventory[k] || 0);
+      html += '<div class="inv-row"><span class="inv-name">' + resourceName(k) + '</span><span class="inv-qty' + (qty === 0 ? ' zero' : '') + '">' + qty + '</span></div>';
+    });
+
+    html += '<div class="inv-section">Processed Goods</div>';
+    ['lumber', 'brick'].forEach(function (k) {
+      var qty = Math.floor(inventory[k] || 0);
+      html += '<div class="inv-row"><span class="inv-name">' + resourceName(k) + '</span><span class="inv-qty' + (qty === 0 ? ' zero' : '') + '">' + qty + '</span></div>';
+    });
+
+    html += '<div class="inv-section">Economy</div>';
+    html += '<div class="inv-row"><span class="inv-name">Money</span><span class="inv-qty" style="color:#e6c65a;">$' + profile.money + '</span></div>';
+    html += '<div class="inv-row"><span class="inv-name">Workers</span><span class="inv-qty">' + profile.workers_used + ' / ' + profile.worker_capacity + '</span></div>';
+
+    // Show building count
+    var myBldgs = allBuildings.filter(function (b) { return b.player_id === currentUser.id; });
+    html += '<div class="inv-row"><span class="inv-name">Your Buildings</span><span class="inv-qty">' + myBldgs.length + '</span></div>';
+
+    panel.innerHTML = html;
+  }
+
+  // ── Trade panel ─────────────────────────────────────
+  function renderTradePanel() {
+    var panel = document.getElementById('panel-trade');
+    var html = '';
+
+    html += '<div class="trader-header">Starter Trader</div>';
+    html += '<div class="trader-desc">Buys goods at fixed prices. Sell your production here.</div>';
+
+    var tradeResources = ['timber', 'lumber', 'stone', 'brick'];
+    tradeResources.forEach(function (rk) {
+      var price = traderPrices[rk];
+      if (price === undefined) return;
+      var stock = Math.floor(inventory[rk] || 0);
+      var key = 'sell-' + rk;
+      var amt = tradeAmounts[key] || 0;
+
+      html += '<div class="trade-row">';
+      html += '<div class="trade-info">';
+      html += '<div class="trade-res">' + resourceName(rk) + '</div>';
+      html += '<div class="trade-price">' + price + 'g each</div>';
+      html += '<div class="trade-stock">In stock: ' + stock + '</div>';
+      html += '</div>';
+      html += '<div class="trade-controls">';
+      html += '<button class="trade-amt-btn" data-key="' + key + '" data-dir="dec">-</button>';
+      html += '<span class="trade-amt" id="ta-' + rk + '">' + amt + '</span>';
+      html += '<button class="trade-amt-btn" data-key="' + key + '" data-dir="inc" data-max="' + stock + '">+</button>';
+      html += '<button class="btn-sell" data-resource="' + rk + '" data-key="' + key + '"' + (amt < 1 ? ' disabled' : '') + '>Sell</button>';
+      html += '</div>';
+      html += '</div>';
+    });
+
+    if (Object.keys(traderPrices).length === 0) {
+      html += '<div style="color:#7a8a9e;text-align:center;padding:16px;">Trader prices not loaded. Run the migration first.</div>';
+    }
+
+    panel.innerHTML = html;
+
+    // Wire amount buttons
+    panel.querySelectorAll('.trade-amt-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.dataset.key;
+        var dir = btn.dataset.dir;
+        var max = parseInt(btn.dataset.max || '999');
+        var current = tradeAmounts[key] || 0;
+
+        if (dir === 'inc' && current < max) current++;
+        else if (dir === 'dec' && current > 0) current--;
+        tradeAmounts[key] = current;
+
+        var rk = key.replace('sell-', '');
+        var el = document.getElementById('ta-' + rk);
+        if (el) el.textContent = current;
+
+        var row = btn.closest('.trade-row');
+        var sellBtn = row.querySelector('.btn-sell');
+        if (sellBtn) sellBtn.disabled = current < 1;
+      });
+    });
+
+    // Wire sell buttons
+    panel.querySelectorAll('.btn-sell').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var rk = btn.dataset.resource;
+        var key = btn.dataset.key;
+        var amt = tradeAmounts[key] || 0;
+        if (amt < 1) return;
+        sellToTrader(rk, amt, btn);
+      });
+    });
+  }
+
+  function sellToTrader(resourceKey, quantity, btn) {
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    sb.rpc('sell_to_trader', {
+      p_trader_key: 'starter_trader',
+      p_resource_key: resourceKey,
+      p_quantity: quantity
+    }).then(function (r) {
+      if (r.error) {
+        showToast(r.error.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Sell';
+        return;
+      }
+      var data = r.data;
+      profile.money = data.money;
+      if (data.inventory) {
+        inventory = {};
+        Object.keys(data.inventory).forEach(function (k) {
+          inventory[k] = Number(data.inventory[k]);
+        });
+      }
+
+      updateMoney();
+      tradeAmounts['sell-' + resourceKey] = 0;
+      renderInventory();
+      renderTradePanel();
+      showToast('Sold ' + quantity + ' ' + resourceName(resourceKey) + ' for $' + data.total_price, 'success');
+    }).catch(function (err) {
+      showToast(err.message || 'Sale failed', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Sell';
+    });
+  }
+
+  // ── Realtime ────────────────────────────────────────
+  function subscribeRealtime() {
+    if (channel) sb.removeChannel(channel);
+
+    channel = sb.channel('city-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'buildings'
+      }, function (payload) {
+        var newB = payload.new;
+        if (newB.player_id === currentUser.id) return;
+
+        // Fetch building with player name
+        sb.from('buildings')
+          .select('*, player_profiles(display_name, color_hex)')
+          .eq('id', newB.id)
+          .maybeSingle()
+          .then(function (r) {
+            if (!r.data) return;
+            allBuildings.push(r.data);
+            var tile = tileMap[r.data.x + ',' + r.data.y];
+            if (tile) tile.occupied_building_id = r.data.id;
+            renderMap();
+            var btName = buildingTypes[r.data.building_type_key]
+              ? buildingTypes[r.data.building_type_key].name
+              : r.data.building_type_key;
+            var pName = r.data.player_profiles
+              ? r.data.player_profiles.display_name
+              : 'Someone';
+            showToast(pName + ' built a ' + btName + '!', '');
+          });
+      })
+      .subscribe();
+  }
+
+  // ── UI updates ──────────────────────────────────────
+  function updateMoney() {
+    document.getElementById('g-money').textContent = '$' + profile.money;
+  }
+
+  function updateWorkers() {
+    document.getElementById('g-workers').textContent = profile.workers_used + '/' + profile.worker_capacity;
+  }
+
+  // ── Tab system ──────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.panel-content').forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      var tabId = 'panel-' + btn.dataset.tab;
+      document.getElementById(tabId).classList.add('active');
+
+      // Refresh panel data when switching
+      if (btn.dataset.tab === 'inventory') renderInventory();
+      else if (btn.dataset.tab === 'trade') renderTradePanel();
+      else if (btn.dataset.tab === 'build') renderBuildPanel();
+    });
+  });
+
+  // ── Auth form wiring ────────────────────────────────
+  document.getElementById('btn-to-login').addEventListener('click', function () { showScreen('screen-login'); });
+  document.getElementById('btn-to-register').addEventListener('click', function () { showScreen('screen-register'); });
+  document.getElementById('login-to-register').addEventListener('click', function () {
+    clearError(document.getElementById('login-error'));
+    showScreen('screen-register');
+  });
+  document.getElementById('register-to-login').addEventListener('click', function () {
+    clearError(document.getElementById('register-error'));
+    showScreen('screen-login');
+  });
+
+  // Login
+  document.getElementById('login-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = document.getElementById('login-error');
+    clearError(err);
+    var email = document.getElementById('login-email').value.trim();
+    var pw = document.getElementById('login-password').value;
+    if (!email || !pw) { showError(err, 'Email and password are required.'); return; }
+    var btn = document.getElementById('login-submit');
+    btn.disabled = true; btn.textContent = 'Signing in...';
+    sb.auth.signInWithPassword({ email: email, password: pw }).then(function (r) {
+      btn.disabled = false; btn.textContent = 'Sign In';
+      if (r.error) showError(err, r.error.message);
+    }).catch(function (e) {
+      btn.disabled = false; btn.textContent = 'Sign In';
+      showError(err, e.message || 'Login failed.');
+    });
+  });
+
+  // Register
+  document.getElementById('register-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = document.getElementById('register-error');
+    clearError(err);
+    var email = document.getElementById('register-email').value.trim();
+    var pw = document.getElementById('register-password').value;
+    var confirm = document.getElementById('register-confirm').value;
+    if (!email || !pw) { showError(err, 'Email and password are required.'); return; }
+    if (pw.length < 6) { showError(err, 'Password must be at least 6 characters.'); return; }
+    if (pw !== confirm) { showError(err, 'Passwords do not match.'); return; }
+    var btn = document.getElementById('register-submit');
+    btn.disabled = true; btn.textContent = 'Creating account...';
+    sb.auth.signUp({ email: email, password: pw }).then(function (r) {
+      if (r.error) {
+        btn.disabled = false; btn.textContent = 'Create Account';
+        showError(err, r.error.message);
+        return;
+      }
+      if (r.data && r.data.session) {
+        btn.disabled = false; btn.textContent = 'Create Account';
+        return; // onAuthStateChange will handle routing
+      }
+      // Auto-login after signup
+      sb.auth.signInWithPassword({ email: email, password: pw }).then(function (lr) {
+        btn.disabled = false; btn.textContent = 'Create Account';
+        if (lr.error) showError(err, 'Account created! Please sign in.');
+      }).catch(function () {
+        btn.disabled = false; btn.textContent = 'Create Account';
+        showError(err, 'Account created! Please sign in.');
+      });
+    }).catch(function (e) {
+      btn.disabled = false; btn.textContent = 'Create Account';
+      showError(err, e.message || 'Registration failed.');
+    });
+  });
+
+  // Logout
+  document.getElementById('g-logout').addEventListener('click', function () {
+    stopProdLoop();
+    if (channel) sb.removeChannel(channel);
+    sb.auth.signOut().then(function () {
+      currentUser = null;
+      profile = null;
+      showScreen('screen-welcome');
+    });
+  });
+
+  // ── Init: restore session ───────────────────────────
+  sb.auth.getSession().then(function (r) {
+    var session = r.data && r.data.session;
+    if (session && session.user) {
+      checkProfileAndRoute(session.user);
+    } else {
+      showScreen('screen-welcome');
+    }
+  }).catch(function () {
+    showScreen('screen-welcome');
+  });
+
+  // Listen for auth changes
+  sb.auth.onAuthStateChange(function (event, session) {
+    if (event === 'SIGNED_IN' && session && session.user) {
+      checkProfileAndRoute(session.user);
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      profile = null;
+      showScreen('screen-welcome');
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

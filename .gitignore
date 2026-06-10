@@ -5,3 +5,10 @@ dist/
 *.log
 .env
 .env.local
+
+# server-side workshop runtime
+logs/
+scripts/.auto_bug_triage.lock
+__pycache__/
+*.pyc
+.pytest_cache/
