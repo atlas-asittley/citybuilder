@@ -57,3 +57,20 @@ def test_each_industry_has_exactly_one_luxury_food(cur):
     )
     counts = dict(cur.fetchall())
     assert counts == {k: 1 for k in INDUSTRIES}, f"luxury-food building count off: {counts}"
+
+
+def test_each_industry_can_self_satisfy_the_staple_demand(cur):
+    # The universal housing "staple" lifestyle demand is keyed as 'bread';
+    # lifestyle_substitutes lists the other acceptable goods. Every industry
+    # must be able to produce at least one acceptable staple itself — so no
+    # one depends on another industry just to feed its own housing.
+    cur.execute("SELECT substitute_key FROM lifestyle_substitutes WHERE primary_key = 'bread'")
+    acceptable = {row[0] for row in cur.fetchall()} | {'bread'}
+    cur.execute(
+        """SELECT DISTINCT industry_key FROM building_types
+           WHERE is_active AND output_resource_key = ANY(%s) AND industry_key = ANY(%s)""",
+        (list(acceptable), list(INDUSTRIES)),
+    )
+    self_sufficient = {row[0] for row in cur.fetchall()}
+    assert self_sufficient == set(INDUSTRIES), \
+        f"industries that can't self-satisfy the staple demand: {set(INDUSTRIES) - self_sufficient}"
