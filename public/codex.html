@@ -94,7 +94,7 @@ footer{max-width:1100px;margin:0 auto;padding:18px 16px;color:var(--dim);font-si
   <ul>
     <li><span class="lane l-food">T1</span> <b>Food extractor</b> — placed on its food terrain tile → a raw food.</li>
     <li><span class="lane l-food">T2</span> <b>Food processor</b> — raw food → basic processed food.</li>
-    <li><span class="lane l-food">T3</span> <b>Food processor (staple)</b> — → a second basic food. <span class="tag-prop">being added to timber/stone/clay</span></li>
+    <li><span class="lane l-food">T3</span> <b>Food processor (staple)</b> — → a second basic food (iron's Bakery→bread; timber/stone/clay's Cookhouse/Galley/Pottage House).</li>
     <li><span class="lane l-luxury">T3</span> <b>Luxury food processor</b> — → a luxury food (gates tier 6+ housing).</li>
   </ul>
   <h3>Boosters (2 buildings)</h3>
@@ -136,13 +136,13 @@ footer{max-width:1100px;margin:0 auto;padding:18px 16px;color:var(--dim);font-si
       <tr><th><span class="lane l-food">Food T2</span></th>
         <td>Winery<small>berries→wine</small></td><td>Smokehouse<small>fish→smoked_fish</small></td><td>Cannery<small>vegetables→preserves</small></td><td>Mill<small>grain→flour</small></td></tr>
       <tr><th><span class="lane l-food">Food T3 (staple)</span></th>
-        <td>Cookhouse <span class="tag-prop">PROP</span><small>→ stew</small></td><td>Galley <span class="tag-prop">PROP</span><small>→ chowder</small></td><td>Pottage House <span class="tag-prop">PROP</span><small>→ pottage</small></td><td>Bakery<small>flour→bread</small></td></tr>
+        <td>Cookhouse<small>wine→stew</small></td><td>Galley<small>smoked_fish→chowder</small></td><td>Pottage House<small>preserves→pottage</small></td><td>Bakery<small>flour→bread</small></td></tr>
       <tr><th><span class="lane l-luxury">Luxury food T3</span></th>
         <td>Distillery<small>wine→spirits</small></td><td>Curing House<small>smoked_fish→caviar</small></td><td>Spicery<small>preserves→spices</small></td><td>Brewery<small>flour→ale</small></td></tr>
     </tbody>
   </table>
   </div>
-  <div class="note warn"><b>Symmetry fix in flight:</b> Iron historically had a 4th food building (Bakery→bread) the others lacked. We're adding a parallel staple-food building to timber/stone/clay so all four columns are 11-for-11. The three new names/foods (Cookhouse→stew, Galley→chowder, Pottage House→pottage) are <b>drafts</b> — rename freely before the migration ships.</div>
+  <div class="note"><b>✅ Symmetry fix shipped 2026-06-10:</b> Iron historically had a 4th food building (Bakery→bread) the others lacked. timber/stone/clay now have a parallel staple-food building (Cookhouse→stew, Galley→chowder, Pottage House→pottage), so all four columns are <b>11-for-11</b>. <span class="warn" style="border:none">Open follow-up:</span> these new staples are basic foods but — unlike bread — are not yet universal housing <i>lifestyle demands</i>. Making them so (a deeper economy-layer symmetry) is a pending balance decision.</div>
 </section>
 
 <section id="ring">
