@@ -17,11 +17,10 @@
 
 set -euo pipefail
 
-CITYBUILDER=/home/atlas/citybuilder
 GAME=/home/atlas/citybuilder-game
-LOCKFILE=$CITYBUILDER/scripts/.auto_bug_triage.lock
-LOGDIR=$CITYBUILDER/logs
-PROMPT=$CITYBUILDER/scripts/auto_bug_triage_prompt.md
+LOCKFILE=$GAME/scripts/.auto_bug_triage.lock
+LOGDIR=$GAME/logs
+PROMPT=$GAME/scripts/auto_bug_triage_prompt.md
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 LOGFILE=$LOGDIR/auto_bug_triage_$TS.log
 
@@ -69,15 +68,14 @@ fi
   echo
 
   # claude --print so it exits when done. --permission-mode bypassPermissions
-  # so it doesn't hang on prompts. --add-dir for both repos. --max-budget-usd
-  # caps cost at $2 per run. --model sonnet (cheaper than opus, sufficient
-  # for the workflow). cwd is the v1 repo since that's where BUG_REPORTS.md
-  # + migrations live; claude can navigate to citybuilder-game via --add-dir.
-  cd "$CITYBUILDER"
+  # so it doesn't hang on prompts. --max-budget-usd caps cost at $2 per run.
+  # --model sonnet (cheaper than opus, sufficient for the workflow). cwd is the
+  # consolidated citybuilder repo — front end, migrations (db/), tests, and
+  # BUG_REPORTS.md all live here now.
+  cd "$GAME"
 
   claude --print \
     --permission-mode bypassPermissions \
-    --add-dir "$GAME" \
     --max-budget-usd 2 \
     --model claude-sonnet-4-6 \
     --no-session-persistence \

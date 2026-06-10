@@ -10,7 +10,7 @@ You are running as a scheduled job to triage and resolve open in-game bug report
      - Ship the code or migration change.
      - Commit + push to origin/main (auto-push is the standard).
      - `UPDATE bug_reports SET resolved_at = now(), resolution_notes = ..., resolution_commit = ...` for that row.
-     - Append a `## YYYY-MM-DD — Reporter — "verbatim"` entry to `/home/atlas/citybuilder/BUG_REPORTS.md` and commit it.
+     - Append a `## YYYY-MM-DD — Reporter — "verbatim"` entry to `/home/atlas/citybuilder-game/BUG_REPORTS.md` and commit it.
      - Insert a `feedback_prompts` row for the reporter so they hear about it on their next login. **This is required for every fix — Atlas made it standard 2026-05-21.**
    - **If no — uncertain diagnosis, ambiguous fix, or scope outside the safe-fix list below — leave the row untouched.** Don't mark it resolved. Don't ship a guess.
 3. End by writing a single-line summary to stdout: `fixed N, deferred M` so the cron log captures progress.
@@ -50,6 +50,6 @@ For deferrals, optionally leave a one-liner in `resolution_notes` on the row pre
 Auto-load handles your memory. The relevant entries: `feedback-bug-report-workflow`, `feedback-auto-push`, `feedback-cash-ledger-invariant`, `feedback-changelog-publishing`, `feedback-p2p-trade-shape`, `clock-timestamp-for-round-boundaries`, `project-feedback-prompts`. If any of these contradicts what I've said here, the memory wins.
 
 Database: `~/.citybuilder_db_url` (psycopg2-compatible).
-Repos: `/home/atlas/citybuilder` (v1 / tests / migrations) and `/home/atlas/citybuilder-game` (v2 / Phaser FE).
+Repo: `/home/atlas/citybuilder-game` — the consolidated city-builder repo. Phaser front end in `src/`, server-side migrations in `db/migrations/` (apply via the Supabase SQL editor), pytest suite in `tests/`, `BUG_REPORTS.md` at the root. (The old v1 repo `/home/atlas/citybuilder` is retired — don't write there.)
 
 Start now. No clarifying questions — Atlas already approved the full-auto mode.
