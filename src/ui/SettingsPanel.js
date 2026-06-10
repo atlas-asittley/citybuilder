@@ -23,6 +23,7 @@ export function openSettings() {
       </div>
       <div class="sp-body">
         <button class="sp-row" id="sp-help">📖 Buildings reference</button>
+        <a class="sp-row" href="${import.meta.env.BASE_URL}codex.html" target="_blank" rel="noopener">🗺️ Design Codex <small>(industries, tree &amp; systems)</small></a>
         <button class="sp-row" id="sp-whats-new">What's new</button>
         <button class="sp-row sp-row-toggle" id="sp-anims" aria-pressed="false">
           <span>Animations</span>

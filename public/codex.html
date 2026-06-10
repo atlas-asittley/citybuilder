@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>City Builder — Design Codex</title>
+<style>
+:root{
+  --bg:#1a1a2e; --panel:#16213e; --panel2:#1d2b4a; --line:#0f3460;
+  --green:#16c79a; --red:#e94560; --gold:#f0c040; --txt:#e8e8ef; --dim:#9aa3b8;
+  --industry:#5aa9e6; --food:#7bd88f; --luxury:#f0c040; --cross:#c792ea; --booster:#ff9e64;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--txt);font-family:'Courier New',ui-monospace,monospace;line-height:1.5;padding-bottom:80px}
+header{padding:28px 20px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:10}
+h1{font-size:26px;color:var(--green)}
+.sub{color:var(--dim);font-size:13px;margin-top:4px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+nav a{font-size:12px;color:var(--green);text-decoration:none;border:1px solid var(--line);padding:4px 9px;border-radius:4px}
+nav a:hover{border-color:var(--green)}
+main{max-width:1100px;margin:0 auto;padding:24px 16px}
+section{margin-bottom:40px}
+h2{font-size:20px;color:var(--red);border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px}
+h3{font-size:15px;color:var(--gold);margin:18px 0 8px}
+p{margin-bottom:10px;font-size:14px}
+.note{background:var(--panel);border-left:3px solid var(--green);padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;margin:12px 0}
+.warn{border-left-color:var(--gold)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:640px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+thead th{background:var(--panel2);color:var(--txt);position:sticky;top:0}
+tbody th{background:var(--panel);color:var(--dim);font-weight:normal;text-align:left;white-space:normal;min-width:130px}
+td small{color:var(--dim);display:block;font-size:11px}
+.b{font-weight:bold}
+.lane{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;color:#0b0b16;font-weight:bold}
+.l-industry{background:var(--industry)} .l-food{background:var(--food)} .l-luxury{background:var(--luxury)}
+.l-cross{background:var(--cross)} .l-booster{background:var(--booster)}
+.tag-prop{background:var(--red);color:#fff;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+.card h4{color:var(--green);font-size:14px;margin-bottom:6px}
+.card p{font-size:12.5px;color:var(--dim);margin:0}
+.ring{font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;text-align:center;letter-spacing:1px}
+.ring b{color:var(--gold)}
+ul{margin:6px 0 10px 20px;font-size:13px}
+li{margin-bottom:5px}
+code{background:#0b1226;color:var(--green);padding:1px 5px;border-radius:3px;font-size:12px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;margin:10px 0;color:var(--dim)}
+footer{max-width:1100px;margin:0 auto;padding:18px 16px;color:var(--dim);font-size:12px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏙️ City Builder — Design Codex</h1>
+  <div class="sub">Source of truth for the game's structure. Review against this whenever buildings, resources, or systems change.</div>
+  <nav>
+    <a href="#concept">Concept</a>
+    <a href="#template">Industry Template</a>
+    <a href="#matrix">Industries</a>
+    <a href="#ring">Trade Ring</a>
+    <a href="#common">Common</a>
+    <a href="#systems">Systems</a>
+    <a href="#invariants">Invariants</a>
+  </nav>
+</header>
+<main>
+
+<section id="concept">
+  <h2>The core concept</h2>
+  <p>Every player picks one <span class="b">industry</span> — <b style="color:var(--industry)">timber</b>, <b style="color:var(--industry)">stone</b>, <b style="color:var(--industry)">clay</b>, or <b style="color:var(--industry)">iron</b>. Each industry is the <b>same set of building "slots," reskinned</b> with that industry's resource. A player's identity is <i>which column they got</i>; the <i>shape</i> of their tech tree is identical to everyone else's.</p>
+  <p>On top of the industry columns sits a shared <b>Common set</b> (housing, roads, services, power, sanitation, police, transport…) that every player has identically.</p>
+  <p>The economy is multiplayer by design: the top industry tier is <b>not self-sufficient</b> — it needs another industry's good — so players must trade. See <a href="#ring" style="color:var(--green)">Trade Ring</a>.</p>
+  <div class="legend">
+    <span><span class="lane l-industry">industry</span> raw→processed goods</span>
+    <span><span class="lane l-cross">cross</span> support good for the ring</span>
+    <span><span class="lane l-food">food</span> feeds housing</span>
+    <span><span class="lane l-luxury">luxury</span> gates high-tier housing</span>
+    <span><span class="lane l-booster">booster</span> area buff</span>
+  </div>
+</section>
+
+<section id="template">
+  <h2>Industry template — the 11 slots</h2>
+  <p>Every industry fills these slots. To <b>add a new industry</b>, instantiate all 11 with the new resource, mint the resources below, and splice into the trade ring.</p>
+  <h3>Industry spine (5 buildings)</h3>
+  <ul>
+    <li><span class="lane l-industry">T1</span> <b>Resource extractor</b> — mines the raw industry good (placed on resource tiles; walker hauls it).</li>
+    <li><span class="lane l-cross">T2</span> <b>Cross-converter</b> — raw → a <b>support good</b> consumed by the <i>next</i> industry's T4 (the trade ring).</li>
+    <li><span class="lane l-industry">T2</span> <b>Industry processor</b> — raw → T2 good.</li>
+    <li><span class="lane l-industry">T3</span> <b>Industry processor</b> — T2 → T3 good.</li>
+    <li><span class="lane l-industry">T4</span> <b>Cross-recipe processor</b> — T3 good + <i>another industry's</i> support good → an <b>industrial luxury</b> (high-tier housing prereq + premium trade good).</li>
+  </ul>
+  <h3>Food spine (4 buildings)</h3>
+  <ul>
+    <li><span class="lane l-food">T1</span> <b>Food extractor</b> — placed on its food terrain tile → a raw food.</li>
+    <li><span class="lane l-food">T2</span> <b>Food processor</b> — raw food → basic processed food.</li>
+    <li><span class="lane l-food">T3</span> <b>Food processor (staple)</b> — → a second basic food. <span class="tag-prop">being added to timber/stone/clay</span></li>
+    <li><span class="lane l-luxury">T3</span> <b>Luxury food processor</b> — → a luxury food (gates tier 6+ housing).</li>
+  </ul>
+  <h3>Boosters (2 buildings)</h3>
+  <ul>
+    <li><span class="lane l-booster">T1</span> <b>Resource booster</b> — +25% to adjacent extractors (range 2, MAX not stacked).</li>
+    <li><span class="lane l-booster">T1</span> <b>Food booster</b> — +25% to adjacent food extractors.</li>
+  </ul>
+  <h3>Resources a new industry mints (~9)</h3>
+  <ul>
+    <li>1 raw industry good · 1 T2 good · 1 T3 good · 1 support good · 1 industrial luxury</li>
+    <li>1 raw food · 1 basic food (T2) · 1 staple food (T3) · 1 luxury food</li>
+  </ul>
+  <div class="note">Adding a new industry also means choosing its place in the trade ring (which support good it produces, and which neighbor's support good its T4 consumes). A 5th industry extends the ring from a 4-cycle to a 5-cycle.</div>
+</section>
+
+<section id="matrix">
+  <h2>The four industries, in parallel</h2>
+  <p>Each row is the "same" building across players. <span class="tag-prop">PROPOSED</span> = the symmetry fix (not yet built; names/inputs are drafts pending sign-off).</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Slot</th><th>Timber</th><th>Stone</th><th>Clay</th><th>Iron</th></tr></thead>
+    <tbody>
+      <tr><th><span class="lane l-industry">Resource extractor</span></th>
+        <td>Logging Camp<small>→ timber</small></td><td>Stonecutters' Camp<small>→ stone</small></td><td>Clay Diggers' Camp<small>→ clay</small></td><td>Miners' Camp<small>→ iron</small></td></tr>
+      <tr><th><span class="lane l-booster">Resource booster</span></th>
+        <td>Forester's Office</td><td>Foreman's Office</td><td>Clay Master's Hut</td><td>Mine Office</td></tr>
+      <tr><th><span class="lane l-cross">Cross-converter (T2)</span></th>
+        <td>Charcoal Kiln<small>→ charcoal</small></td><td>Lime Kiln<small>→ lime</small></td><td>Glassworks<small>→ glass</small></td><td>Nail Forge<small>→ nails</small></td></tr>
+      <tr><th><span class="lane l-industry">Industry T2</span></th>
+        <td>Sawmill<small>timber→lumber</small></td><td>Mason Workshop<small>stone→brick</small></td><td>Pottery Kiln<small>clay→pottery</small></td><td>Smelter<small>iron→iron_ingot</small></td></tr>
+      <tr><th><span class="lane l-industry">Industry T3</span></th>
+        <td>Woodcarver<small>lumber→furniture</small></td><td>Sculptor<small>brick→statuary</small></td><td>Tile Maker<small>pottery→tiles</small></td><td>Toolmaker<small>ingot→tools</small></td></tr>
+      <tr><th><span class="lane l-industry">Industry T4 (cross-recipe)</span></th>
+        <td>Cabinetmaker<small>furniture+lime→cabinets</small></td><td>Architect<small>statuary+glass→monuments</small></td><td>Mosaic Workshop<small>tiles+nails→mosaics</small></td><td>Engineer's Workshop<small>tools+charcoal→machinery</small></td></tr>
+      <tr><th><span class="lane l-food">Food extractor</span></th>
+        <td>Orchard<small>→ berries</small></td><td>Fishing Pier<small>→ fish</small></td><td>Garden<small>→ vegetables</small></td><td>Grain Farm<small>→ grain</small></td></tr>
+      <tr><th><span class="lane l-booster">Food booster</span></th>
+        <td>Apiary</td><td>Hatchery</td><td>Compost Heap</td><td>Irrigation Channel</td></tr>
+      <tr><th><span class="lane l-food">Food T2</span></th>
+        <td>Winery<small>berries→wine</small></td><td>Smokehouse<small>fish→smoked_fish</small></td><td>Cannery<small>vegetables→preserves</small></td><td>Mill<small>grain→flour</small></td></tr>
+      <tr><th><span class="lane l-food">Food T3 (staple)</span></th>
+        <td>Cookhouse <span class="tag-prop">PROP</span><small>→ stew</small></td><td>Galley <span class="tag-prop">PROP</span><small>→ chowder</small></td><td>Pottage House <span class="tag-prop">PROP</span><small>→ pottage</small></td><td>Bakery<small>flour→bread</small></td></tr>
+      <tr><th><span class="lane l-luxury">Luxury food T3</span></th>
+        <td>Distillery<small>wine→spirits</small></td><td>Curing House<small>smoked_fish→caviar</small></td><td>Spicery<small>preserves→spices</small></td><td>Brewery<small>flour→ale</small></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note warn"><b>Symmetry fix in flight:</b> Iron historically had a 4th food building (Bakery→bread) the others lacked. We're adding a parallel staple-food building to timber/stone/clay so all four columns are 11-for-11. The three new names/foods (Cookhouse→stew, Galley→chowder, Pottage House→pottage) are <b>drafts</b> — rename freely before the migration ships.</div>
+</section>
+
+<section id="ring">
+  <h2>The trade ring (why it's multiplayer)</h2>
+  <p>Each industry's <b>T4</b> needs the <b>support good</b> made by another industry's cross-converter. No one can finish their tech tree alone.</p>
+  <div class="ring">
+    <b>TIMBER</b> needs lime → <b>STONE</b> needs glass → <b>CLAY</b> needs nails → <b>IRON</b> needs charcoal → <b>TIMBER</b> ↺
+  </div>
+  <ul style="margin-top:12px">
+    <li>Timber makes <code>charcoal</code> → consumed by Iron's Engineer's Workshop</li>
+    <li>Stone makes <code>lime</code> → consumed by Timber's Cabinetmaker</li>
+    <li>Clay makes <code>glass</code> → consumed by Stone's Architect</li>
+    <li>Iron makes <code>nails</code> → consumed by Clay's Mosaic Workshop</li>
+  </ul>
+  <p>High-tier <b>housing</b> (tiers 7–8) also requires industrial luxuries from multiple industries, and tier 8 needs <i>all four</i> at once — forcing a fully-traded city.</p>
+</section>
+
+<section id="common">
+  <h2>Common buildings (shared by everyone)</h2>
+  <p>Industry-agnostic — identical for every player. <code>industry_key = 'common'</code>.</p>
+  <div class="cards">
+    <div class="card"><h4>Housing</h4><p>House (tiers 0–8: shanty → palace). Food + luxury gated.</p></div>
+    <div class="card"><h4>Roads</h4><p>Road · Paved Road · Tiled Avenue · Grand Boulevard (higher tier = less congestion).</p></div>
+    <div class="card"><h4>Services</h4><p>Well · Bathhouse · Tavern · Library · Clinic · School · Temple · Hospital (gate housing tiers + happiness).</p></div>
+    <div class="card"><h4>Power</h4><p>Windmill · Watermill · Powerhouse (output vs building load).</p></div>
+    <div class="card"><h4>Sanitation</h4><p>Refuse Dump · Recycling Center · Incinerator (clear waste).</p></div>
+    <div class="card"><h4>Police</h4><p>Watch House · Police Station · Constabulary (reduce crime in radius).</p></div>
+    <div class="card"><h4>Parks &amp; civic</h4><p>Tree Grove · Park · Public Garden · Marketplace · Monument (desirability, dampen pollution).</p></div>
+    <div class="card"><h4>Transport</h4><p>Truck Depot · Train Depot · Seaport · Airport (logistics + reach).</p></div>
+    <div class="card"><h4>Tax</h4><p>Tax Office (revenue when staffed).</p></div>
+  </div>
+</section>
+
+<section id="systems">
+  <h2>Systems &amp; problems</h2>
+  <p>Per-tile and per-player metrics the city has to manage. Most are computed each production tick on the server.</p>
+  <div class="cards">
+    <div class="card"><h4>😊 Happiness</h4><p>Drives population &amp; worker capacity (±1 citizen/min toward/away from a happiness=50 pivot, floor 5). Fed by services, desirability; hurt by crime/pollution.</p></div>
+    <div class="card"><h4>🏭 Pollution</h4><p>Production buildings emit (<code>pollution_emit/radius</code>); parks dampen. Crosses parcel borders — your neighbor's pollution lands on you. Feeds desirability.</p></div>
+    <div class="card"><h4>🗑️ Waste</h4><p>Buildings emit <code>waste_emit</code>; sanitation coverage clears it. Uncovered → player <code>waste</code> climbs toward 100.</p></div>
+    <div class="card"><h4>🚨 Crime</h4><p><code>crime_emit</code> vs police <code>crime_reduction</code> over a coverage radius. Uncovered tiles read high-risk on the heatmap.</p></div>
+    <div class="card"><h4>✨ Desirability</h4><p>City base + service coverage − pollution (<code>desirability_bonus/radius</code>). Gates growth &amp; migration.</p></div>
+    <div class="card"><h4>⚡ Power</h4><p><code>power_output</code> (plants) vs <code>power_load</code> (buildings). Demand &gt; capacity = brownout pressure.</p></div>
+    <div class="card"><h4>🚦 Congestion / noise</h4><p><code>noise_emit/radius</code> + road throughput by <code>road_tier</code>. Heavy industry on weak roads spikes congestion.</p></div>
+    <div class="card"><h4>🏥 Health</h4><p>Clinics / Hospital coverage drives player <code>health</code>; interacts with pollution &amp; waste.</p></div>
+    <div class="card"><h4>🎓 Education</h4><p>School / Library coverage drives <code>education</code> (and unlocks higher housing).</p></div>
+    <div class="card"><h4>📈 Migration / productivity</h4><p><code>migration_rate</code> (inflow from desirability/happiness) and <code>productivity</code> (output multiplier from services).</p></div>
+  </div>
+  <div class="note">Each system above should eventually get its own deep-dive section here, mirroring the per-metric docs in <code>docs/</code> (POLLUTION, DESIRABILITY, CRIME, HAPPINESS, PRODUCTIVITY, CIVIC_METRICS_EXPANSION).</div>
+</section>
+
+<section id="invariants">
+  <h2>Invariants — the review checklist</h2>
+  <p>When we change buildings/resources, check the change against these:</p>
+  <ul>
+    <li><b>Parallelism:</b> every industry fills the same 11 slots. If one gets a building, all four do.</li>
+    <li><b>Trade ring closed:</b> every industry produces exactly one support good and its T4 consumes exactly one (a different industry's). The ring has no dead ends.</li>
+    <li><b>Food gate:</b> each industry can satisfy the basic housing food gate locally (raw food + processed food are <code>is_food</code>), and has exactly one luxury food (<code>is_luxury_food</code>) for high-tier housing.</li>
+    <li><b>Common stays common:</b> housing/road/services/power/sanitation/police/transport/tax are <code>industry_key='common'</code> and never industry-specific.</li>
+    <li><b>New category checklist:</b> adding a <i>category</i> (not just a building) touches 7+ places — see the <code>new_building_category_checklist</code> memory.</li>
+  </ul>
+</section>
+
+</main>
+<footer>
+  Generated as the city-builder design source of truth · 2026-06-10 · lives at <code>public/codex.html</code> in the citybuilder repo, served at <code>/citybuilder/codex.html</code>.
+</footer>
+</body>
+</html>
+</content>
