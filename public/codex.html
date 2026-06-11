@@ -107,7 +107,7 @@ footer{max-width:1100px;margin:0 auto;padding:18px 16px;color:var(--dim);font-si
     <li>1 raw industry good · 1 T2 good · 1 T3 good · 1 support good · 1 industrial luxury</li>
     <li>1 raw food · 1 basic food (T2) · 1 staple food (T3) · 1 luxury food</li>
   </ul>
-  <div class="note">Adding a new industry also means choosing its place in the trade ring (which support good it produces, and which neighbor's support good its T4 consumes). A 5th industry extends the ring from a 4-cycle to a 5-cycle.</div>
+  <div class="note">Adding a new industry also means: (1) choosing its place in the trade ring — which support good it produces and which neighbor's it consumes (a 5th industry extends the ring from a 4-cycle to a 5-cycle); and (2) registering its basic staple + luxury food as <code>lifestyle_substitutes</code> for <code>bread</code>, so it inherits food self-sufficiency (see Systems → Food).</div>
 </section>
 
 <section id="matrix">
@@ -192,6 +192,15 @@ footer{max-width:1100px;margin:0 auto;padding:18px 16px;color:var(--dim);font-si
     <div class="card"><h4>📈 Migration / productivity</h4><p><code>migration_rate</code> (inflow from desirability/happiness) and <code>productivity</code> (output multiplier from services).</p></div>
   </div>
   <div class="note">Each system above should eventually get its own deep-dive section here, mirroring the per-metric docs in <code>docs/</code> (POLLUTION, DESIRABILITY, CRIME, HAPPINESS, PRODUCTIVITY, CIVIC_METRICS_EXPANSION).</div>
+
+  <h3>🍲 Food &amp; self-sufficiency (design principle)</h3>
+  <p>Food has <b>three roles</b>, all designed so a player never depends on another industry to keep their <i>own</i> city alive:</p>
+  <ul>
+    <li><b>Basic food gate</b> — tier 1+ housing needs food in stock and drains it each tick. Satisfied by <i>any</i> <code>is_food</code> resource, so every industry's raw + processed foods qualify locally.</li>
+    <li><b>Staple lifestyle demand</b> — tier 3+ housing demands a "staple" (keyed in data as <code>bread</code>). Via the <code>lifestyle_substitutes</code> table it's satisfied by each industry's <b>own</b> basic staple <i>or</i> luxury food: timber <code>stew/spirits</code> · stone <code>chowder/caviar</code> · clay <code>pottage/spices</code> · iron <code>bread/ale</code>.</li>
+    <li><b>Luxury food gate</b> — tier 6+ housing needs <i>any</i> luxury food (<code>is_luxury_food</code>: spirits/caviar/spices/ale).</li>
+  </ul>
+  <div class="note"><b>The principle — food is the fairness floor:</b> every player can feed <i>and</i> house their own city using only their own industry column. The <b>finished industry goods</b> (furniture / statuary / pottery, plus the T4 cross-recipe ring) are the <b>trade economy</b> — those are what deliberately force players to trade. <b>Adding a new industry:</b> mint its own basic staple + luxury food and register them as <code>lifestyle_substitutes</code> for <code>bread</code>, and it inherits this self-sufficiency automatically.</div>
 </section>
 
 <section id="invariants">
@@ -200,7 +209,7 @@ footer{max-width:1100px;margin:0 auto;padding:18px 16px;color:var(--dim);font-si
   <ul>
     <li><b>Parallelism:</b> every industry fills the same 11 slots. If one gets a building, all four do.</li>
     <li><b>Trade ring closed:</b> every industry produces exactly one support good and its T4 consumes exactly one (a different industry's). The ring has no dead ends.</li>
-    <li><b>Food gate:</b> each industry can satisfy the basic housing food gate locally (raw food + processed food are <code>is_food</code>), and has exactly one luxury food (<code>is_luxury_food</code>) for high-tier housing.</li>
+    <li><b>Food self-sufficiency:</b> each industry can satisfy the basic food gate, the staple lifestyle demand (its own basic staple <i>or</i> luxury, via <code>lifestyle_substitutes</code> → <code>bread</code>), and the luxury gate using only its own goods. A new industry registers its staple + luxury as bread-substitutes.</li>
     <li><b>Common stays common:</b> housing/road/services/power/sanitation/police/transport/tax are <code>industry_key='common'</code> and never industry-specific.</li>
     <li><b>New category checklist:</b> adding a <i>category</i> (not just a building) touches 7+ places — see the <code>new_building_category_checklist</code> memory.</li>
   </ul>
