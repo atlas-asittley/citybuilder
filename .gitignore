@@ -8,7 +8,8 @@ dist/
 
 # server-side workshop runtime
 logs/
-scripts/.auto_bug_triage.lock
+scripts/.bug_report_notify.lock
+scripts/.notified_bug_ids
 __pycache__/
 *.pyc
 .pytest_cache/
