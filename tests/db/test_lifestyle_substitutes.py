@@ -1,9 +1,13 @@
-"""Tests for the bread → {spices, caviar, spirits} substitute chain.
+"""Tests for the bread substitute chain.
 
-Design: a tier's lifestyle demand for `bread` is satisfied by ANY of
-the four (bread / spices / caviar / spirits) — in inventory for the
-upgrade gate, and proportionally as a pool for the per-house pantry
-refill.
+Design: a tier's lifestyle demand for `bread` is satisfied by ANY member
+of the substitute pool — in inventory for the upgrade gate, and
+proportionally as a pool for the per-house pantry refill.
+
+The pool was seeded in two waves:
+  - lifestyle_substitutes.sql:      spices, caviar, spirits
+  - staple_self_sufficiency.sql:    stew, chowder, pottage, ale
+    (one staple per industry, so no industry starves on bread alone)
 """
 
 import datetime
@@ -55,13 +59,15 @@ def _set_inventory(cur, player_id, **resources):
 
 
 def test_substitutes_table_seeded(cur):
-    """Migration seeded bread → spices/caviar/spirits."""
+    """Both seeding waves are present: the original luxury trio plus the
+    per-industry staples added by staple_self_sufficiency.sql."""
     cur.execute(
         "SELECT substitute_key FROM public.lifestyle_substitutes "
         "WHERE primary_key = 'bread' ORDER BY substitute_key"
     )
     subs = [r[0] for r in cur.fetchall()]
-    assert subs == ['caviar', 'spices', 'spirits']
+    assert subs == ['ale', 'caviar', 'chowder', 'pottage',
+                    'spices', 'spirits', 'stew']
 
 
 def test_pantry_buffer_refills_from_spices(cur, make_player, place, clear_resources):
