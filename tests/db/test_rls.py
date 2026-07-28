@@ -121,3 +121,54 @@ def test_player_profiles_money_cannot_be_directly_set(make_player, cur):
     after = cur.fetchone()[0]
     assert after == starting, \
         f"Authenticated player altered money via direct UPDATE (was ${starting}, now ${after})"
+
+
+def test_every_public_table_has_rls_enabled(cur):
+    """Supabase's security advisor (rls_disabled_in_public) emailed a weekly
+    'Action required' alert for months because trader_name_pool shipped in
+    procedural_traders.sql without RLS, leaving anon full SIUD on it.
+    Fixed 2026-07-28. This guards the whole schema, not just that table —
+    a new migration that forgets ENABLE ROW LEVEL SECURITY fails here."""
+    cur.execute("""
+        SELECT c.relname
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind = 'r'
+          AND NOT c.relrowsecurity
+        ORDER BY c.relname
+    """)
+    missing = [r[0] for r in cur.fetchall()]
+    assert missing == [], \
+        f"public tables without RLS (Supabase advisor will flag these): {missing}"
+
+
+def test_trader_name_pool_not_client_readable(cur):
+    """trader_name_pool is pure server-side flavour data. anon must not
+    reach it directly; the only consumer is _pick_trader_name(), reached
+    via SECURITY DEFINER _spawn_random_trader()."""
+    for role in ('anon', 'authenticated'):
+        cur.execute("SAVEPOINT rls_tnp")
+        cur.execute(f"SET LOCAL ROLE {role}")
+        try:
+            cur.execute("SELECT count(*) FROM public.trader_name_pool")
+            cur.execute("RESET ROLE")
+            cur.execute("RELEASE SAVEPOINT rls_tnp")
+            assert False, f"{role} can read trader_name_pool directly"
+        except psycopg2.errors.InsufficientPrivilege:
+            cur.execute("ROLLBACK TO SAVEPOINT rls_tnp")
+
+
+def test_trader_spawn_still_works_after_name_pool_lockdown(cur):
+    """Locking trader_name_pool must not break trader spawning: postgres
+    owns the table and _spawn_random_trader is SECURITY DEFINER, so the
+    definer path bypasses RLS. Regression guard for the 2026-07-28 fix."""
+    cur.execute("SAVEPOINT spawn_tnp")
+    cur.execute("SET LOCAL ROLE anon")
+    try:
+        cur.execute("SELECT public._spawn_random_trader('truck')")
+        key = cur.fetchone()[0]
+        assert key and key.startswith('proc_'), f"unexpected trader key: {key}"
+    finally:
+        cur.execute("RESET ROLE")
+        cur.execute("ROLLBACK TO SAVEPOINT spawn_tnp")
