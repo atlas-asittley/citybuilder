@@ -7,9 +7,53 @@ After every rebaseline, this directory is emptied: the patches get folded into `
 ## Adding a new patch
 
 1. Write the SQL as a standalone, idempotent file (`CREATE OR REPLACE FUNCTION`, `CREATE TABLE IF NOT EXISTS`, `DROP POLICY IF EXISTS` before `CREATE POLICY`, etc.).
-2. Apply it to the live DB via the Supabase SQL editor.
-3. Commit the file here.
-4. Add or update a regression test under `tests/`.
+2. If the patch creates a table, follow the new-table checklist below.
+3. Apply it to the live DB via the Supabase SQL editor.
+4. Commit the file here.
+5. Add or update a regression test under `tests/`.
+
+## New-table checklist
+
+Every `CREATE TABLE` in `public` needs RLS and explicit grants — both are
+easy to forget and neither fails loudly.
+
+**RLS is mandatory.** Supabase's security advisor emails a weekly
+"Action required: security vulnerabilities detected" alert for any table
+in `public` without it (rule `rls_disabled_in_public`). `trader_name_pool`
+shipped without it and nagged for months. `tests/db/test_rls.py::
+test_every_public_table_has_rls_enabled` now fails the suite if a table
+misses it.
+
+```sql
+ALTER TABLE public.your_table ENABLE ROW LEVEL SECURITY;
+```
+
+Then pick the access shape:
+
+- **Server-side only** (catalog/flavour data, reached solely through
+  `SECURITY DEFINER` RPCs) — enable RLS, add *no* policies, and revoke
+  the client grants. postgres owns the tables and bypasses RLS, so the
+  definer path keeps working. See `trader_name_pool`, `changelog_entries`.
+  ```sql
+  REVOKE ALL ON public.your_table FROM anon, authenticated;
+  ```
+- **Client-readable** — add a `SELECT` policy only. All writes go through
+  RPCs; direct write policies were deliberately dropped in the 2026-05-09
+  lockdown, so don't reintroduce them.
+
+**Grants become mandatory on 2026-10-30.** Supabase is dropping the
+automatic Data API exposure of new `public` tables. Existing tables keep
+their current grants and nothing breaks on that date, but any table
+created afterwards is invisible to PostgREST/supabase-js until granted —
+a missing grant surfaces as a `42501` error naming the exact fix. For
+client-readable tables, state it explicitly rather than relying on the
+inherited default:
+
+```sql
+GRANT SELECT ON public.your_table TO anon, authenticated;
+```
+
+Background: <https://github.com/orgs/supabase/discussions/45329>
 
 ## Rebaselining
 
