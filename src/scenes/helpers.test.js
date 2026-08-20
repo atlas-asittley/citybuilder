@@ -22,7 +22,8 @@ import {
   computeResourceFlow,
   computeHousingCapacity,
   computeCoverageForCategory,
-  computeSanitationCoverage
+  computeSanitationCoverage,
+  homeParcelCenterPx
 } from './helpers.js';
 
 describe('buildingSignature', () => {
@@ -1228,5 +1229,51 @@ describe('computeCoverageForCategory / computeSanitationCoverage', () => {
   it('computeSanitationCoverage is the sanitation-category specialization', () => {
     const b = [{ player_id: 'me', building_type_key: 'dump', x: 5, y: 5, status: 'active', is_staffed: true }];
     expect(computeSanitationCoverage(b, bt, 'me')).toEqual(computeCoverageForCategory(b, bt, 'me', 'sanitation'));
+  });
+});
+
+describe('homeParcelCenterPx', () => {
+  const TILE = 32;
+
+  it('centres on the starting parcel, not on land claimed later', () => {
+    // Drew's real values: home (7,37) is dead centre of his first
+    // chunk (0,2), which covers x 0..14 / y 30..44. He has since
+    // expanded to 14 chunks spanning y -3..5, so gridMinY is -45.
+    const r = homeParcelCenterPx({ home_x: 7, home_y: 37 }, -30, -45, TILE);
+    expect(r).toEqual({
+      x: (7 - -30) * TILE + TILE / 2,
+      y: (37 - -45) * TILE + TILE / 2,
+    });
+  });
+
+  it('matches the tile→pixel convention used for rendering', () => {
+    // Same formula MainScene uses to place buildings and walkers, so
+    // the camera lands on the tile centre rather than its corner.
+    const r = homeParcelCenterPx({ home_x: 7, home_y: 52 }, 0, 45, TILE);
+    expect(r.x).toBe(7 * TILE + TILE / 2);
+    expect(r.y).toBe((52 - 45) * TILE + TILE / 2);
+  });
+
+  it('is unaffected by how much the player has expanded', () => {
+    // gridMin shifts as parcels are claimed; home stays the same tile,
+    // so the offset must track gridMin exactly.
+    const a = homeParcelCenterPx({ home_x: 7, home_y: 37 }, 0, 30, TILE);
+    const b = homeParcelCenterPx({ home_x: 7, home_y: 37 }, 0, 0, TILE);
+    expect(b.y - a.y).toBe(30 * TILE);
+  });
+
+  it('returns null rather than defaulting to 0,0 when home is unknown', () => {
+    // A null here makes the caller fall back to the saved view; a
+    // {0,0} would silently fling the player off their land.
+    expect(homeParcelCenterPx(null, 0, 0, TILE)).toBeNull();
+    expect(homeParcelCenterPx({}, 0, 0, TILE)).toBeNull();
+    expect(homeParcelCenterPx({ home_x: 7, home_y: null }, 0, 0, TILE)).toBeNull();
+    expect(homeParcelCenterPx({ home_x: 7, home_y: 37 }, 0, 0, 0)).toBeNull();
+    expect(homeParcelCenterPx({ home_x: 7, home_y: 37 }, NaN, 0, TILE)).toBeNull();
+  });
+
+  it('handles home at tile 0,0 without being mistaken for "no home"', () => {
+    expect(homeParcelCenterPx({ home_x: 0, home_y: 0 }, 0, 0, TILE))
+      .toEqual({ x: TILE / 2, y: TILE / 2 });
   });
 });

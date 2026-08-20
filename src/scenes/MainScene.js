@@ -27,7 +27,8 @@ import {
   computeSanitationCoverage as _computeSanitationCoverage,
   computeProblemTiles as _computeProblemTiles,
   computeBuildingIssue,
-  tileHash
+  tileHash,
+  homeParcelCenterPx
 } from './helpers.js';
 
 const TILE_PX = 48;
@@ -2128,9 +2129,23 @@ export class MainScene extends Phaser.Scene {
     // same browser don't clobber each other. If nothing saved, center
     // on the player's own parcel — they expect to see their city on
     // load, not the world centroid.
+    // Zoom is a comfort setting and is still restored per-player.
+    // Scroll position deliberately is NOT: Atlas asked (2026-08-19)
+    // that returning players always open on the parcel they *started*
+    // with. Restoring the last scroll dropped them wherever they last
+    // panned, and the old fallback (centre of gridCols/gridRows) drifts
+    // further from home with every parcel claimed — Drew owns 14 chunks
+    // spanning y -3..5, so that midpoint isn't his city at all.
     const restored = this._loadSavedMapView();
-    if (restored) {
-      cam.setZoom(Phaser.Math.Clamp(restored.zoom, 0.1, 3));
+    if (restored) cam.setZoom(Phaser.Math.Clamp(restored.zoom, 0.1, 3));
+
+    const home = homeParcelCenterPx(
+      state.profile, state.gridMinX, state.gridMinY, TILE_PX);
+    if (home) {
+      cam.centerOn(home.x, home.y);
+    } else if (restored) {
+      // No home on the profile — better to honour the saved view than
+      // to fling them at the world centroid.
       cam.scrollX = restored.scrollX;
       cam.scrollY = restored.scrollY;
     } else {

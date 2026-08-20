@@ -797,3 +797,31 @@ export function sizeSvgDataUri(dataUri, scale) {
 export function sizeWalkerSvg(dataUri) {
   return sizeSvgDataUri(dataUri, 4);
 }
+
+// Where the camera should sit when a returning player loads the game:
+// the centre of the parcel they originally started with, NOT the
+// centroid of everything they have since claimed.
+//
+// `player_profiles.home_x/home_y` is already that point — it is written
+// at spawn and never moves as the player expands. Verified against the
+// live DB: for every player home_y === firstChunkY * 15 + 7 and
+// home_x === 7, i.e. dead centre of their first 15x15 chunk. Using it
+// avoids a second query for the earliest `district_chunks` row.
+//
+// Returns world pixels (the space `camera.centerOn` expects), matching
+// the tile→pixel convention used throughout MainScene:
+//   (tileX - gridMinX) * TILE_PX + TILE_PX / 2
+//
+// Returns null when the profile has no usable home — callers should
+// fall back to their previous centring rather than jumping to 0,0.
+export function homeParcelCenterPx(profile, gridMinX, gridMinY, tilePx) {
+  const hx = profile?.home_x;
+  const hy = profile?.home_y;
+  if (!Number.isFinite(hx) || !Number.isFinite(hy)) return null;
+  if (!Number.isFinite(gridMinX) || !Number.isFinite(gridMinY)) return null;
+  if (!Number.isFinite(tilePx) || tilePx <= 0) return null;
+  return {
+    x: (hx - gridMinX) * tilePx + tilePx / 2,
+    y: (hy - gridMinY) * tilePx + tilePx / 2,
+  };
+}
