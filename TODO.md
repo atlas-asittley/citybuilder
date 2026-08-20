@@ -34,6 +34,12 @@ after that, polish, then big design lifts last.
 
 ## Done
 
+- **2026-08-19** — **Map opens on the player's original parcel.** Camera now centres on `player_profiles.home_x/home_y` at load, instead of the last-panned scroll (localStorage) or the `gridCols/gridRows` midpoint. Merged `9d8018b`.
+  - `home_x/home_y` IS "the parcel they started with" — verified on live data that `home_y === firstChunkY * 15 + 7` and `home_x === 7` for all 5 players, i.e. dead centre of the earliest `district_chunks` row. No extra query needed; `state.profile` already carries it.
+  - Why it mattered: the old midpoint drifts as parcels are claimed — 14.5 tiles off for Drew (14 chunks), 26.3 for Jill (11 chunks), but only 0.7 for a 1-chunk player, which is why it went unnoticed early.
+  - Zoom is still restored; scroll is still *written* to localStorage, so reverting to restore-last-position is a one-line change in `_setupCamera`. Falls back to the saved view if a profile has no home. 5 tests in `helpers.test.js::homeParcelCenterPx`; 192/192 vitest green. Changelog `map-opens-on-home-parcel` published.
+
+
 - **2026-08-19** — **Password reset by email (LIVE, verified end-to-end).** `Forgot password?` on the sign-in screen → `resetPasswordForEmail` → recovery link → `Set a New Password` → into the game. Merged `04968fe`, deployed to Pages, verified against the deployed bundle.
   - **The non-obvious bug:** supabase-js has `detectSessionInUrl` on by default, so it trades the recovery fragment for a live session *and wipes the fragment* before `bootApp()` runs. The existing `getSession()` branch would have booted the player straight into the game, skipping the password change — locking them out again next visit. Fixed by snapshotting `location.hash` in `api/supabase.js` **before** `createClient()` (`authLinkIntent`), and checking it first in `bootApp()`. Don't reorder those.
   - Expired/used links arrive as an `error` fragment, not a `recovery` one → explicit "Link Expired" screen with a retry. 8 vitest cases in `src/api/authHash.test.js` cover recovery / expired / error-beats-recovery / signup-fragment-must-not-be-hijacked.
