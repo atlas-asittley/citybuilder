@@ -32,6 +32,8 @@ after that, polish, then big design lifts last.
 
 ---
 
+- [ ] **Password reset — confirm the Supabase redirect allow-list.** Shipped the client flow (`Forgot password?` on the sign-in screen → `resetPasswordForEmail` → recovery link → `Set a New Password`). The one piece that can't be done from code: Supabase Dashboard → Authentication → URL Configuration must list `https://atlas-asittley.github.io/citybuilder/**` under Redirect URLs. If it doesn't, Supabase silently ignores our `redirectTo` and sends players to the project's Site URL instead — which may still point at the v1 game, where no reset screen exists. Verify with one real end-to-end reset before telling players the feature exists.
+
 ## Done
 
 - **2026-05-28** — **Civic Metrics Expansion (all 5 phases, LIVE).** Added new civic dimensions, fixed the dead-resource problem, and began equalizing the four industries. Source of truth: `citybuilder-game/docs/CIVIC_METRICS_EXPANSION.md`. Shipped to `main` (both repos) + 6 migrations applied to the live DB in order (waste → power → brownout → roads → noise_congestion → health_education).
