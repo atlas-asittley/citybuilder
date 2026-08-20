@@ -15,10 +15,10 @@
 import Phaser from 'phaser';
 import { SandboxScene } from './scenes/SandboxScene.js';
 import { MainScene } from './scenes/MainScene.js';
-import { sb } from './api/supabase.js';
+import { sb, authLinkIntent } from './api/supabase.js';
 import { state, setUser, setProfile, setCityName } from './state/store.js';
 import { loadInitialWorld } from './state/loader.js';
-import { mountAuthScreen, unmountAuthScreen } from './ui/AuthScreen.js';
+import { mountAuthScreen, unmountAuthScreen, mountResetPassword } from './ui/AuthScreen.js';
 import { bindSceneToInspector, refreshInspectorIfOpen } from './ui/InspectorPanel.js';
 import { bindSceneToExpansion } from './ui/ExpansionPanel.js';
 import { bindSceneToTileInspector } from './ui/ResourceTileInspector.js';
@@ -168,6 +168,24 @@ function showFatalError(err) {
 }
 
 async function bootApp() {
+  // Password-recovery links must be handled BEFORE the session check.
+  // supabase-js has already exchanged the link's fragment for a live
+  // session by now, so the getSession() branch below would happily boot
+  // the player into the game — skipping the password change they came
+  // here to make, and leaving them locked out on their next visit.
+  // `authLinkIntent` is snapshotted at module load; see api/authHash.js.
+  if (authLinkIntent?.kind === 'recovery') {
+    mountResetPassword(onAuthSuccess);
+    return;
+  }
+  if (authLinkIntent?.kind === 'error') {
+    // Expired/used link. Sign out the half-session Supabase may have
+    // left behind so the retry starts clean.
+    await sb.auth.signOut().catch(() => {});
+    mountResetPassword(onAuthSuccess, authLinkIntent);
+    return;
+  }
+
   // Check for an existing session in localStorage. If logged in,
   // skip the auth screen.
   const { data, error } = await sb.auth.getSession();

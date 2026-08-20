@@ -2,9 +2,18 @@
 // Re-exports `sb` for back-compat with the old config.js path so I
 // don't have to chase every import as the codebase grows.
 import { createClient } from '@supabase/supabase-js';
+import { parseAuthHash } from './authHash.js';
 
 const SUPABASE_URL = 'https://igaulapupbtdcqqjobhs.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yi3BNg-J-K5nralw5JSww_c71Pge6e';
+
+// MUST be read before createClient(): detectSessionInUrl consumes the
+// fragment from a password-recovery link and wipes it from the address
+// bar, so anything downstream would see a normal session and boot
+// straight into the game — never showing the "set a new password" step.
+export const authLinkIntent = typeof window !== 'undefined'
+  ? parseAuthHash(window.location.hash)
+  : null;
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
